@@ -11,8 +11,8 @@ import (
 	"fmt"
 
 	"github.com/teamgram/proto/mtproto"
+	"github.com/teamgram/teamgram-server/pkg/discovery"
 
-	"github.com/zeromicro/go-zero/core/discov"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/zrpc"
 )
@@ -33,14 +33,7 @@ func SerializeToBuffer2(salt, sessionId int64, msg2 *mtproto.TLMessageRawData) [
 }
 
 func (d *Dao) watchGateway(c zrpc.RpcClientConf) {
-	sub, err := discov.NewSubscriber(c.Etcd.Hosts, c.Etcd.Key)
-	if err != nil {
-		logx.Errorf("watchGateway NewSubscriber(%+v) error: %v", c.Etcd, err)
-		return
-	}
-
-	update := func() {
-		values := sub.Values()
+	update := func(values []string) {
 		if len(values) == 0 {
 			return
 		}
@@ -73,8 +66,9 @@ func (d *Dao) watchGateway(c zrpc.RpcClientConf) {
 		d.eGateServers = clients
 	}
 
-	sub.AddListener(update)
-	update()
+	if err := discovery.Watch(c.Etcd, c.Endpoints, update); err != nil {
+		logx.Errorf("watchGateway(%+v) error: %v", c, err)
+	}
 }
 
 func (d *Dao) SendDataToGateway(ctx context.Context, gatewayId string, authKeyId, salt, sessionId int64, msg *mtproto.TLMessageRawData) (bool, error) {

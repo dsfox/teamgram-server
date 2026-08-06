@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/teamgram/marmota/pkg/container2/sets"
+	"github.com/teamgram/teamgram-server/pkg/discovery"
 
 	"github.com/zeromicro/go-zero/core/discov"
 	"github.com/zeromicro/go-zero/core/hash"
@@ -65,12 +66,7 @@ func (sess *RpcShardingManager) RegisterCB(cb func(sharding *RpcShardingManager,
 }
 
 func (sess *RpcShardingManager) Start() {
-	sub, err := discov.NewSubscriber(sess.c.Hosts, sess.c.Key)
-	if err != nil {
-		logx.Must(err)
-	}
-
-	update := func() {
+	update := func(values []string) {
 		sess.mu.Lock()
 
 		var (
@@ -79,7 +75,6 @@ func (sess *RpcShardingManager) Start() {
 			removeList []string
 		)
 
-		values := sub.Values()
 		shardingList := sets.New(values...)
 		for _, v := range values {
 			shardingList.Insert(v)
@@ -112,6 +107,8 @@ func (sess *RpcShardingManager) Start() {
 		}
 	}
 
-	sub.AddListener(update)
-	update()
+	// Без реестра инстанс один: шардирование замыкается на него самого.
+	if err := discovery.Watch(sess.c, []string{sess.pubListenOn}, update); err != nil {
+		logx.Must(err)
+	}
 }

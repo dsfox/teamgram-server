@@ -13,8 +13,8 @@ import (
 
 	"github.com/teamgram/teamgram-server/app/interface/gnetway/internal/config"
 	sessionclient "github.com/teamgram/teamgram-server/app/interface/session/client"
+	"github.com/teamgram/teamgram-server/pkg/discovery"
 
-	"github.com/zeromicro/go-zero/core/discov"
 	"github.com/zeromicro/go-zero/core/hash"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stringx"
@@ -52,12 +52,7 @@ func NewShardingSessionClient(c config.Config) *ShardingSessionClient {
 }
 
 func (sess *ShardingSessionClient) watch(c zrpc.RpcClientConf) {
-	sub, err := discov.NewSubscriber(c.Etcd.Hosts, c.Etcd.Key)
-	if err != nil {
-		logx.Errorf("watchSession NewSubscriber(%+v) error: %v", c.Etcd, err)
-		return
-	}
-	update := func() {
+	update := func(values []string) {
 		var (
 			addClis    []string
 			removeClis []string
@@ -66,7 +61,6 @@ func (sess *ShardingSessionClient) watch(c zrpc.RpcClientConf) {
 		sess.mu.Lock()
 		defer sess.mu.Unlock()
 
-		values := sub.Values()
 		sessions := map[string]sessionclient.SessionClient{}
 		for _, v := range values {
 			if old, ok := sess.sessions[v]; ok {
@@ -107,8 +101,9 @@ func (sess *ShardingSessionClient) watch(c zrpc.RpcClientConf) {
 		sess.sessions = sessions
 	}
 
-	sub.AddListener(update)
-	update()
+	if err := discovery.Watch(c.Etcd, c.Endpoints, update); err != nil {
+		logx.Errorf("watchSession(%+v) error: %v", c, err)
+	}
 }
 
 func (sess *ShardingSessionClient) InvokeByKey(key string, cb func(client sessionclient.SessionClient) (err error)) error {

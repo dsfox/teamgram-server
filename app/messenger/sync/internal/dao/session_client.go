@@ -25,9 +25,9 @@ import (
 	"time"
 
 	sessionclient "github.com/teamgram/teamgram-server/app/interface/session/client"
+	"github.com/teamgram/teamgram-server/pkg/discovery"
 	"github.com/teamgram/teamgram-server/app/interface/session/session"
 
-	"github.com/zeromicro/go-zero/core/discov"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/zrpc"
 	"google.golang.org/grpc/codes"
@@ -198,9 +198,7 @@ func NewSession(c zrpc.RpcClientConf, options SessionOptions) (*Session, error) 
 }
 
 func (d *Dao) watch(c zrpc.RpcClientConf) {
-	sub, _ := discov.NewSubscriber(c.Etcd.Hosts, c.Etcd.Key)
-	update := func() {
-		values := sub.Values()
+	update := func(values []string) {
 		if len(values) == 0 {
 			return
 		}
@@ -252,8 +250,9 @@ func (d *Dao) watch(c zrpc.RpcClientConf) {
 		}
 	}
 
-	sub.AddListener(update)
-	update()
+	if err := discovery.Watch(c.Etcd, c.Endpoints, update); err != nil {
+		logx.Errorf("watch sessions(%+v) error: %v", c, err)
+	}
 }
 
 func (d *Dao) PushUpdatesToSession(ctx context.Context, serverId string, msg *session.TLSessionPushUpdatesData) (err error) {

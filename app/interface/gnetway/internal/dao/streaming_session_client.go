@@ -18,8 +18,8 @@ import (
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/app/interface/gnetway/internal/config"
 	"github.com/teamgram/teamgram-server/app/interface/session/session"
+	"github.com/teamgram/teamgram-server/pkg/discovery"
 
-	"github.com/zeromicro/go-zero/core/discov"
 	"github.com/zeromicro/go-zero/core/hash"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stringx"
@@ -67,13 +67,7 @@ func NewStreamingSessionDispatcher(c config.Config) *StreamingSessionDispatcher 
 }
 
 func (d *StreamingSessionDispatcher) watch(c zrpc.RpcClientConf) {
-	sub, err := discov.NewSubscriber(c.Etcd.Hosts, c.Etcd.Key)
-	if err != nil {
-		logx.Errorf("StreamingSessionDispatcher watch NewSubscriber(%+v) error: %v", c.Etcd, err)
-		return
-	}
-
-	update := func() {
+	update := func(values []string) {
 		var (
 			addNodes    []string
 			removeNodes []string
@@ -82,7 +76,6 @@ func (d *StreamingSessionDispatcher) watch(c zrpc.RpcClientConf) {
 		d.mu.Lock()
 		defer d.mu.Unlock()
 
-		values := sub.Values()
 		newStreams := map[string]*sessionNodeStream{}
 		for _, v := range values {
 			if old, ok := d.streams[v]; ok {
@@ -119,8 +112,9 @@ func (d *StreamingSessionDispatcher) watch(c zrpc.RpcClientConf) {
 		d.streams = newStreams
 	}
 
-	sub.AddListener(update)
-	update()
+	if err := discovery.Watch(c.Etcd, c.Endpoints, update); err != nil {
+		logx.Errorf("StreamingSessionDispatcher watch(%+v) error: %v", c, err)
+	}
 }
 
 func (d *StreamingSessionDispatcher) createNodeStream(addr string) (*sessionNodeStream, error) {
