@@ -42,10 +42,12 @@ type BucketConfig struct {
 }
 
 type MinioConfig struct {
-	Endpoint        string
-	AccessKeyID     string
-	SecretAccessKey string
-	UseSSL          bool
+	// Endpoint пуст — файлы лежат на диске в каталоге Dir, объектное хранилище не нужно
+	Endpoint        string `json:",optional"`
+	AccessKeyID     string `json:",optional"`
+	SecretAccessKey string `json:",optional"`
+	UseSSL          bool   `json:",optional"`
+	Dir             string `json:",optional"`
 
 	Bucket BucketConfig
 }
@@ -53,9 +55,20 @@ type MinioConfig struct {
 type MinioUtil struct {
 	c     *MinioConfig
 	minio *minio.Core
+	local *localStore
 }
 
 func MustNewMinioClient(c *MinioConfig) *MinioUtil {
+	// Без адреса объектного хранилища работаем с файлами на диске.
+	if c.Endpoint == "" {
+		dir := c.Dir
+		if dir == "" {
+			dir = "../data/files"
+		}
+		logx.Infof("файлы хранятся локально: %s", dir)
+		return &MinioUtil{c: c, local: newLocalStore(dir)}
+	}
+
 	core, err := minio.NewCore(
 		c.Endpoint,
 		&minio.Options{
@@ -86,68 +99,17 @@ func s3PutOptions(encrypted bool, contentType string) minio.PutObjectOptions {
 	return options
 }
 
-func (m *MinioUtil) GetFileObject(ctx context.Context, bucket, path string) (*minio.Object, error) {
-	object, err := m.minio.Client.GetObject(ctx, bucket, path, minio.GetObjectOptions{})
-	if err != nil {
-		logx.WithContext(ctx).Errorf("GetFileObject error: %v")
-		return nil, err
-	}
-
-	return object, nil
-}
-
 func (m *MinioUtil) GetPhotoFileData(ctx context.Context, path string) ([]byte, error) {
-	object, err := m.minio.Client.GetObject(ctx, m.c.Bucket.Photos, path, minio.GetObjectOptions{})
+	data, err := m.readAll(ctx, m.c.Bucket.Photos, path)
 	if err != nil {
-		logx.WithContext(ctx).Errorf("GetFileObject error: %v")
-		return nil, err
+		logx.WithContext(ctx).Errorf("GetPhotoFileData (%s) error: %v", path, err)
 	}
-	defer func() {
-		_ = object.Close()
-	}()
-
-	stat, err := object.Stat()
-	if err != nil {
-		logx.WithContext(ctx).Errorf("GetFileObject error: %v")
-		return nil, err
-	}
-
-	data := make([]byte, stat.Size)
-	n, err := object.Read(data)
-	_ = err
-	data = data[:n]
-	if n > 0 {
-		err = nil
-	} else {
-		logx.WithContext(ctx).Errorf("GetFile (%s) error: %v", path, err)
-		return nil, err
-	}
-
-	return data, nil
+	return data, err
 }
 
 func (m *MinioUtil) GetFile(ctx context.Context, bucket, path string, offset int64, limit int32) (bytes []byte, err error) {
-	var (
-		object *minio.Object
-		n      int
-	)
-
-	object, err = m.minio.Client.GetObject(ctx, bucket, path, minio.GetObjectOptions{})
+	bytes, err = m.readRange(ctx, bucket, path, offset, limit)
 	if err != nil {
-		logx.WithContext(ctx).Errorf("GetFile error: %v")
-		return
-	}
-	defer object.Close()
-
-	bytes = make([]byte, limit)
-	n, err = object.ReadAt(bytes, offset)
-	//if err != nil {
-	//	// return
-	//}
-	bytes = bytes[:n]
-	if n > 0 {
-		err = nil
-	} else {
 		logx.WithContext(ctx).Errorf("GetFile (%s) error: %v", path, err)
 	}
 	return
@@ -168,8 +130,7 @@ func (m *MinioUtil) PutPhotoFile(ctx context.Context, path string, buf []byte) (
 		contentType = "binary/octet-stream"
 	}
 
-	options := s3PutOptions(false, contentType)
-	n, err = m.minio.Client.PutObject(ctx, m.c.Bucket.Photos, path, bytes.NewReader(buf), int64(len(buf)), options)
+	n, err = m.write(ctx, m.c.Bucket.Photos, path, bytes.NewReader(buf), int64(len(buf)), contentType)
 	if err != nil {
 		logx.WithContext(ctx).Errorf("PutPhotoFile (%s) error: %v", path, err)
 	}
@@ -187,8 +148,7 @@ func (m *MinioUtil) PutPhotoFileV2(ctx context.Context, path string, r io.Reader
 		contentType = "binary/octet-stream"
 	}
 
-	options := s3PutOptions(false, contentType)
-	n, err = m.minio.Client.PutObject(ctx, m.c.Bucket.Photos, path, r, -1, options)
+	n, err = m.write(ctx, m.c.Bucket.Photos, path, r, -1, contentType)
 	if err != nil {
 		logx.Errorf("PutPhotoFile (%s) error: %v", path, err)
 	}
@@ -210,8 +170,7 @@ func (m *MinioUtil) PutVideoFile(ctx context.Context, path string, buf []byte) (
 		contentType = "binary/octet-stream"
 	}
 
-	options := s3PutOptions(false, contentType)
-	n, err = m.minio.Client.PutObject(ctx, m.c.Bucket.Videos, path, bytes.NewReader(buf), int64(len(buf)), options)
+	n, err = m.write(ctx, m.c.Bucket.Videos, path, bytes.NewReader(buf), int64(len(buf)), contentType)
 	if err != nil {
 		logx.WithContext(ctx).Errorf("PutVideoFile (%s) error: %v", path, err)
 	}
@@ -230,8 +189,7 @@ func (m *MinioUtil) PutVideoFileV2(ctx context.Context, path string, r io.Reader
 		contentType = "binary/octet-stream"
 	}
 
-	options := s3PutOptions(false, contentType)
-	n, err = m.minio.Client.PutObject(ctx, m.c.Bucket.Videos, path, r, -1, options)
+	n, err = m.write(ctx, m.c.Bucket.Videos, path, r, -1, contentType)
 	if err != nil {
 		logx.Errorf("PutVideoFileV2 (%s) error: %v", path, err)
 	}
@@ -253,8 +211,7 @@ func (m *MinioUtil) PutDocumentFile(ctx context.Context, path string, r io.Reade
 		contentType = "binary/octet-stream"
 	}
 
-	options := s3PutOptions(false, contentType)
-	n, err = m.minio.Client.PutObject(ctx, m.c.Bucket.Documents, path, r, -1, options)
+	n, err = m.write(ctx, m.c.Bucket.Documents, path, r, -1, contentType)
 	if err != nil {
 		logx.WithContext(ctx).Errorf("PutDocumentFile (%s) error: %v", path, err)
 	}
@@ -273,8 +230,7 @@ func (m *MinioUtil) FPutDocumentFile(ctx context.Context, path string, r string)
 		contentType = "binary/octet-stream"
 	}
 
-	options := s3PutOptions(false, contentType)
-	n, err = m.minio.Client.FPutObject(ctx, m.c.Bucket.Documents, path, r, options)
+	n, err = m.writeFile(ctx, m.c.Bucket.Documents, path, r, contentType)
 	if err != nil {
 		logx.WithContext(ctx).Errorf("PutDocumentFile (%s) error: %v", path, err)
 	}
@@ -287,8 +243,7 @@ func (m *MinioUtil) GetEncryptedFile(ctx context.Context, path string, offset in
 }
 
 func (m *MinioUtil) PutEncryptedFile(ctx context.Context, path string, r io.Reader) (n minio.UploadInfo, err error) {
-	options := s3PutOptions(false, "binary/octet-stream")
-	n, err = m.minio.Client.PutObject(ctx, m.c.Bucket.EncryptedFiles, path, r, -1, options)
+	n, err = m.write(ctx, m.c.Bucket.EncryptedFiles, path, r, -1, "binary/octet-stream")
 	if err != nil {
 		logx.WithContext(ctx).Errorf("PutEncryptedFile (%s) error: %v", path, err)
 	}
