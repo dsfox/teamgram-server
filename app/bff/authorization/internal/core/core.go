@@ -90,12 +90,32 @@ func checkPhoneNumberInvalid(phone string) (string, string, error) {
 	// We need getRegionCode from phone_number
 	pNumber, err := phonenumber.MakePhoneNumberHelper(phone, "")
 	if err != nil {
-		// log.Errorf("check phone_number error - %v", err)
-		// err = mtproto.ErrPhoneNumberInvalid
+		// Строгая проверка отвергает номера, которых нет в плане нумерации страны.
+		// Для сервера, который никому не звонит и не шлёт SMS, это лишнее препятствие:
+		// на тестовом стенде номера всё равно произвольные. Поэтому принимаем любой
+		// номер в международном формате, а разбор страны оставляем необязательным.
+		if digits, ok := plausiblePhoneNumber(phone); ok {
+			return "", digits, nil
+		}
 		return "", "", mtproto.ErrPhoneNumberInvalid
 	}
 
 	return pNumber.GetRegionCode(), pNumber.GetNormalizeDigits(), nil
+}
+
+// plausiblePhoneNumber принимает номер, похожий на международный: плюс и 8–15 цифр
+// (E.164 допускает до 15). Возвращает номер без плюса — в таком виде он хранится.
+func plausiblePhoneNumber(phone string) (string, bool) {
+	digits := strings.TrimPrefix(phone, "+")
+	if len(digits) < 8 || len(digits) > 15 {
+		return "", false
+	}
+	for _, r := range digits {
+		if r < '0' || r > '9' {
+			return "", false
+		}
+	}
+	return digits, true
 }
 
 const (
