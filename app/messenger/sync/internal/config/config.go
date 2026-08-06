@@ -20,6 +20,7 @@ package config
 
 import (
 	kafka "github.com/teamgram/marmota/pkg/mq"
+	"github.com/teamgram/teamgram-server/pkg/queue"
 	"github.com/zeromicro/go-zero/core/stores/cache"
 	"github.com/zeromicro/go-zero/core/stores/kv"
 	"github.com/zeromicro/go-zero/zrpc"
@@ -39,11 +40,11 @@ type Config struct {
 	Cache            cache.CacheConf
 	KV               kv.KvConf
 	Routine          Routine
-	SyncConsumer     kafka.KafkaConsumerConf
+	SyncConsumer     kafka.KafkaConsumerConf `json:\",optional\"` // очередь необязательна: работа принимается и по gRPC
 	SessionClient    zrpc.RpcClientConf
 	IdgenClient      zrpc.RpcClientConf
 	StatusClient     zrpc.RpcClientConf
 	ChatClient       zrpc.RpcClientConf
-	PushClient       *kafka.KafkaProducerConf `json:",optional"`
+	PushClient       *queue.Conf `json:",optional"`
 	UseStreamSession bool                     `json:",default=false"`
 }

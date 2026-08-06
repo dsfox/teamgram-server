@@ -19,7 +19,7 @@
 package config
 
 import (
-	kafka "github.com/teamgram/marmota/pkg/mq"
+	"github.com/teamgram/teamgram-server/pkg/queue"
 	"github.com/teamgram/teamgram-server/pkg/code/conf"
 	"github.com/zeromicro/go-zero/core/stores/kv"
 	"github.com/zeromicro/go-zero/zrpc"
@@ -34,7 +34,7 @@ type Config struct {
 	ChatClient                zrpc.RpcClientConf
 	StatusClient              zrpc.RpcClientConf
 	MsgClient                 zrpc.RpcClientConf
-	SyncClient                *kafka.KafkaProducerConf
+	SyncClient                *queue.Conf
 	SignInServiceNotification []conf.MessageEntityConfig `json:",optional"`
 	SignInMessage             []conf.MessageEntityConfig `json:",optional"`
 }

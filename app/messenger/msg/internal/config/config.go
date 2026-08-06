@@ -20,6 +20,7 @@ package config
 
 import (
 	kafka "github.com/teamgram/marmota/pkg/mq"
+	"github.com/teamgram/teamgram-server/pkg/queue"
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/zeromicro/go-zero/core/stores/cache"
 	"github.com/zeromicro/go-zero/core/stores/kv"
@@ -29,15 +30,15 @@ import (
 
 type Config struct {
 	zrpc.RpcServerConf
-	InboxConsumer    kafka.KafkaConsumerConf
+	InboxConsumer    kafka.KafkaConsumerConf `json:\",optional\"` // очередь необязательна: работа принимается и по gRPC
 	Mysql            sqlx.Config
 	Cache            cache.CacheConf
 	KV               kv.KvConf
 	IdgenClient      zrpc.RpcClientConf
 	BizServiceClient zrpc.RpcClientConf
-	InboxClient      *kafka.KafkaProducerConf
-	SyncClient       *kafka.KafkaProducerConf
-	BotSyncClient    *kafka.KafkaProducerConf `json:",optional"`
+	InboxClient      *queue.Conf
+	SyncClient       *queue.Conf
+	BotSyncClient    *queue.Conf `json:",optional"`
 	MessageSharding  int                      `json:",default=1"`
 	Redis2           redis.RedisConf
 }

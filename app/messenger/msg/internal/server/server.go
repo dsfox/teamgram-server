@@ -71,30 +71,49 @@ func (s *Server) Initialize() error {
 					MessageSharding: c.MessageSharding,
 					Redis2:          c.Redis2,
 				}, nil))
+
+		inboxConf := inbox_helper.Config{
+			RpcServerConf:   c.RpcServerConf,
+			InboxConsumer:   c.InboxConsumer,
+			Mysql:           c.Mysql,
+			Cache:           c.Cache,
+			KV:              c.KV,
+			IdgenClient:     c.IdgenClient,
+			UserClient:      c.BizServiceClient,
+			ChatClient:      c.BizServiceClient,
+			SyncClient:      c.SyncClient,
+			BotSyncClient:   c.BotSyncClient,
+			DialogClient:    c.BizServiceClient,
+			MessageSharding: c.MessageSharding,
+		}
+		inbox_helper.RegisterServer(grpcServer, inboxConf)
 	})
 
 	go func() {
 		s.grpcSrv.Start()
 	}()
 
-	s.mq = inbox_helper.New(inbox_helper.Config{
-		RpcServerConf:   c.RpcServerConf,
-		InboxConsumer:   c.InboxConsumer,
-		Mysql:           c.Mysql,
-		Cache:           c.Cache,
-		KV:              c.KV,
-		IdgenClient:     c.IdgenClient,
-		UserClient:      c.BizServiceClient,
-		ChatClient:      c.BizServiceClient,
-		SyncClient:      c.SyncClient,
-		BotSyncClient:   c.BotSyncClient,
-		DialogClient:    c.BizServiceClient,
-		MessageSharding: c.MessageSharding,
-	})
+	// Очередь поднимаем, только если она настроена: приём inbox уже висит на gRPC.
+	if len(c.InboxConsumer.Brokers) > 0 {
+		s.mq = inbox_helper.New(inbox_helper.Config{
+			RpcServerConf:   c.RpcServerConf,
+			InboxConsumer:   c.InboxConsumer,
+			Mysql:           c.Mysql,
+			Cache:           c.Cache,
+			KV:              c.KV,
+			IdgenClient:     c.IdgenClient,
+			UserClient:      c.BizServiceClient,
+			ChatClient:      c.BizServiceClient,
+			SyncClient:      c.SyncClient,
+			BotSyncClient:   c.BotSyncClient,
+			DialogClient:    c.BizServiceClient,
+			MessageSharding: c.MessageSharding,
+		})
 
-	go func() {
-		s.mq.Start()
-	}()
+		go func() {
+			s.mq.Start()
+		}()
+	}
 
 	return nil
 }

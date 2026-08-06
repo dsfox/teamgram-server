@@ -20,6 +20,7 @@ package grpc
 
 import (
 	"github.com/teamgram/teamgram-server/app/messenger/sync/internal/server/grpc/service"
+	"github.com/teamgram/teamgram-server/app/messenger/sync/sync"
 	"github.com/teamgram/teamgram-server/app/messenger/sync/internal/svc"
 
 	"github.com/zeromicro/go-zero/core/logx"
@@ -30,8 +31,7 @@ import (
 // New new a grpc server.
 func New(ctx *svc.ServiceContext, c zrpc.RpcServerConf) *zrpc.RpcServer {
 	s, err := zrpc.NewServer(c, func(grpcServer *grpc.Server) {
-		// TODO: pb.RegisterXXXXXXServer(grpcServer, service.New(ctx))
-		_ = service.New(ctx)
+		sync.RegisterRPCSyncServer(grpcServer, service.New(ctx))
 	})
 	logx.Must(err)
 	return s

@@ -19,7 +19,7 @@
 package config
 
 import (
-	kafka "github.com/teamgram/marmota/pkg/mq"
+	"github.com/teamgram/teamgram-server/pkg/queue"
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
 
 	"github.com/zeromicro/go-zero/core/stores/cache"
@@ -35,9 +35,9 @@ type Config struct {
 	KV              kv.KvConf
 	IdgenClient     zrpc.RpcClientConf
 	UserClient      zrpc.RpcClientConf
-	InboxClient     *kafka.KafkaProducerConf
+	InboxClient     *queue.Conf
 	ChatClient      zrpc.RpcClientConf
-	SyncClient      *kafka.KafkaProducerConf
+	SyncClient      *queue.Conf
 	ChannelClient   zrpc.RpcClientConf
 	DialogClient    zrpc.RpcClientConf
 	MessageSharding int `json:",default=1"`

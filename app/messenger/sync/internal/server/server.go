@@ -14,18 +14,20 @@ import (
 
 	kafka "github.com/teamgram/marmota/pkg/mq"
 	"github.com/teamgram/teamgram-server/app/messenger/sync/internal/config"
+	"github.com/teamgram/teamgram-server/app/messenger/sync/internal/server/grpc"
 	"github.com/teamgram/teamgram-server/app/messenger/sync/internal/server/mq"
 	"github.com/teamgram/teamgram-server/app/messenger/sync/internal/svc"
 
 	"github.com/zeromicro/go-zero/core/conf"
 	"github.com/zeromicro/go-zero/core/logx"
+	"github.com/zeromicro/go-zero/zrpc"
 )
 
 var configFile = flag.String("f", "etc/sync.yaml", "the config file")
 
 type Server struct {
-	// grpcSrv *zrpc.RpcServer
-	mq *kafka.ConsumerGroup
+	grpcSrv *zrpc.RpcServer
+	mq      *kafka.ConsumerGroup
 }
 
 func New() *Server {
@@ -42,11 +44,16 @@ func (s *Server) Initialize() error {
 	}
 
 	ctx := svc.NewServiceContext(c)
-	// s.grpcSrv = grpc.New(ctx, c.RpcServerConf)
-	s.mq = mq.New(ctx, c.SyncConsumer)
 
-	// go s.grpcSrv.Start()
-	go s.mq.Start()
+	// Приём работы напрямую по gRPC — так очередь перестаёт быть обязательной.
+	s.grpcSrv = grpc.New(ctx, c.RpcServerConf)
+	go s.grpcSrv.Start()
+
+	// Очередь поднимаем, только если она настроена.
+	if len(c.SyncConsumer.Brokers) > 0 {
+		s.mq = mq.New(ctx, c.SyncConsumer)
+		go s.mq.Start()
+	}
 
 	return nil
 }
@@ -55,6 +62,8 @@ func (s *Server) RunLoop() {
 }
 
 func (s *Server) Destroy() {
-	// s.grpcSrv.Stop()
-	s.mq.Stop()
+	s.grpcSrv.Stop()
+	if s.mq != nil {
+		s.mq.Stop()
+	}
 }
