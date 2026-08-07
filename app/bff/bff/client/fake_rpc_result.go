@@ -295,23 +295,36 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 	// answer — the client retries the failed call in a loop and never finishes
 	// its initial load, showing an endless "Updating". An empty answer it accepts
 	// calmly.
+	// An empty list, not "not modified": the client asks with hash 0 because it
+	// holds nothing, and answering "unchanged" contradicts that. It then asks
+	// again, and again - 431 repeats of a single method were measured on a live
+	// phone, which is what made sending a photo take a minute.
 	case "TLMessagesGetTopReactions",
 		"TLMessagesGetRecentReactions",
 		"TLMessagesGetDefaultTagReactions",
 		"TLMessagesGetSavedReactionTags":
-		return mtproto.MakeTLMessagesReactionsNotModified(nil).To_Messages_Reactions(), nil
+		return mtproto.MakeTLMessagesReactions(&mtproto.Messages_Reactions{
+			Hash:      0,
+			Reactions: []*mtproto.Reaction{},
+		}).To_Messages_Reactions(), nil
 
 	case "TLAccountGetDefaultEmojiStatuses",
 		"TLAccountGetRecentEmojiStatuses",
 		"TLAccountGetChannelDefaultEmojiStatuses",
 		"TLAccountGetCollectibleEmojiStatuses":
-		return mtproto.MakeTLAccountEmojiStatusesNotModified(nil).To_Account_EmojiStatuses(), nil
+		return mtproto.MakeTLAccountEmojiStatuses(&mtproto.Account_EmojiStatuses{
+			Hash:     0,
+			Statuses: []*mtproto.EmojiStatus{},
+		}).To_Account_EmojiStatuses(), nil
 
 	case "TLAccountGetDefaultProfilePhotoEmojis",
 		"TLAccountGetDefaultGroupPhotoEmojis",
 		"TLAccountGetDefaultBackgroundEmojis",
 		"TLAccountGetChannelRestrictedStatusEmojis":
-		return mtproto.MakeTLEmojiListNotModified(nil).To_EmojiList(), nil
+		return mtproto.MakeTLEmojiList(&mtproto.EmojiList{
+			Hash:       0,
+			DocumentId: []int64{},
+		}).To_EmojiList(), nil
 
 	case "TLAccountGetReactionsNotifySettings":
 		return mtproto.MakeTLReactionsNotifySettings(&mtproto.ReactionsNotifySettings{
@@ -411,6 +424,12 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 			Chats: []*mtproto.Chat{},
 			Users: []*mtproto.User{},
 		}).To_Payments_SavedStarGifts(), nil
+
+	// help.test is what the client sends to mark the end of an update poll. The
+	// answer only has to arrive; an error here does not block the poll, but it
+	// has no business being an error either.
+	case "TLHelpTest":
+		return mtproto.BoolTrue, nil
 
 	case "TLHelpGetPremiumPromo":
 		return mtproto.MakeTLHelpPremiumPromo(&mtproto.Help_PremiumPromo{

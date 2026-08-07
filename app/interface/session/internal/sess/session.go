@@ -273,11 +273,28 @@ func (c *session) onSessionMessageData(ctx context.Context, gatewayId, clientIp 
 		}
 	}
 
-	if c.sessionState == kSessionStateNew || c.firstMsgId == 0 || minMsgId < c.firstMsgId {
+	// new_session_created is announced only for a session we have genuinely not
+	// seen before.
+	//
+	// Upstream also announced it whenever a message arrived with an id lower than
+	// the first one seen. That guards against replayed messages on a single
+	// ordered stream, but the client opens several connections at once and their
+	// arrival order is not guaranteed: a message sent slightly earlier can land
+	// after a later one, over a different socket. The server then declared a new
+	// session on a perfectly healthy one, and the client answered the only way it
+	// can - by resending every unacknowledged request. On a phone that showed as
+	// "Updating" for tens of seconds and a photo taking a minute to send.
+	//
+	// Replay protection does not rest on this: duplicate message ids are rejected
+	// by the inbox queue.
+	if c.sessionState == kSessionStateNew || c.firstMsgId == 0 {
 		logx.WithContext(ctx).Infof("onNewSessionCreated - %#v, c: %s", msgs, c)
 		c.onNewSessionCreated(ctx, gatewayId, minMsgId)
 		c.firstMsgId = minMsgId
 		c.sessionState = kSessionStateCreated
+	} else if minMsgId < c.firstMsgId {
+		// Keep the earliest id we know about, without disturbing the client.
+		c.firstMsgId = minMsgId
 	}
 
 	defer func() {
