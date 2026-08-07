@@ -80,7 +80,7 @@ SyncClient:
 # Единственное обращение bff к базе — токены устройств для уведомлений
 # (account.registerDevice). Подробности: server/pkg/pushnotify.
 Mysql:
-  DSN: teamgram:teamgram@tcp(mysql:3306)/teamgram?charset=utf8mb4&parseTime=true
+  DSN: teamgram:${MYSQL_PASSWORD}@tcp(mysql:3306)/teamgram?charset=utf8mb4&parseTime=true
   Active: 8
   Idle: 8
   IdleTimeout: 4h

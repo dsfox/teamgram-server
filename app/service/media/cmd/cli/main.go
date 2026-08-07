@@ -32,7 +32,7 @@ func main() {
 	var (
 		c Config
 	)
-	conf.MustLoad(*configFile, &c)
+	conf.MustLoad(*configFile, &c, conf.UseEnv())
 	logx.Info(c)
 
 	cli := media_client.NewMediaClient(zrpc.MustNewClient(c.MediaClient))

@@ -32,7 +32,7 @@ func main() {
 	flag.Parse()
 
 	var c config.Config
-	conf.MustLoad(*configFile, &c)
+	conf.MustLoad(*configFile, &c, conf.UseEnv())
 
 	pubListenOn := ip.FigureOutListenOn(c.ListenOn)
 	sharding := dao.NewRpcShardingManager(pubListenOn, c.Etcd)
