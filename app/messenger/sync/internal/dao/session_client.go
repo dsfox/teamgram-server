@@ -147,12 +147,26 @@ func (c *Session) Close() (err error) {
 	return
 }
 
+// detach keeps the values of a request context (tracing, metadata) but drops its
+// cancellation.
+//
+// The push below is handled by another goroutine, long after the request that
+// produced it has answered and cancelled its context. With the original context
+// the delivery died with "context canceled" before it even started: measured 30
+// failures out of 35 on a live server. The update then never reached the phone
+// over its connection and the person saw the message only after the client asked
+// for it again — a notification arrived instantly while the message itself took
+// tens of seconds.
+func detach(ctx context.Context) context.Context {
+	return context.WithoutCancel(ctx)
+}
+
 func (c *Session) PushUpdates(ctx context.Context, msg *session.TLSessionPushUpdatesData) (err error) {
 	if c.unavailable.Load() {
 		return fmt.Errorf("session(%s) unavailable", c.serverId)
 	}
 	idx := atomic.AddUint64(&c.sessionChanNum, 1) % c.options.RoutineSize
-	c.sessionChan[idx] <- sessionDataCtx{ctx: ctx, updates: msg}
+	c.sessionChan[idx] <- sessionDataCtx{ctx: detach(ctx), updates: msg}
 	return
 }
 
@@ -161,7 +175,7 @@ func (c *Session) PushSessionUpdates(ctx context.Context, msg *session.TLSession
 		return fmt.Errorf("session(%s) unavailable", c.serverId)
 	}
 	idx := atomic.AddUint64(&c.sessionChanNum, 1) % c.options.RoutineSize
-	c.sessionChan[idx] <- sessionDataCtx{ctx: ctx, updates: msg}
+	c.sessionChan[idx] <- sessionDataCtx{ctx: detach(ctx), updates: msg}
 	return
 }
 
@@ -170,7 +184,7 @@ func (c *Session) PushRpcResult(ctx context.Context, msg *session.TLSessionPushR
 		return fmt.Errorf("session(%s) unavailable", c.serverId)
 	}
 	idx := atomic.AddUint64(&c.sessionChanNum, 1) % c.options.RoutineSize
-	c.sessionChan[idx] <- sessionDataCtx{ctx: ctx, updates: msg}
+	c.sessionChan[idx] <- sessionDataCtx{ctx: detach(ctx), updates: msg}
 	return
 }
 
