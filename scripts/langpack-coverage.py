@@ -19,7 +19,13 @@ CLIENT_STRINGS = ROOT.parent / "clients/ios/Telegram/Telegram-iOS/en.lproj/Local
 LANGPACK_DIR = ROOT / "teamgramd" / "langpack"
 
 LINE = re.compile(r'^"([^"]+)"\s*=\s*"((?:[^"\\]|\\.)*)";\s*$')
-PLURAL_SUFFIX = ("_zero", "_one", "_two", "_few", "_many", "_other", "_any")
+
+# Клиент хранит формы множественного числа с суффиксами _0/_1/_2/_3_10/_many/_any
+# (см. getPluralizationSuffix в build-system/GenerateStrings), а в языковом пакете
+# они лежат под именами CLDR. Без этого соответствия переведённые ключи выглядят
+# непереведёнными и объём работы кажется больше, чем он есть.
+PLURAL_SUFFIX = ("_0", "_1", "_2", "_3_10", "_many", "_any",
+                 "_zero", "_one", "_two", "_few", "_other")
 
 
 def client_keys() -> dict:
