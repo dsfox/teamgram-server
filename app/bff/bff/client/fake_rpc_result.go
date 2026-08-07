@@ -337,6 +337,90 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 
 	case "TLStoriesGetAllStories":
 		return mtproto.MakeTLStoriesAllStoriesNotModified(nil).To_Stories_AllStories(), nil
+
+	// Stories, ringtones, attachment bots, sticker sets, gift options: features we
+	// do not have. Same reasoning as above — an error makes the client back off
+	// and retry, blocking its service queue, and a file download can then wait
+	// minutes behind it.
+	case "TLStoriesGetPeerStories":
+		return mtproto.MakeTLStoriesPeerStories(&mtproto.Stories_PeerStories{
+			Stories: mtproto.MakeTLPeerStories(&mtproto.PeerStories{
+				Peer:    mtproto.MakePeerUser(0),
+				Stories: []*mtproto.StoryItem{},
+			}).To_PeerStories(),
+			Chats: []*mtproto.Chat{},
+			Users: []*mtproto.User{},
+		}).To_Stories_PeerStories(), nil
+
+	case "TLStoriesGetPinnedStories":
+		return mtproto.MakeTLStoriesStories(&mtproto.Stories_Stories{
+			Count:   0,
+			Stories: []*mtproto.StoryItem{},
+			Chats:   []*mtproto.Chat{},
+			Users:   []*mtproto.User{},
+		}).To_Stories_Stories(), nil
+
+	case "TLAccountGetSavedRingtones":
+		return mtproto.MakeTLAccountSavedRingtonesNotModified(nil).To_Account_SavedRingtones(), nil
+
+	case "TLAccountGetConnectedBots":
+		return mtproto.MakeTLAccountConnectedBots(&mtproto.Account_ConnectedBots{
+			ConnectedBots: []*mtproto.ConnectedBot{},
+			Users:         []*mtproto.User{},
+		}).To_Account_ConnectedBots(), nil
+
+	case "TLHelpGetPeerColors", "TLHelpGetPeerProfileColors":
+		return mtproto.MakeTLHelpPeerColorsNotModified(nil).To_Help_PeerColors(), nil
+
+	case "TLMessagesGetAttachMenuBots":
+		return mtproto.MakeTLAttachMenuBotsNotModified(nil).To_AttachMenuBots(), nil
+
+	case "TLMessagesGetAvailableEffects":
+		return mtproto.MakeTLMessagesAvailableEffectsNotModified(nil).To_Messages_AvailableEffects(), nil
+
+	case "TLMessagesGetEmojiGroups",
+		"TLMessagesGetEmojiProfilePhotoGroups",
+		"TLMessagesGetEmojiStatusGroups",
+		"TLMessagesGetEmojiStickerGroups":
+		return mtproto.MakeTLMessagesEmojiGroupsNotModified(nil).To_Messages_EmojiGroups(), nil
+
+	case "TLMessagesGetSuggestedDialogFilters":
+		return &mtproto.Vector_DialogFilterSuggested{
+			Datas: []*mtproto.DialogFilterSuggested{},
+		}, nil
+
+	case "TLPaymentsGetPremiumGiftCodeOptions":
+		return &mtproto.Vector_PremiumGiftCodeOption{
+			Datas: []*mtproto.PremiumGiftCodeOption{},
+		}, nil
+
+	case "TLPaymentsGetStarGifts":
+		return mtproto.MakeTLPaymentsStarGiftsNotModified(nil).To_Payments_StarGifts(), nil
+
+	case "TLPaymentsGetSavedStarGifts":
+		return mtproto.MakeTLPaymentsSavedStarGifts(&mtproto.Payments_SavedStarGifts{
+			Count: 0,
+			Gifts: []*mtproto.SavedStarGift{},
+			Chats: []*mtproto.Chat{},
+			Users: []*mtproto.User{},
+		}).To_Payments_SavedStarGifts(), nil
+
+	case "TLMessagesGetScheduledHistory":
+		return mtproto.MakeTLMessagesMessagesNotModified(nil).To_Messages_Messages(), nil
+
+	case "TLMessagesGetStickerSet":
+		return mtproto.MakeTLMessagesStickerSetNotModified(nil).To_Messages_StickerSet(), nil
+
+	case "TLStoriesGetAlbums":
+		return mtproto.MakeTLStoriesAlbumsNotModified(nil).To_Stories_Albums(), nil
+
+	case "TLStoriesGetAllReadPeerStories":
+		return mtproto.MakeTLUpdates(&mtproto.Updates{
+			Updates: []*mtproto.Update{},
+			Users:   []*mtproto.User{},
+			Chats:   []*mtproto.Chat{},
+			Date:    int32(time.Now().Unix()),
+		}).To_Updates(), nil
 	}
 
 	logx.WithContext(ctx).Errorf("%s blocked, License key from https://teamgram.net required to unlock enterprise features.", rt.Name())
