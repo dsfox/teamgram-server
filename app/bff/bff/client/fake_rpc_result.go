@@ -336,7 +336,14 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 		return mtproto.MakeTLPaymentsStarGiftActiveAuctionsNotModified(nil).To_Payments_StarGiftActiveAuctions(), nil
 
 	case "TLStoriesGetAllStories":
-		return mtproto.MakeTLStoriesAllStoriesNotModified(nil).To_Stories_AllStories(), nil
+		// stealth_mode is not optional in the wire format: encoding a nil one
+		// panics, the answer never leaves the server and the client waits for it
+		// forever. That is exactly how an empty stub turned into an endless
+		// "Updating" on a cold start.
+		return mtproto.MakeTLStoriesAllStoriesNotModified(&mtproto.Stories_AllStories{
+			State:       "",
+			StealthMode: mtproto.MakeTLStoriesStealthMode(nil).To_StoriesStealthMode(),
+		}).To_Stories_AllStories(), nil
 
 	// Stories, ringtones, attachment bots, sticker sets, gift options: features we
 	// do not have. Same reasoning as above — an error makes the client back off
