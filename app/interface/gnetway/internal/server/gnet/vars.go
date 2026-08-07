@@ -39,3 +39,14 @@ const (
 	RES_STATE_OK    = 0x01
 	RES_STATE_ERROR = 0x02
 )
+
+const (
+	// How long a connection may stay silent before the reaper closes it.
+	// The client goes quiet for minutes at a time while its pings are paused,
+	// yet still holds the socket and expects to write to it, so the budget has
+	// to sit well above that rather than just above the ping interval.
+	kIdleTimeout = 900
+	// A connection that has never sent a byte is a probe or a scan.
+	kSilentConnTimeout = 30
+	kHttpIdleTimeout   = 60
+)

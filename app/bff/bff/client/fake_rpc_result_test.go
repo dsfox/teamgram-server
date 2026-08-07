@@ -2,6 +2,9 @@ package bff_proxy_client
 
 import (
 	"context"
+	"os"
+	"reflect"
+	"regexp"
 	"testing"
 
 	"github.com/teamgram/proto/mtproto"
@@ -20,8 +23,40 @@ import (
 // trace is a stack deep in the log. Hence this test: it encodes what every stub
 // returns, exactly as the session code does.
 func TestStubAnswersEncode(t *testing.T) {
-	// Everything the client asks for at startup and gets a stub answer to.
-	requests := []mtproto.TLObject{
+	// The switch never touches the receiver for these methods.
+	var proxy *BFFProxyClient
+
+	for _, request := range stubRequests() {
+		name := typeName(request)
+		t.Run(name, func(t *testing.T) {
+			answer, err := proxy.TryReturnFakeRpcResult(context.Background(), request)
+			if err != nil {
+				t.Fatalf("no stub answer, the client would get an error and retry in a loop: %v", err)
+			}
+			if answer == nil {
+				t.Fatal("stub answers with nothing")
+			}
+
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("encoding panics, so the answer never reaches the client: %v", r)
+				}
+			}()
+
+			x := mtproto.GetEncodeBuf()
+			defer mtproto.PutEncodeBuf(x)
+			answer.Encode(x, 227)
+
+			if x.GetOffset() == 0 {
+				t.Fatal("encoded to nothing")
+			}
+		})
+	}
+}
+
+// Everything the client asks for at startup and gets a stub answer to.
+func stubRequests() []mtproto.TLObject {
+	return []mtproto.TLObject{
 		&mtproto.TLMessagesGetTopReactions{},
 		&mtproto.TLMessagesGetRecentReactions{},
 		&mtproto.TLMessagesGetDefaultTagReactions{},
@@ -36,6 +71,8 @@ func TestStubAnswersEncode(t *testing.T) {
 		&mtproto.TLAccountGetReactionsNotifySettings{},
 		&mtproto.TLAccountGetSavedRingtones{},
 		&mtproto.TLAccountGetConnectedBots{},
+		&mtproto.TLChannelsGetChannelRecommendations{},
+		&mtproto.TLStoriesGetPeerMaxIDs78499170{},
 		&mtproto.TLPaymentsGetStarsStatus{},
 		&mtproto.TLPaymentsGetStarGiftActiveAuctions{},
 		&mtproto.TLPaymentsGetStarGifts{},
@@ -59,36 +96,69 @@ func TestStubAnswersEncode(t *testing.T) {
 		&mtproto.TLMessagesGetStickerSet{},
 		&mtproto.TLChannelsGetAdminedPublicChannels{},
 		&mtproto.TLHelpGetPremiumPromo{},
+		&mtproto.TLLangpackGetDifference{},
+		&mtproto.TLLangpackGetLangPack{},
+		&mtproto.TLLangpackGetLanguages{},
+		&mtproto.TLLangpackGetStrings{},
+		&mtproto.TLMessagesGetWebPage32CA8F91{},
+		&mtproto.TLMessagesGetWebPage8D9692A3{},
+		&mtproto.TLAccountGetWallPapers{},
+		&mtproto.TLAccountGetPassword{},
+		&mtproto.TLHelpAcceptTermsOfService{},
+		&mtproto.TLHelpGetTermsOfServiceUpdate{},
+		&mtproto.TLAccountGetThemes{},
+		&mtproto.TLAccountGetChatThemes{},
+		&mtproto.TLMessagesGetAllStickers{},
+		&mtproto.TLMessagesGetArchivedStickers{},
+		&mtproto.TLMessagesGetFavedStickers{},
+		&mtproto.TLMessagesGetMaskStickers{},
+		&mtproto.TLMessagesGetEmojiStickers{},
+		&mtproto.TLMessagesGetOldFeaturedStickers{},
+		&mtproto.TLMessagesGetRecentStickers{},
+		&mtproto.TLMessagesGetStickers{},
+		&mtproto.TLMessagesGetFeaturedStickers{},
+		&mtproto.TLMessagesGetFeaturedEmojiStickers{},
+		&mtproto.TLMessagesGetScheduledMessages{},
+		&mtproto.TLMessagesGetAvailableReactions{},
+		&mtproto.TLMessagesGetDialogFiltersEFD48C89{},
+		&mtproto.TLMessagesGetDialogFiltersF19ED96D{},
+		&mtproto.TLMessagesGetSavedGifs{},
+		&mtproto.TLMessagesSaveGif{},
+		&mtproto.TLHelpGetPromoData{},
+		&mtproto.TLHelpHidePromoData{},
+		&mtproto.TLMessagesGetEmojiKeywords{},
+		&mtproto.TLMessagesGetEmojiKeywordsDifference{},
+		&mtproto.TLMessagesGetEmojiKeywordsLanguages{},
+		&mtproto.TLAccountReportPeer{},
+		&mtproto.TLAccountReportProfilePhoto{},
+		&mtproto.TLChannelsReportSpam{},
+		&mtproto.TLMessagesReport8953AB4E{},
+		&mtproto.TLMessagesReportFC78AF9B{},
+		&mtproto.TLMessagesReportSpam{},
+		&mtproto.TLPhoneGetCallConfig{},
+		&mtproto.TLAccountGetWebAuthorizations{},
+		&mtproto.TLHelpTest{},
+	}
+}
+
+// A stub added without a line in the list above would never be encoded here,
+// and the panic it can hide would reach the phone instead of the build. So the
+// list is checked against the source of truth rather than kept by hand.
+func TestEveryStubIsCovered(t *testing.T) {
+	source, err := os.ReadFile("fake_rpc_result.go")
+	if err != nil {
+		t.Fatalf("cannot read the stubs: %v", err)
 	}
 
-	// The switch never touches the receiver for these methods.
-	var proxy *BFFProxyClient
+	covered := make(map[string]bool)
+	for _, r := range stubRequests() {
+		covered[reflect.TypeOf(r).Elem().Name()] = true
+	}
 
-	for _, request := range requests {
-		name := typeName(request)
-		t.Run(name, func(t *testing.T) {
-			answer, err := proxy.TryReturnFakeRpcResult(context.Background(), request)
-			if err != nil {
-				t.Fatalf("no stub answer, the client would get an error and retry in a loop: %v", err)
-			}
-			if answer == nil {
-				t.Fatal("stub answer is nil: the client would get nothing")
-			}
-
-			defer func() {
-				if r := recover(); r != nil {
-					t.Fatalf("encoding panics, so the answer never reaches the client: %v", r)
-				}
-			}()
-
-			x := mtproto.GetEncodeBuf()
-			defer mtproto.PutEncodeBuf(x)
-			answer.Encode(x, 227)
-
-			if x.GetOffset() == 0 {
-				t.Fatal("encoded to nothing")
-			}
-		})
+	for _, m := range regexp.MustCompile(`case "(TL\w+)"`).FindAllStringSubmatch(string(source), -1) {
+		if !covered[m[1]] {
+			t.Errorf("%s answers with a stub that no test ever encodes", m[1])
+		}
 	}
 }
 

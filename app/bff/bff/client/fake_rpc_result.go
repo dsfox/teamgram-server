@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/teamgram/proto/mtproto"
-	"github.com/teamgram/teamgram-server/pkg/langpack"
 	"github.com/teamgram/proto/mtproto/crypto"
+	"github.com/teamgram/teamgram-server/pkg/langpack"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
@@ -97,15 +97,10 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 		}, nil
 
 	// webpage
-	case "TLMessagesGetWebPage":
+	case "TLMessagesGetWebPage32CA8F91", "TLMessagesGetWebPage8D9692A3":
 		return mtproto.MakeTLWebPageEmpty(&mtproto.WebPage{
 			Id: 0,
 		}).To_WebPage(), nil
-	case "TLMessagesGetWebPageView":
-		return mtproto.MakeTLMessageMediaEmpty(&mtproto.MessageMedia{
-			//
-		}).To_MessageMedia(), nil
-
 	// wallpaper
 	case "TLAccountGetWallPapers":
 		return mtproto.MakeTLAccountWallPapers(&mtproto.Account_WallPapers{
@@ -222,7 +217,7 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 		}).To_Messages_AvailableReactions(), nil
 
 	// folders
-	case "TLMessagesGetDialogFilters":
+	case "TLMessagesGetDialogFiltersEFD48C89", "TLMessagesGetDialogFiltersF19ED96D":
 		return &mtproto.Vector_DialogFilter{
 			Datas: []*mtproto.DialogFilter{},
 		}, nil
@@ -273,7 +268,7 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 		return mtproto.BoolTrue, nil
 	case "TLChannelsReportSpam":
 		return mtproto.BoolTrue, nil
-	case "TLMessagesReport":
+	case "TLMessagesReport8953AB4E", "TLMessagesReportFC78AF9B":
 		return mtproto.BoolTrue, nil
 	case "TLMessagesReportSpam":
 		return mtproto.BoolTrue, nil
@@ -337,8 +332,8 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 	case "TLPaymentsGetStarsStatus":
 		return mtproto.MakeTLPaymentsStarsStatus(&mtproto.Payments_StarsStatus{
 			Balance_STARSAMOUNT: mtproto.MakeTLStarsAmount(&mtproto.StarsAmount{
-				Amount:      0,
-				Nanos:       0,
+				Amount: 0,
+				Nanos:  0,
 			}).To_StarsAmount(),
 			History: []*mtproto.StarsTransaction{},
 			Chats:   []*mtproto.Chat{},
@@ -440,6 +435,18 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 			PeriodOptions:  []*mtproto.PremiumSubscriptionOption{},
 			Users:          []*mtproto.User{},
 		}).To_Help_PremiumPromo(), nil
+
+	case "TLChannelsGetChannelRecommendations":
+		// The client asks for these right after opening a chat and retries hard
+		// on an error: 35 attempts in three hours from a single phone.
+		return mtproto.MakeTLMessagesChats(&mtproto.Messages_Chats{
+			Chats: []*mtproto.Chat{},
+		}).To_Messages_Chats(), nil
+
+	case "TLStoriesGetPeerMaxIDs78499170":
+		return &mtproto.Vector_RecentStory{
+			Datas: []*mtproto.RecentStory{},
+		}, nil
 
 	case "TLChannelsGetAdminedPublicChannels":
 		return mtproto.MakeTLMessagesChats(&mtproto.Messages_Chats{

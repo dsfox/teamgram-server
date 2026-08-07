@@ -65,7 +65,7 @@ func (s *Server) GatewaySendDataToGateway(ctx context.Context, in *gateway.TLGat
 					return
 				}
 
-				err2 := UnThreadSafeWrite(c, msg)
+				err2 := s.UnThreadSafeWrite(c, msg)
 				if err2 != nil {
 					logx.WithContext(ctx).Errorf("sendToClient error: %v", err2)
 				} else {

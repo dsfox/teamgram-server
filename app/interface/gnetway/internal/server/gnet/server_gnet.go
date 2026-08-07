@@ -204,13 +204,7 @@ func (s *Server) OnClose(c gnet.Conn, err error) (action gnet.Action) {
 // OnTraffic fires when a local socket receives data from the peer.
 func (s *Server) OnTraffic(c gnet.Conn) (action gnet.Action) {
 	ctx := c.Context().(*connContext)
-	oldCloseDate := ctx.closeDate
-	if ctx.http {
-		ctx.closeDate = s.CachedNow() + 60 + rand.Int63()%10
-	} else {
-		ctx.closeDate = s.CachedNow() + 300 + rand.Int63()%10
-	}
-	s.timeoutWheel.Move(c.ConnId(), oldCloseDate, ctx.closeDate)
+	s.extendIdleDeadline(c, ctx)
 	if ctx.ppv1 {
 		ppv1, err := c.Peek(-1)
 		if err != nil {
@@ -373,7 +367,7 @@ func (s *Server) onEncryptedMessage(c gnet.Conn, ctx *connContext, authKey *auth
 					x2.Bytes(mtpRawData)
 					return append([]byte(nil), x2.GetBuf()...)
 				}()
-				_ = UnThreadSafeWrite(c, &mtproto.MTPRawMessage{Payload: buf})
+				_ = s.UnThreadSafeWrite(c, &mtproto.MTPRawMessage{Payload: buf})
 
 				return nil
 			default:
@@ -454,7 +448,7 @@ func (s *Server) onEncryptedMessage(c gnet.Conn, ctx *connContext, authKey *auth
 					x2.Bytes(mtpRawData)
 					return append([]byte(nil), x2.GetBuf()...)
 				}()
-				_ = UnThreadSafeWrite(c, &mtproto.MTPRawMessage{Payload: buf})
+				_ = s.UnThreadSafeWrite(c, &mtproto.MTPRawMessage{Payload: buf})
 			}
 		})
 
@@ -474,7 +468,7 @@ func (s *Server) onMTPRawMessage(ctx *connContext, c gnet.Conn, authKeyId int64,
 			action = gnet.Close
 		} else if out != nil {
 			metricHandshake.Inc("ok")
-			_ = UnThreadSafeWrite(c, out)
+			_ = s.UnThreadSafeWrite(c, out)
 		}
 	} else {
 		authKey := ctx.getAuthKey()
@@ -535,7 +529,7 @@ func (s *Server) onMTPRawMessage(ctx *connContext, c gnet.Conn, authKeyId int64,
 								code = int32(-404)
 							)
 							binary.LittleEndian.PutUint32(out2.Payload, uint32(code))
-							_ = UnThreadSafeWrite(c2, out2)
+							_ = s.UnThreadSafeWrite(c2, out2)
 						}
 
 						logx.Errorf("conn(%s) sessionQueryAuthKey - error: %v", c2, err)
@@ -557,8 +551,25 @@ func (s *Server) onMTPRawMessage(ctx *connContext, c gnet.Conn, authKeyId int64,
 	return gnet.None
 }
 
-func UnThreadSafeWrite(c gnet.Conn, msg interface{}) error {
+// extendIdleDeadline pushes back the moment the reaper may close this
+// connection. Traffic in either direction proves the peer is there: a
+// connection that only carries updates and file chunks down to the client is
+// not idle, and reaping it left the client writing requests into a socket the
+// server had already closed - it noticed only when its own timeout fired,
+// which is the pause the user sees as "Updating".
+func (s *Server) extendIdleDeadline(c gnet.Conn, ctx *connContext) {
+	oldCloseDate := ctx.closeDate
+	if ctx.http {
+		ctx.closeDate = s.CachedNow() + kHttpIdleTimeout + rand.Int63()%10
+	} else {
+		ctx.closeDate = s.CachedNow() + kIdleTimeout + rand.Int63()%10
+	}
+	s.timeoutWheel.Move(c.ConnId(), oldCloseDate, ctx.closeDate)
+}
+
+func (s *Server) UnThreadSafeWrite(c gnet.Conn, msg interface{}) error {
 	ctx := c.Context().(*connContext)
+	s.extendIdleDeadline(c, ctx)
 
 	if ctx.codec == nil {
 		logx.Errorf("conn(%s) c.Write(data) - error: ctx.codec == nil ", c)

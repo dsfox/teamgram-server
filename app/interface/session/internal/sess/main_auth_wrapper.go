@@ -909,7 +909,11 @@ func (m *MainAuthWrapper) onSessionNew(ctx context.Context, connMsg *connData) {
 		sess = newSession(connMsg.sessionId, sList)
 		sList.sessions[connMsg.sessionId] = sess
 	} else {
-		sess.sessionState = kSessionStateNew
+		// A new connection does not make a known session new. A session is
+		// logical, connections are physical, and the client opens several of them
+		// at once: marking the session new on the second one made the server
+		// announce new_session_created on a session it was already serving, and
+		// the client responded by resending every unacknowledged request.
 		logx.WithContext(ctx).Infof("onSessionNew - session(%d) found, conn: %s", m.authKeyId, connMsg)
 	}
 

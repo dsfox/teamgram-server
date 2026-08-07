@@ -671,10 +671,10 @@ func (s *Server) onReqDHParams(c gnet.Conn, ctx *HandshakeStateCtx, request *mtp
 				_ = serializeToBuffer(x, mtproto.GenerateMessageId(), serverDHParams)
 				return append([]byte(nil), x.GetBuf()...)
 			}()
-			_ = UnThreadSafeWrite(c, &mtproto.MTPRawMessage{
+			_ = s.UnThreadSafeWrite(c, &mtproto.MTPRawMessage{
 				Payload: payload,
 			})
-			logx.WithDuration(timex.Since(since2)).Infof("_ = UnThreadSafeWrite(c, &mtproto.MTPRawMessage{")
+			logx.WithDuration(timex.Since(since2)).Infof("_ = s.UnThreadSafeWrite(c, &mtproto.MTPRawMessage{")
 		})
 
 	return nil, nil
@@ -827,7 +827,7 @@ func (s *Server) onSetClientDHParams(c gnet.Conn, ctx *HandshakeStateCtx, reques
 				serializeToBuffer(x, mtproto.GenerateMessageId(), dhGen)
 				return append([]byte(nil), x.GetBuf()...)
 			}()
-			UnThreadSafeWrite(c, &mtproto.MTPRawMessage{
+			s.UnThreadSafeWrite(c, &mtproto.MTPRawMessage{
 				Payload: payload,
 			})
 		})

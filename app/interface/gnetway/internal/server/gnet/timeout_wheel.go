@@ -27,7 +27,7 @@ import "sync"
 
 const (
 	wheelSlotDuration = 10 // seconds per slot
-	wheelNumSlots     = 64 // covers ~640 seconds, enough for 300+10s timeout
+	wheelNumSlots     = 128 // covers ~1280 seconds, enough for kIdleTimeout
 )
 
 type timeoutWheel struct {
