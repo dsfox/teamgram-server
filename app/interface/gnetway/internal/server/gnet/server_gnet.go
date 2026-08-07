@@ -117,9 +117,9 @@ func (s *Server) OnOpen(c gnet.Conn) (out []byte, action gnet.Action) {
 	}
 	if ctx.http {
 		ctx.httpCodec = new(httpcodec.HttpCodec)
-		ctx.closeDate = s.CachedNow() + 60
+		ctx.closeDate = s.CachedNow() + kHttpIdleTimeout
 	} else {
-		ctx.closeDate = s.CachedNow() + 30
+		ctx.closeDate = s.CachedNow() + kSilentConnTimeout
 	}
 	s.timeoutWheel.Add(c.ConnId(), ctx.closeDate)
 	c.SetContext(ctx)

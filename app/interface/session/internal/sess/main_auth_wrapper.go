@@ -909,11 +909,12 @@ func (m *MainAuthWrapper) onSessionNew(ctx context.Context, connMsg *connData) {
 		sess = newSession(connMsg.sessionId, sList)
 		sList.sessions[connMsg.sessionId] = sess
 	} else {
-		// A new connection does not make a known session new. A session is
-		// logical, connections are physical, and the client opens several of them
-		// at once: marking the session new on the second one made the server
-		// announce new_session_created on a session it was already serving, and
-		// the client responded by resending every unacknowledged request.
+		// Announcing the session as new here looks wrong - a connection is not a
+		// session - but it is how the client learns its state was dropped and
+		// must start over. Removing it left a client whose authorisations had
+		// just been reset looping on bad_server_salt with no way out, which
+		// `active_sessions` catches.
+		sess.sessionState = kSessionStateNew
 		logx.WithContext(ctx).Infof("onSessionNew - session(%d) found, conn: %s", m.authKeyId, connMsg)
 	}
 

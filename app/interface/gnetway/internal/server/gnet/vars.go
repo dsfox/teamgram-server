@@ -46,7 +46,9 @@ const (
 	// yet still holds the socket and expects to write to it, so the budget has
 	// to sit well above that rather than just above the ping interval.
 	kIdleTimeout = 900
-	// A connection that has never sent a byte is a probe or a scan.
+	// A connection that has not spoken since it opened has nothing to lose by
+	// being reaped: the client puts its first request on a connection right
+	// away, and a phone whose app went to the background is meant to lose these.
 	kSilentConnTimeout = 30
 	kHttpIdleTimeout   = 60
 )
