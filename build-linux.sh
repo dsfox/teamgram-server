@@ -51,14 +51,14 @@ interface/session/cmd/session
 interface/gnetway/cmd/gnetway
 "
 
-nachalo=$(date +%s)
+started=$(date +%s)
 for put in $SERVICES; do
-  imya=$(basename "$put")
-  printf '%-14s ' "$imya"
-  (cd "$APP/$put" && eval go build -ldflags=\"$LDFLAGS\" -o "$INSTALL/bin/$imya" .)
+  name=$(basename "$put")
+  printf '%-14s ' "$name"
+  (cd "$APP/$put" && eval go build -ldflags=\"$LDFLAGS\" -o "$INSTALL/bin/$name" .)
   echo "готово"
 done
 
 echo
-echo "собрано за $(( $(date +%s) - nachalo )) с, всего $(du -sh "$INSTALL/bin" | cut -f1)"
+echo "собрано за $(( $(date +%s) - started )) с, всего $(du -sh "$INSTALL/bin" | cut -f1)"
 file "$INSTALL/bin/bff" | cut -c1-80

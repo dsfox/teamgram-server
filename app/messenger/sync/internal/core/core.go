@@ -11,6 +11,7 @@ package core
 
 import (
 	"context"
+	"time"
 
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/proto/mtproto/rpc/metadata"
@@ -203,6 +204,11 @@ func (c *SyncCore) pushUpdatesToSession(syncType SyncType, userId, permAuthKeyId
 		var (
 			pushExcludeList   = make([]int64, 0)
 			serverIdKeyIdList = make(map[string][]int64)
+			// Отдельно от pushExcludeList: там сессии, которым стоит попробовать
+			// доставить по соединению, здесь — только те, где приложение точно
+			// открыто. Разница важна для уведомлений, см. ниже.
+			activeKeyIdList = make([]int64, 0)
+			now         = time.Now().Unix()
 		)
 
 		statusList, _ := c.svcCtx.Dao.StatusClient.StatusGetUserOnlineSessions(c.ctx, &status.TLStatusGetUserOnlineSessions{
@@ -214,6 +220,13 @@ func (c *SyncCore) pushUpdatesToSession(syncType SyncType, userId, permAuthKeyId
 				continue
 			}
 			pushExcludeList = append(pushExcludeList, sess.PermAuthKeyId)
+			// Список сессий отдаётся без оглядки на срок годности, а он тут
+			// решающий: свёрнутое приложение на iOS ещё какое-то время держит
+			// соединение, но сообщений уже не показывает. Считать такую сессию
+			// живой — значит не отправить уведомление никогда.
+			if sess.Expired > now {
+				activeKeyIdList = append(activeKeyIdList, sess.PermAuthKeyId)
+			}
 			if keyIdList, ok := serverIdKeyIdList[sess.Gateway]; ok {
 				keyIdList = append(keyIdList, sess.AuthKeyId)
 				serverIdKeyIdList[sess.Gateway] = keyIdList
@@ -247,10 +260,9 @@ func (c *SyncCore) pushUpdatesToSession(syncType SyncType, userId, permAuthKeyId
 				})
 			}
 
-			// Здесь уже известно, на каких устройствах приложение открыто:
-			// pushExcludeList собран выше из живых сессий. Всем остальным
-			// устройствам человека отправляем уведомление.
-			c.notifyOfflineDevices(userId, pushExcludeList, pushData)
+			// Уведомление уходит на устройства, где приложение не открыто.
+			// Считаем открытым только то, чья сессия ещё не истекла.
+			c.notifyOfflineDevices(userId, activeKeyIdList, pushData)
 		}
 	}
 }
