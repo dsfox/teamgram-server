@@ -22,6 +22,7 @@ import (
 	"github.com/teamgram/proto/mtproto"
 	msgpb "github.com/teamgram/teamgram-server/app/messenger/msg/msg/msg"
 	"github.com/teamgram/teamgram-server/app/service/biz/dialog/dialog"
+	"github.com/teamgram/teamgram-server/app/service/biz/message/message"
 )
 
 // MessagesDeleteHistory
@@ -43,13 +44,7 @@ func (c *MessagesCore) MessagesDeleteHistory(in *mtproto.TLMessagesDeleteHistory
 	}
 
 	if in.GetMinDate() != nil || in.GetMaxDate() != nil {
-		// TODO: not impl
-		pts := c.svcCtx.Dao.IDGenClient2.CurrentPtsId(c.ctx, c.MD.UserId)
-		return mtproto.MakeTLMessagesAffectedHistory(&mtproto.Messages_AffectedHistory{
-			Pts:      pts,
-			PtsCount: 0,
-			Offset:   0,
-		}).To_Messages_AffectedHistory(), nil
+		return c.deleteHistoryByDate(peer, in.GetMinDate().GetValue(), in.GetMaxDate().GetValue(), in.Revoke)
 	}
 
 	affectedHistory, err := c.svcCtx.Dao.MsgClient.MsgDeleteHistory(c.ctx, &msgpb.TLMsgDeleteHistory{
@@ -85,4 +80,100 @@ func (c *MessagesCore) MessagesDeleteHistory(in *mtproto.TLMessagesDeleteHistory
 	}
 
 	return affectedHistory, nil
+}
+
+// deleteHistoryByDate удаляет сообщения переписки за указанный период.
+//
+// Апстрим на этот запрос ничего не удалял, но отвечал успехом: пользователь
+// считал переписку стёртой, а она оставалась на месте. Для мессенджера,
+// который обещает приватность, это худший вид ошибки — молчаливый.
+//
+// Границы включительные; нулевая граница означает «без ограничения с этой стороны».
+func (c *MessagesCore) deleteHistoryByDate(peer *mtproto.PeerUtil, minDate, maxDate int32, revoke bool) (*mtproto.Messages_AffectedHistory, error) {
+	const pageSize = 100
+
+	var (
+		idList   []int32
+		offsetId int32 = 0
+	)
+
+	// Идём по истории страницами от новых к старым, пока не выйдем за нижнюю границу.
+	for {
+		boxList, err := c.svcCtx.Dao.MessageClient.MessageGetHistoryMessages(c.ctx, &message.TLMessageGetHistoryMessages{
+			UserId:   c.MD.UserId,
+			PeerType: peer.PeerType,
+			PeerId:   peer.PeerId,
+			OffsetId: offsetId,
+			Limit:    pageSize,
+		})
+		if err != nil {
+			c.Logger.Errorf("messages.deleteHistory - чтение истории: %v", err)
+			return nil, err
+		}
+
+		var (
+			messages   []*mtproto.Message
+			outOfRange bool
+		)
+		boxList.Visit(c.MD.UserId,
+			func(messageList []*mtproto.Message) { messages = messageList },
+			func(userIdList []int64) {},
+			func(chatIdList []int64) {},
+			func(channelIdList []int64) {})
+
+		if len(messages) == 0 {
+			break
+		}
+
+		for _, msg := range messages {
+			date := msg.GetDate()
+			if minDate > 0 && date < minDate {
+				// история отсортирована от новых к старым: дальше только старее
+				outOfRange = true
+				break
+			}
+			if maxDate > 0 && date > maxDate {
+				continue
+			}
+			idList = append(idList, msg.GetId())
+			offsetId = msg.GetId()
+		}
+
+		if outOfRange || len(messages) < pageSize {
+			break
+		}
+		if offsetId == 0 {
+			// в странице не нашлось ни одного подходящего сообщения — сдвигаемся по последнему
+			offsetId = messages[len(messages)-1].GetId()
+		}
+	}
+
+	if len(idList) == 0 {
+		return mtproto.MakeTLMessagesAffectedHistory(&mtproto.Messages_AffectedHistory{
+			Pts:      c.svcCtx.Dao.IDGenClient2.CurrentPtsId(c.ctx, c.MD.UserId),
+			PtsCount: 0,
+			Offset:   0,
+		}).To_Messages_AffectedHistory(), nil
+	}
+
+	// Удаление по списку идентификаторов не привязано к собеседнику: сообщения
+	// уже найдены. Соседний messages.deleteMessages вызывает его так же.
+	affected, err := c.svcCtx.Dao.MsgClient.MsgDeleteMessages(c.ctx, &msgpb.TLMsgDeleteMessages{
+		UserId:    c.MD.UserId,
+		AuthKeyId: c.MD.PermAuthKeyId,
+		PeerType:  mtproto.PEER_EMPTY,
+		PeerId:    0,
+		Revoke:    revoke,
+		Id:        idList,
+	})
+	if err != nil {
+		c.Logger.Errorf("messages.deleteHistory - удаление: %v", err)
+		return nil, err
+	}
+
+	return mtproto.MakeTLMessagesAffectedHistory(&mtproto.Messages_AffectedHistory{
+		Pts:      affected.GetPts(),
+		PtsCount: affected.GetPtsCount(),
+		Offset:   0,
+	}).To_Messages_AffectedHistory(), nil
 }
