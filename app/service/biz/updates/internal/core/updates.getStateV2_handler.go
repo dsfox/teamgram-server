@@ -24,10 +24,13 @@ func (c *UpdatesCore) UpdatesGetStateV2(in *updates.TLUpdatesGetStateV2) (*mtpro
 		pts = c.svcCtx.Dao.IDGenClient2.NextPtsId(c.ctx, in.UserId)
 	}
 
+	// Апстрим отдавал -1, когда обновлений ещё не было. Для клиента это не
+	// «пусто», а несуществующий номер: любое пришедшее обновление оказывается
+	// за пределами известной последовательности, клиент видит пропуск и уходит
+	// досинхронизироваться — и так по кругу. Снаружи это вечное «Updating» с
+	// пустыми чатами. Проявляется только у тех, кому ещё ничего не приходило,
+	// то есть ровно у новых пользователей.
 	seq := c.svcCtx.Dao.IDGenClient2.CurrentSeqId(c.ctx, in.AuthKeyId)
-	if seq == 0 {
-		seq = -1
-	}
 	qts := c.svcCtx.Dao.IDGenClient2.CurrentQtsId(c.ctx, in.AuthKeyId)
 	return mtproto.MakeTLUpdatesState(&mtproto.Updates_State{
 		Pts:         pts,
