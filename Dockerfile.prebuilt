@@ -1,0 +1,18 @@
+# Образ из готовых бинарников: компиляции здесь нет.
+#
+# Бинарники собираются на рабочей машине скриптом server/build-linux.sh — Go
+# умеет собирать под чужую архитектуру без эмуляции, и это занимает полминуты
+# вместо десятков минут на сервере. Серверу остаётся только положить их в
+# образ рядом с ffmpeg.
+#
+# Сборка: docker build -f Dockerfile.prebuilt -t 2bytes-server .
+FROM ubuntu:latest
+# ffmpeg обязателен: из него берётся первый кадр видео для превью. Без превью
+# клиент не показывает видео в переписке — проверено вживую, выглядит как
+# «сообщение не дошло». Ставим только его и psmisc (killall в скриптах запуска).
+RUN apt update -y && apt install -y ffmpeg psmisc && apt-get clean
+
+WORKDIR /app
+COPY teamgramd/ /app/
+RUN chmod +x /app/docker/entrypoint.sh /app/bin/*
+ENTRYPOINT /app/docker/entrypoint.sh
