@@ -20,7 +20,9 @@ package dao
 
 import (
 	"github.com/teamgram/marmota/pkg/net/rpcx"
+	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/teamgram-server/app/bff/notification/internal/config"
+	"github.com/teamgram/teamgram-server/pkg/devices"
 	"github.com/teamgram/teamgram-server/pkg/queue"
 	sync_client "github.com/teamgram/teamgram-server/app/messenger/sync/client"
 	chat_client "github.com/teamgram/teamgram-server/app/service/biz/chat/client"
@@ -31,12 +33,20 @@ type Dao struct {
 	user_client.UserClient
 	chat_client.ChatClient
 	sync_client.SyncClient
+	// Devices пуст, если база не настроена: сервис остаётся рабочим, уведомления
+	// просто никуда не записываются.
+	Devices *devices.Registry
 }
 
 func New(c config.Config) *Dao {
-	return &Dao{
+	d := &Dao{
 		UserClient: user_client.NewUserClient(rpcx.GetCachedRpcClient(c.UserClient)),
 		ChatClient: chat_client.NewChatClient(rpcx.GetCachedRpcClient(c.ChatClient)),
 		SyncClient: queue.NewSyncClient(c.SyncClient),
 	}
+	if c.Mysql.DSN != "" {
+		d.Devices = devices.NewRegistry(sqlx.NewMySQL(&c.Mysql))
+	}
+
+	return d
 }

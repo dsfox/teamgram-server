@@ -246,6 +246,11 @@ func (c *SyncCore) pushUpdatesToSession(syncType SyncType, userId, permAuthKeyId
 					Updates:  pushData,
 				})
 			}
+
+			// Здесь уже известно, на каких устройствах приложение открыто:
+			// pushExcludeList собран выше из живых сессий. Всем остальным
+			// устройствам человека отправляем уведомление.
+			c.notifyOfflineDevices(userId, pushExcludeList, pushData)
 		}
 	}
 }

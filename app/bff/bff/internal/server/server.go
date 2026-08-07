@@ -260,6 +260,7 @@ func (s *Server) Initialize() error {
 				UserClient:    c.BizServiceClient,
 				ChatClient:    c.BizServiceClient,
 				SyncClient:    c.SyncClient,
+				Mysql:         c.Mysql,
 			}, nil))
 
 		// users_helper

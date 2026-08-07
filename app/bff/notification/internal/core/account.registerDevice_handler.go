@@ -19,14 +19,51 @@
 package core
 
 import (
+	"encoding/hex"
+	"strings"
+
 	"github.com/teamgram/proto/mtproto"
+	"github.com/teamgram/teamgram-server/pkg/devices"
 )
 
 // AccountRegisterDevice
 // account.registerDevice#ec86017a flags:# no_muted:flags.0?true token_type:int token:string app_sandbox:Bool secret:bytes other_uids:Vector<long> = Bool;
+//
+// Приложение вызывает это при каждом запуске: Apple выдаёт токен устройства
+// заново и время от времени его меняет. Запись перезаписывается по ключу
+// авторизации — одно устройство, один токен.
 func (c *NotificationCore) AccountRegisterDevice(in *mtproto.TLAccountRegisterDevice) (*mtproto.Bool, error) {
-	// TODO: not impl
-	c.Logger.Errorf("account.registerDevice blocked, License key from https://teamgram.net required to unlock enterprise features.")
+	if c.svcCtx.Dao.Devices == nil {
+		c.Logger.Errorf("account.registerDevice - уведомления выключены: база не настроена")
+		return mtproto.BoolFalse, nil
+	}
+
+	token := strings.TrimSpace(in.GetToken())
+	if token == "" {
+		c.Logger.Errorf("account.registerDevice - пустой токен, тип %d", in.GetTokenType())
+		return mtproto.BoolFalse, nil
+	}
+
+	err := c.svcCtx.Dao.Devices.Register(c.ctx, &devices.DeviceDO{
+		AuthKeyId:  c.MD.PermAuthKeyId,
+		UserId:     c.MD.UserId,
+		TokenType:  in.GetTokenType(),
+		Token:      token,
+		NoMuted:    in.GetNoMuted(),
+		AppSandbox: mtproto.FromBool(in.GetAppSandbox()),
+		// Секрет нужен только для шифрования текста внутри уведомления. Текст мы
+		// не отправляем, но храним — иначе при появлении расширения приложения
+		// пришлось бы просить все устройства перерегистрироваться.
+		Secret:    hex.EncodeToString(in.GetSecret()),
+		OtherUids: devices.JoinUids(in.GetOtherUids()),
+	})
+	if err != nil {
+		c.Logger.Errorf("account.registerDevice - error: %v", err)
+		return mtproto.BoolFalse, nil
+	}
+
+	c.Logger.Infof("account.registerDevice - user: %d, type: %d, sandbox: %v",
+		c.MD.UserId, in.GetTokenType(), mtproto.FromBool(in.GetAppSandbox()))
 
 	return mtproto.BoolTrue, nil
 }

@@ -24,9 +24,26 @@ import (
 
 // AccountUnregisterDevice
 // account.unregisterDevice#6a0d3206 token_type:int token:string other_uids:Vector<long> = Bool;
+//
+// Приложение зовёт это при выходе из учётной записи. Забыть токен обязательно:
+// иначе уведомления продолжат приходить человеку, который вышел.
 func (c *NotificationCore) AccountUnregisterDevice(in *mtproto.TLAccountUnregisterDevice) (*mtproto.Bool, error) {
-	// TODO: not impl
-	c.Logger.Errorf("account.unregisterDevice blocked, License key from https://teamgram.net required to unlock enterprise features.")
+	if c.svcCtx.Dao.Devices == nil {
+		return mtproto.BoolTrue, nil
+	}
+
+	err := c.svcCtx.Dao.Devices.Unregister(
+		c.ctx,
+		c.MD.PermAuthKeyId,
+		c.MD.UserId,
+		in.GetTokenType(),
+		in.GetToken())
+	if err != nil {
+		c.Logger.Errorf("account.unregisterDevice - error: %v", err)
+		return mtproto.BoolFalse, nil
+	}
+
+	c.Logger.Infof("account.unregisterDevice - user: %d, type: %d", c.MD.UserId, in.GetTokenType())
 
 	return mtproto.BoolTrue, nil
 }

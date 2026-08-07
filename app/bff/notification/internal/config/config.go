@@ -19,6 +19,7 @@
 package config
 
 import (
+	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/teamgram-server/pkg/queue"
 	"github.com/zeromicro/go-zero/zrpc"
 )
@@ -28,4 +29,8 @@ type Config struct {
 	UserClient zrpc.RpcClientConf
 	ChatClient zrpc.RpcClientConf
 	SyncClient *queue.Conf
+	// База нужна ровно для одного: запомнить токен устройства, на который потом
+	// отправляется уведомление. Без неё сервис работает как прежде, просто
+	// уведомления не приходят.
+	Mysql sqlx.Config `json:",optional"`
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/teamgram/marmota/pkg/net/rpcx"
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	sync_client "github.com/teamgram/teamgram-server/app/messenger/sync/client"
+	"github.com/teamgram/teamgram-server/pkg/pushnotify"
 	"github.com/teamgram/teamgram-server/pkg/queue"
 	"github.com/teamgram/teamgram-server/app/messenger/sync/internal/config"
 	chat_client "github.com/teamgram/teamgram-server/app/service/biz/chat/client"
@@ -35,12 +36,15 @@ type Dao struct {
 	status_client.StatusClient
 	chat_client.ChatClient
 	PushClient sync_client.SyncClient
+	// Notifier доводит сообщение до устройств, где приложение закрыто.
+	Notifier *pushnotify.Notifier
 }
 
 func New(c config.Config) *Dao {
 	db := sqlx.NewMySQL(&c.Mysql)
 	d := &Dao{
 		Mysql:            newMysqlDao(db),
+		Notifier:         pushnotify.New(db),
 		kv:               kv.NewStore(c.KV),
 		conf:             &c,
 		sessionServers:   make(map[string]SessionPusher),

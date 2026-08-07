@@ -19,6 +19,7 @@
 package config
 
 import (
+	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/teamgram-server/pkg/queue"
 	"github.com/teamgram/teamgram-server/pkg/code/conf"
 	"github.com/zeromicro/go-zero/core/stores/kv"
@@ -27,7 +28,12 @@ import (
 
 type Config struct {
 	zrpc.RpcServerConf
-	KV                        kv.KvConf
+	KV kv.KvConf
+	// Единственное место, где bff обращается к базе напрямую: токены устройств
+	// для уведомлений. Их некуда положить по дороге — приложение сообщает токен
+	// методом account.registerDevice, который приходит именно сюда, а отдельного
+	// сервиса под уведомления в сборке нет.
+	Mysql                     sqlx.Config `json:",optional"`
 	Code                      *conf.SmsVerifyCodeConfig
 	BizServiceClient          zrpc.RpcClientConf
 	AuthSessionClient         zrpc.RpcClientConf
