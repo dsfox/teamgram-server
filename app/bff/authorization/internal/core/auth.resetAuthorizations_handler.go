@@ -20,13 +20,44 @@ package core
 
 import (
 	"github.com/teamgram/proto/mtproto"
+	"github.com/teamgram/teamgram-server/app/messenger/sync/sync"
+	"github.com/teamgram/teamgram-server/app/service/authsession/authsession"
 )
 
 // AuthResetAuthorizations
 // auth.resetAuthorizations#9fab0d1a = Bool;
+// Завершает все сеансы, кроме текущего. Апстрим отвечал ошибкой, и кнопка
+// «Завершить все другие сеансы» показывала алерт — оставалось выходить по одному.
+// Нулевой hash сервис трактует как «все, кроме указанного ключа».
 func (c *AuthorizationCore) AuthResetAuthorizations(in *mtproto.TLAuthResetAuthorizations) (*mtproto.Bool, error) {
-	// TODO: not impl
-	c.Logger.Errorf("auth.resetAuthorizations blocked, License key from https://teamgram.net required to unlock enterprise features.")
+	keyIdList, err := c.svcCtx.AuthsessionClient.AuthsessionResetAuthorization(c.ctx, &authsession.TLAuthsessionResetAuthorization{
+		UserId:    c.MD.UserId,
+		AuthKeyId: c.MD.PermAuthKeyId,
+		Hash:      0,
+	})
+	if err != nil {
+		c.Logger.Errorf("auth.resetAuthorizations - error: %v", err)
+		return nil, err
+	}
 
-	return nil, mtproto.ErrEnterpriseIsBlocked
+	// Каждому завершённому сеансу сообщаем, что он больше не действителен,
+	// иначе устройство продолжит работать до ближайшего переподключения.
+	// Порядок тот же, что в account.resetAuthorization для одного сеанса.
+	for _, keyId := range keyIdList.GetDatas() {
+		c.svcCtx.SyncClient.SyncUpdatesMe(c.ctx, &sync.TLSyncUpdatesMe{
+			UserId:        c.MD.UserId,
+			PermAuthKeyId: keyId,
+			Updates:       mtproto.MakeTLUpdatesTooLong(nil).To_Updates(),
+		})
+		c.svcCtx.SyncClient.SyncUpdatesMe(c.ctx, &sync.TLSyncUpdatesMe{
+			UserId:        c.MD.UserId,
+			PermAuthKeyId: keyId,
+			Updates: mtproto.MakeTLUpdateAccountResetAuthorization(&mtproto.Updates{
+				UserId:    c.MD.UserId,
+				AuthKeyId: keyId,
+			}).To_Updates(),
+		})
+	}
+
+	return mtproto.BoolTrue, nil
 }

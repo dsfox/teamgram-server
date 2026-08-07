@@ -25,8 +25,19 @@ import (
 // MessagesGetSearchResultsCalendar
 // messages.getSearchResultsCalendar#49f0bde9 peer:InputPeer filter:MessagesFilter offset_id:int offset_date:int = messages.SearchResultsCalendar;
 func (c *MessagesCore) MessagesGetSearchResultsCalendar(in *mtproto.TLMessagesGetSearchResultsCalendar) (*mtproto.Messages_SearchResultsCalendar, error) {
-	// TODO: not impl
-	c.Logger.Errorf("messages.getSearchResultsCalendar blocked, License key from https://teamgram.net required to unlock enterprise features.")
-
-	return nil, mtproto.ErrEnterpriseIsBlocked
+	// Календарь показывает, в какие дни в переписке были сообщения. Раскладку
+	// по датам мы не считаем, но и ошибкой отвечать нельзя: клиент показывает
+	// пользователю алерт. Пустой ответ он принимает спокойно — календарь просто
+	// открывается без отметок.
+	return mtproto.MakeTLMessagesSearchResultsCalendar(&mtproto.Messages_SearchResultsCalendar{
+		Inexact:        false,
+		Count:          0,
+		MinDate:        0,
+		MinMsgId:       0,
+		OffsetIdOffset: nil,
+		Periods:        []*mtproto.SearchResultsCalendarPeriod{},
+		Messages:       []*mtproto.Message{},
+		Chats:          []*mtproto.Chat{},
+		Users:          []*mtproto.User{},
+	}).To_Messages_SearchResultsCalendar(), nil
 }

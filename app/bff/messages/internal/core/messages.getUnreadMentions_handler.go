@@ -108,6 +108,14 @@ func (c *MessagesCore) MessagesGetUnreadMentions(in *mtproto.TLMessagesGetUnread
 		c.Logger.Errorf("messages.readHistory blocked, License key from https://teamgram.net required to unlock enterprise features.")
 
 		return nil, mtproto.ErrEnterpriseIsBlocked
+	case mtproto.PEER_USER, mtproto.PEER_SELF:
+		// Ветки для личной переписки не было вовсе, и клиент получал PEER_ID_INVALID,
+		// хотя упоминания бывают и в личных чатах.
+		rValues = mtproto.MakeTLMessagesMessages(&mtproto.Messages_Messages{
+			Messages: []*mtproto.Message{},
+			Chats:    []*mtproto.Chat{},
+			Users:    []*mtproto.User{},
+		}).To_Messages_Messages()
 	default:
 		err = mtproto.ErrPeerIdInvalid
 		c.Logger.Errorf("messages.getHistory - error: %v", err)

@@ -92,6 +92,21 @@ func (s *Service) AccountChangePhone(ctx context.Context, request *mtproto.TLAcc
 	return r, err
 }
 
+// AccountGetAuthorizations
+// account.getAuthorizations#e320c158 = account.Authorizations;
+func (s *Service) AccountGetAuthorizations(ctx context.Context, request *mtproto.TLAccountGetAuthorizations) (*mtproto.Account_Authorizations, error) {
+	c := core.New(ctx, s.svcCtx)
+	c.Logger.Debugf("account.getAuthorizations - metadata: {%s}, request: {%s}", c.MD, request)
+
+	r, err := c.AccountGetAuthorizations(request)
+	if err != nil {
+		return nil, err
+	}
+
+	c.Logger.Debugf("account.getAuthorizations - reply: {%s}", r)
+	return r, err
+}
+
 // AccountResetAuthorization
 // account.resetAuthorization#df77f3bc hash:long = Bool;
 func (s *Service) AccountResetAuthorization(ctx context.Context, request *mtproto.TLAccountResetAuthorization) (*mtproto.Bool, error) {
