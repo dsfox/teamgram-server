@@ -73,12 +73,17 @@ func (c *UsersCore) UsersGetFullUser(in *mtproto.TLUsersGetFullUser) (*mtproto.U
 	}
 
 	userFull := mtproto.MakeTLUserFull(&mtproto.UserFull{
-		Blocked:                  false,
-		PhoneCallsAvailable:      c.MD.UserId != peerId,
+		Blocked: false,
+		// Calls are not implemented, and these two flags are what the client uses
+		// to decide whether to draw the call buttons at all. Telling it the truth
+		// here is better than hiding the buttons in the client: no entry point
+		// appears, nothing leads to a dead end, and the day calls exist the
+		// buttons come back on their own.
+		PhoneCallsAvailable:      false,
+		VideoCallsAvailable:      false,
 		PhoneCallsPrivate:        false,
 		CanPinMessage:            true,
 		HasScheduled:             false,
-		VideoCallsAvailable:      c.MD.UserId != peerId,
 		VoiceMessagesForbidden:   false,
 		TranslationsDisabled:     false,
 		StoriesPinnedAvailable:   false,
