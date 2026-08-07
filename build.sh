@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Падение любой сборки обязано ронять весь скрипт. Без этого недостроенный
-# образ выглядит успешным: Docker видит нулевой код возврата, а внутри
-# не хватает половины сервисов.
+# A failure of any build must bring the whole script down. Without that an
+# unfinished image looks successful: Docker sees a zero exit code while half the
+# services are missing inside.
 set -euo pipefail
 
-# -s -w выбрасывают из бинарников таблицу символов и отладочную информацию:
-# треть объёма, которая нужна только отладчику. Стектрейсы паник остаются
-# читаемыми — они берут имена из другой секции. Для машины с тесным диском
-# это разница в полгигабайта на образ.
+# -s -w drop the symbol table and debug info from the binaries: a third of the
+# size that only a debugger needs. Panic stack traces stay readable — they take
+# names from another section. On a machine with a tight disk this is half a
+# gigabyte off the image.
 
 PWD=`pwd`
 TEAMGRAMAPP=${PWD}"/app"

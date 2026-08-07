@@ -1,13 +1,13 @@
-"""Показывает, какие строки интерфейса ещё не переведены.
+"""Shows which interface strings are still untranslated.
 
-Рабочий инструмент локализации: языковой пакет — наш собственный ресурс,
-и новые ключи (свои или пришедшие с обновлением клиента) переводим сами.
-Скрипт сверяет ключи английского файла клиента с нашим переводом.
+A working localisation tool: the language pack is our own resource, and new keys
+(ours or arriving with a client update) are translated by us. The script compares
+the keys of the client English file with our translation.
 
-Запуск:
-    python3 server/scripts/langpack-coverage.py ru                 сводка
-    python3 server/scripts/langpack-coverage.py ru --missing       список непереведённых
-    python3 server/scripts/langpack-coverage.py ru --export ФАЙЛ   выгрузить их для перевода
+Usage:
+    python3 server/scripts/langpack-coverage.py ru                 summary
+    python3 server/scripts/langpack-coverage.py ru --missing       list the untranslated ones
+    python3 server/scripts/langpack-coverage.py ru --export FILE   export them for translation
 """
 import json
 import re
@@ -20,10 +20,10 @@ LANGPACK_DIR = ROOT / "teamgramd" / "langpack"
 
 LINE = re.compile(r'^"([^"]+)"\s*=\s*"((?:[^"\\]|\\.)*)";\s*$')
 
-# Клиент хранит формы множественного числа с суффиксами _0/_1/_2/_3_10/_many/_any
-# (см. getPluralizationSuffix в build-system/GenerateStrings), а в языковом пакете
-# они лежат под именами CLDR. Без этого соответствия переведённые ключи выглядят
-# непереведёнными и объём работы кажется больше, чем он есть.
+# The client stores plural forms with the suffixes _0/_1/_2/_3_10/_many/_any
+# (see getPluralizationSuffix in build-system/GenerateStrings), while the language
+# pack keeps them under CLDR names. Without this mapping translated keys look
+# untranslated and the work appears larger than it is.
 PLURAL_SUFFIX = ("_0", "_1", "_2", "_3_10", "_many", "_any",
                  "_zero", "_one", "_two", "_few", "_other")
 
@@ -35,7 +35,7 @@ def client_keys() -> dict:
         if not match:
             continue
         key, value = match.group(1), match.group(2)
-        # формы множественного числа сводим к базовому ключу
+        # plural forms collapse to their base key
         for suffix in PLURAL_SUFFIX:
             if key.endswith(suffix):
                 key = key[: -len(suffix)]
@@ -53,19 +53,19 @@ def main(lang_code: str, mode: str, export: str = None):
     covered = len(source) - len(missing)
     percent = covered * 100 // max(1, len(source))
 
-    print(f"ключей в клиенте: {len(source)}")
-    print(f"переведено:       {covered} ({percent}%)")
-    print(f"не переведено:    {len(missing)}")
+    print(f"keys in the client:  {len(source)}")
+    print(f"translated:         {covered} ({percent}%)")
+    print(f"untranslated:       {len(missing)}")
 
     if mode == "--missing":
         for key, value in sorted(missing.items())[:80]:
             print(f"  {key} = {value[:70]}")
         if len(missing) > 80:
-            print(f"  ... и ещё {len(missing) - 80}")
+            print(f"  ... and {len(missing) - 80} more")
     elif mode == "--export" and export:
         Path(export).write_text(
             json.dumps(missing, ensure_ascii=False, indent=1, sort_keys=True), encoding="utf-8")
-        print(f"выгружено для перевода: {export}")
+        print(f"exported for translation: {export}")
 
 
 if __name__ == "__main__":

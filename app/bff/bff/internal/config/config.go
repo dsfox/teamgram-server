@@ -29,10 +29,10 @@ import (
 type Config struct {
 	zrpc.RpcServerConf
 	KV kv.KvConf
-	// Единственное место, где bff обращается к базе напрямую: токены устройств
-	// для уведомлений. Их некуда положить по дороге — приложение сообщает токен
-	// методом account.registerDevice, который приходит именно сюда, а отдельного
-	// сервиса под уведомления в сборке нет.
+	// The only place where bff touches the database directly: device tokens for
+	// notifications. There is nowhere else to put them — the app reports the
+	// token via account.registerDevice, which lands right here, and the build has
+	// no separate notification service.
 	Mysql                     sqlx.Config `json:",optional"`
 	Code                      *conf.SmsVerifyCodeConfig
 	BizServiceClient          zrpc.RpcClientConf

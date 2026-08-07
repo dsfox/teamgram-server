@@ -1,9 +1,9 @@
-// Строки интерфейса, которые сервер отдаёт клиенту.
+// Interface strings the server serves to the client.
 //
-// Клиент содержит английские строки внутри себя, а остальные языки берёт
-// с сервера методами langpack.getLangPack и langpack.getDifference.
-// Непереведённые ключи клиент показывает по-английски, поэтому перевод
-// можно наполнять постепенно — сначала то, что видно чаще всего.
+// The client carries the English strings inside itself and fetches other
+// languages from the server via langpack.getLangPack and langpack.getDifference.
+// Untranslated keys fall back to English, so a translation can be filled in
+// gradually — starting with what is seen most often.
 package langpack
 
 import (
@@ -16,8 +16,8 @@ import (
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
-// pluralForms — формы множественного числа; в русском их четыре плюс «много».
-// Ключи совпадают с полями langPackStringPluralized.
+// pluralForms are the plural forms; Russian has four of them plus "many".
+// The keys match the fields of langPackStringPluralized.
 type pluralForms struct {
 	Zero  string `json:"zero,omitempty"`
 	One   string `json:"one,omitempty"`
@@ -38,33 +38,33 @@ var (
 	packs    map[string]*pack
 )
 
-// Dir — где лежат файлы перевода; задаётся при старте, по умолчанию рядом с бинарником.
+// Dir is where translation files live; set at startup, next to the binary by default.
 var Dir = "../langpack"
 
 func load() {
 	packs = make(map[string]*pack)
 	for _, language := range Available {
 		if language.Code == "en" {
-			continue // английский встроен в клиент
+			continue // English is built into the client
 		}
 		path := filepath.Join(Dir, language.Code+".json")
 		data, err := os.ReadFile(path)
 		if err != nil {
-			logx.Errorf("перевод не прочитан (%s): %v", path, err)
+			logx.Errorf("translation not read (%s): %v", path, err)
 			continue
 		}
 		parsed := new(pack)
 		if err = json.Unmarshal(data, parsed); err != nil {
-			logx.Errorf("перевод повреждён (%s): %v", path, err)
+			logx.Errorf("translation is corrupt (%s): %v", path, err)
 			continue
 		}
 		packs[language.Code] = parsed
-		logx.Infof("перевод загружен: %s, строк %d", language.Code, len(parsed.Strings)+len(parsed.Plurals))
+		logx.Infof("translation loaded: %s, %d strings", language.Code, len(parsed.Strings)+len(parsed.Plurals))
 	}
 }
 
-// Difference возвращает строки языка целиком: пакеты у нас небольшие,
-// и отдать всё разом дешевле, чем вести историю версий.
+// Difference returns the whole language pack: ours are small, and handing over
+// everything at once is cheaper than keeping a version history.
 func Difference(langCode string) *mtproto.LangPackDifference {
 	loadOnce.Do(load)
 
@@ -103,7 +103,7 @@ func Difference(langCode string) *mtproto.LangPackDifference {
 	}).To_LangPackDifference()
 }
 
-// Strings возвращает только запрошенные ключи.
+// Strings returns only the requested keys.
 func Strings(langCode string, keys []string) []*mtproto.LangPackString {
 	loadOnce.Do(load)
 
@@ -133,7 +133,7 @@ func Strings(langCode string, keys []string) []*mtproto.LangPackString {
 			}).To_LangPackString())
 			continue
 		}
-		// Клиент ждёт ответ на каждый ключ: пропуск он трактует как «ещё не загружено»
+		// The client expects an answer per key: a gap reads as "not loaded yet"
 		list = append(list, mtproto.MakeTLLangPackStringDeleted(&mtproto.LangPackString{
 			Key: key,
 		}).To_LangPackString())
@@ -141,8 +141,8 @@ func Strings(langCode string, keys []string) []*mtproto.LangPackString {
 	return list
 }
 
-// Loaded сообщает, есть ли перевод для языка — по этому признаку язык
-// попадает в список выбора: показывать язык без строк бессмысленно.
+// Loaded reports whether a translation exists for the language — that is what
+// puts it into the picker: offering a language without strings is pointless.
 func Loaded(langCode string) bool {
 	loadOnce.Do(load)
 	_, ok := packs[langCode]

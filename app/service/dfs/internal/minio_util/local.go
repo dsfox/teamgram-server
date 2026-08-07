@@ -26,11 +26,11 @@ import (
 	"github.com/minio/minio-go/v7"
 )
 
-// localStore — хранилище файлов на диске вместо объектного хранилища.
+// localStore keeps files on disk instead of in an object store.
 //
-// Файлы лежат в <Dir>/<бакет>/<путь>. Отдельный сервис ради этого не нужен:
-// на одной машине каталог делает ровно то же, что бакет, и не требует
-// ни сети, ни учётных данных, ни отдельного процесса.
+// Files live in <Dir>/<bucket>/<path>. A separate service is not needed for
+// that: on a single machine a directory does exactly what a bucket does and
+// requires neither network, nor credentials, nor a process of its own.
 type localStore struct {
 	dir string
 }
@@ -39,15 +39,16 @@ func newLocalStore(dir string) *localStore {
 	return &localStore{dir: dir}
 }
 
-// resolve строит путь к файлу и не выпускает его за пределы каталога хранилища:
-// имя объекта приходит снаружи, и «..» в нём не должно уводить к чужим файлам.
+// resolve builds the file path and never lets it escape the storage directory:
+// the object name comes from outside, and ".." in it must not lead to other
+// people's files.
 func (s *localStore) resolve(bucket, path string) (string, error) {
 	clean := filepath.Clean("/" + strings.TrimPrefix(path, "/"))
 	full := filepath.Join(s.dir, filepath.Clean("/"+bucket), clean)
 
 	root := filepath.Clean(s.dir) + string(os.PathSeparator)
 	if !strings.HasPrefix(full, root) {
-		return "", fmt.Errorf("недопустимый путь к файлу: %s/%s", bucket, path)
+		return "", fmt.Errorf("invalid file path: %s/%s", bucket, path)
 	}
 	return full, nil
 }
@@ -60,7 +61,7 @@ func (s *localStore) readAll(bucket, path string) ([]byte, error) {
 	return os.ReadFile(name)
 }
 
-// readRange читает кусок файла — так клиент забирает большие файлы частями.
+// readRange reads a chunk of a file: that is how the client fetches large files.
 func (s *localStore) readRange(bucket, path string, offset int64, limit int32) ([]byte, error) {
 	name, err := s.resolve(bucket, path)
 	if err != nil {
@@ -76,7 +77,7 @@ func (s *localStore) readRange(bucket, path string, offset int64, limit int32) (
 	buffer := make([]byte, limit)
 	n, err := file.ReadAt(buffer, offset)
 	if n > 0 {
-		// io.EOF в конце файла — не ошибка: кусок прочитан, просто он последний
+		// io.EOF at the end of a file is not an error: the chunk is read, it is just the last one
 		return buffer[:n], nil
 	}
 	if err == io.EOF {
@@ -94,7 +95,7 @@ func (s *localStore) write(bucket, path string, r io.Reader) (minio.UploadInfo, 
 		return minio.UploadInfo{}, err
 	}
 
-	// пишем через временный файл: оборванная загрузка не оставит битый файл на месте готового
+	// write through a temporary file: an aborted upload leaves no broken file in place of a good one
 	temporary, err := os.CreateTemp(filepath.Dir(name), ".upload-*")
 	if err != nil {
 		return minio.UploadInfo{}, err
@@ -125,8 +126,9 @@ func (s *localStore) writeFile(bucket, path, source string) (minio.UploadInfo, e
 	return s.write(bucket, path, file)
 }
 
-// Ниже — единые точки доступа к хранилищу: методы MinioUtil ходят через них,
-// а не напрямую в клиент, поэтому подмена хранилища не задевает их логику.
+// Below are the single access points to the storage: MinioUtil methods go
+// through them rather than straight to the client, so swapping the storage does
+// not touch their logic.
 
 func (m *MinioUtil) readAll(ctx context.Context, bucket, path string) ([]byte, error) {
 	if m.local != nil {

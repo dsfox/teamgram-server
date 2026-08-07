@@ -1,10 +1,11 @@
-"""РАЗОВЫЙ импорт языкового пакета. Постоянной зависимостью не является.
+"""A ONE-OFF language pack import. It is not a permanent dependency.
 
-Использован один раз, чтобы не переводить 11 тысяч строк с нуля. Результат лежит
-в server/teamgramd/langpack/<код>.json и дальше живёт как наш собственный ресурс:
-новые и изменённые строки переводим сами, повторно скрипт не запускаем.
+Used once so that eleven thousand strings did not have to be translated from
+scratch. The result lives in server/teamgramd/langpack/<code>.json and from then
+on is our own resource: new and changed strings are translated by us and the
+script is never run again.
 
-Какие ключи ещё не переведены, показывает server/scripts/langpack-coverage.py.
+Which keys are still untranslated is shown by server/scripts/langpack-coverage.py.
 """
 import asyncio
 import json
@@ -19,14 +20,14 @@ from telethon.tl.types import LangPackStringDeleted, LangPackStringPluralized
 ROOT = Path(__file__).resolve().parent.parent
 TARGET_DIR = ROOT / "teamgramd" / "langpack"
 
-# Публичный адрес, откуда клиенты забирают языковые пакеты
+# The public address clients fetch language packs from
 SOURCE_DC = (2, "149.154.167.50", 443)
 SOURCE_API_ID = 8
 SOURCE_API_HASH = "7245de8e747a0d6fbe11f7cc14fcc0bb"
 
 APP_NAME = "2bytes"
-# Заменяем название приложения, но не трогаем ссылки и адреса вида telegram.org.
-# Составные вроде TelegramTips тоже наши — граница слова слева, справа её нет.
+# Replace the app name but leave links and addresses such as telegram.org alone.
+# Compounds like TelegramTips are ours too: a word boundary on the left, none on the right.
 BRAND = re.compile(r"\bTelegram(?!\.(?:org|me|dog))")
 
 
@@ -68,8 +69,8 @@ async def main(lang_code: str):
         ensure_ascii=False, indent=1, sort_keys=True,
     ), encoding="utf-8")
 
-    print(f"[перевод] {lang_code}: строк {len(strings)}, с множественным числом {len(plurals)}")
-    print(f"[перевод] сохранено: {target}")
+    print(f"[translation] {lang_code}: {len(strings)} strings, {len(plurals)} pluralised")
+    print(f"[translation] saved: {target}")
 
 
 if __name__ == "__main__":

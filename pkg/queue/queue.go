@@ -1,12 +1,12 @@
-// Package queue — клиенты sync и inbox, работающие с очередью или без неё.
+// Package queue holds the sync and inbox clients, working with or without a queue.
 //
-// Изначально работа этим сервисам передавалась только через Kafka. Очередь даёт
-// асинхронность и переживает перезапуск получателя, но на одной машине это лишняя
-// движущаяся часть: у обоих сервисов есть тот же приём по gRPC, и порядок апдейтов
-// обеспечивается не очередью, а состоянием pts/qts в базе — клиент догоняет
-// пропущенное через getDifference.
+// Originally work reached these services through Kafka only. A queue gives
+// asynchrony and survives a restart of the consumer, but on a single machine it
+// is one moving part too many: both services accept the same work over gRPC, and
+// update ordering rests on the pts/qts state in the database rather than on the
+// queue — the client catches up through getDifference.
 //
-// Выбор по конфигу: заданы Brokers — идём через очередь, иначе прямым вызовом.
+// The config decides: with Brokers set we go through the queue, otherwise we call directly.
 package queue
 
 import (
@@ -18,9 +18,9 @@ import (
 	"github.com/zeromicro/go-zero/zrpc"
 )
 
-// Conf — настройки клиента. Поля очереди повторены здесь необязательными:
-// в апстримовой структуре Topic и Brokers обязательны, а нам нужно уметь
-// обходиться без очереди вовсе.
+// Conf holds the client settings. The queue fields are repeated here as
+// optional: in the upstream struct Topic and Brokers are mandatory, while we
+// need to work without a queue at all.
 type Conf struct {
 	Topic        string   `json:",optional"`
 	Brokers      []string `json:",optional"`
@@ -42,12 +42,12 @@ func (c *Conf) producerConf() *kafka.KafkaProducerConf {
 	}
 }
 
-// UseQueue сообщает, настроена ли очередь.
+// UseQueue reports whether a queue is configured.
 func (c *Conf) UseQueue() bool {
 	return c != nil && len(c.Brokers) > 0
 }
 
-// NewSyncClient возвращает клиента sync: через очередь или прямым вызовом.
+// NewSyncClient returns a sync client: through the queue or by a direct call.
 func NewSyncClient(c *Conf) sync_client.SyncClient {
 	if c.UseQueue() {
 		return sync_client.NewSyncMqClient(kafka.GetCachedMQClient(c.producerConf()))
@@ -55,7 +55,7 @@ func NewSyncClient(c *Conf) sync_client.SyncClient {
 	return sync_client.NewSyncClient(rpcClient(c.Endpoints))
 }
 
-// NewInboxClient возвращает клиента inbox: через очередь или прямым вызовом.
+// NewInboxClient returns an inbox client: through the queue or by a direct call.
 func NewInboxClient(c *Conf) inbox_client.InboxClient {
 	if c.UseQueue() {
 		return inbox_client.NewInboxMqClient(kafka.MustKafkaProducer(c.producerConf()))
@@ -64,9 +64,9 @@ func NewInboxClient(c *Conf) inbox_client.InboxClient {
 }
 
 func rpcClient(endpoints []string) zrpc.Client {
-	// NonBlock обязателен: msg обращается к inbox, который живёт в том же процессе,
-	// и клиент создаётся раньше, чем поднимется сервер. С ожиданием соединения
-	// процесс не стартует вовсе.
+	// NonBlock is mandatory: msg talks to inbox, which lives in the same process,
+	// and the client is created before the server comes up. Waiting for the
+	// connection would keep the process from starting at all.
 	return rpcx.GetCachedRpcClient(zrpc.RpcClientConf{
 		Endpoints: endpoints,
 		NonBlock:  true,

@@ -204,9 +204,10 @@ func (c *SyncCore) pushUpdatesToSession(syncType SyncType, userId, permAuthKeyId
 		var (
 			pushExcludeList   = make([]int64, 0)
 			serverIdKeyIdList = make(map[string][]int64)
-			// Отдельно от pushExcludeList: там сессии, которым стоит попробовать
-			// доставить по соединению, здесь — только те, где приложение точно
-			// открыто. Разница важна для уведомлений, см. ниже.
+			// Kept apart from pushExcludeList: that one lists sessions worth a
+			// delivery attempt over the connection, this one only those where the
+			// app is certainly open. The difference matters for notifications,
+			// see below.
 			activeKeyIdList = make([]int64, 0)
 			now         = time.Now().Unix()
 		)
@@ -220,10 +221,10 @@ func (c *SyncCore) pushUpdatesToSession(syncType SyncType, userId, permAuthKeyId
 				continue
 			}
 			pushExcludeList = append(pushExcludeList, sess.PermAuthKeyId)
-			// Список сессий отдаётся без оглядки на срок годности, а он тут
-			// решающий: свёрнутое приложение на iOS ещё какое-то время держит
-			// соединение, но сообщений уже не показывает. Считать такую сессию
-			// живой — значит не отправить уведомление никогда.
+			// The session list comes without regard to expiry, and expiry is what
+			// decides here: a backgrounded iOS app keeps the connection for a
+			// while yet shows no messages. Treating such a session as live means
+			// never sending a notification at all.
 			if sess.Expired > now {
 				activeKeyIdList = append(activeKeyIdList, sess.PermAuthKeyId)
 			}
@@ -260,8 +261,8 @@ func (c *SyncCore) pushUpdatesToSession(syncType SyncType, userId, permAuthKeyId
 				})
 			}
 
-			// Уведомление уходит на устройства, где приложение не открыто.
-			// Считаем открытым только то, чья сессия ещё не истекла.
+			// The notification goes to devices where the app is not open. Only a
+			// session that has not expired counts as open.
 			c.notifyOfflineDevices(userId, activeKeyIdList, pushData)
 		}
 	}

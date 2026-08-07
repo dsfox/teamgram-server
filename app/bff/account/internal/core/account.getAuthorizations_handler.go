@@ -14,13 +14,14 @@ import (
 // AccountGetAuthorizations
 // account.getAuthorizations#e320c158 = account.Authorizations;
 //
-// Апстрим отдавал пустой список, поэтому экран «Активные сеансы» всегда был пуст:
-// пользователь не видел, с каких устройств зашёл, и не мог завершить чужой сеанс.
-// Сами данные есть — сервис authsession умеет их отдавать, не хватало вызова.
+// Upstream returned an empty list, so the "Active sessions" screen was always
+// blank: the user could not see which devices were signed in nor terminate a
+// foreign session. The data exists — the authsession service can serve it, only
+// the call was missing.
 func (c *AccountCore) AccountGetAuthorizations(in *mtproto.TLAccountGetAuthorizations) (*mtproto.Account_Authorizations, error) {
 	authorizations, err := c.svcCtx.Dao.AuthsessionClient.AuthsessionGetAuthorizations(c.ctx, &authsession.TLAuthsessionGetAuthorizations{
 		UserId: c.MD.UserId,
-		// текущий сеанс клиент показывает отдельно, из списка его исключаем
+		// the client shows the current session separately, so exclude it here
 		ExcludeAuthKeyId: c.MD.PermAuthKeyId,
 	})
 	if err != nil {

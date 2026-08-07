@@ -1,19 +1,19 @@
-// Package countries — справочник стран для help.getCountriesList.
+// Package countries is the country reference data for help.getCountriesList.
 //
-// Файл сгенерирован: server/scripts/generate-countries.py
-// Данные: библиотеки phonenumbers (коды и длины номеров) и pycountry (названия).
+// Generated file: server/scripts/generate-countries.py
+// Sources: the phonenumbers library (codes and number lengths) and pycountry (names).
 package countries
 
-// Country — страна в том виде, в каком её ждёт клиент на экране входа.
+// Country is a country in the shape the client expects on the sign-in screen.
 type Country struct {
-	ISO2        string   // код страны, например RS
-	NameEN      string   // название по-английски
-	NameRU      string   // название по-русски
-	CountryCode string   // телефонный код без плюса, например 381
-	Patterns    []string // шаблоны номера: X — любая цифра
+	ISO2        string   // country code, for example RS
+	NameEN      string   // name in English
+	NameRU      string   // name in Russian
+	CountryCode string   // phone code without the plus, for example 381
+	Patterns    []string // number patterns: X stands for any digit
 }
 
-// All — все страны, отсортированы по английскому названию.
+// All holds every country, sorted by the English name.
 var All = []Country{
 	{ISO2: "AF", NameEN: "Afghanistan", NameRU: "Афганистан", CountryCode: "93", Patterns: []string{"XXXXXXXXX"}},
 	{ISO2: "AL", NameEN: "Albania", NameRU: "Албания", CountryCode: "355", Patterns: []string{"XXXXXXXXX"}},

@@ -1,8 +1,9 @@
-// Package pushnotify решает, кому из устройств человека отправить уведомление
-// о новом сообщении, и отправляет его.
+// Package pushnotify decides which of a person's devices should be told about a
+// new message, and tells them.
 //
-// Уведомление уходит только на устройства, где приложение сейчас не открыто:
-// если человек читает переписку, сообщение и так придёт по соединению.
+// A notification goes only to devices where the app is not open right now: if
+// the person is reading the conversation, the message arrives over the
+// connection anyway.
 package pushnotify
 
 import (
@@ -18,11 +19,11 @@ import (
 	"github.com/zeromicro/go-zero/core/threading"
 )
 
-// Notifier — отправка уведомлений о новых сообщениях.
+// Notifier sends notifications about new messages.
 //
-// Создаётся всегда, но работает, только если задан ключ Apple. Без ключа все
-// вызовы безвредно ничего не делают: сервер остаётся полностью рабочим,
-// уведомления просто не приходят.
+// It is always created but works only when an Apple key is configured. Without
+// the key every call harmlessly does nothing: the server stays fully functional,
+// notifications simply do not arrive.
 type Notifier struct {
 	registry *devices.Registry
 	sender   *apns.Sender
@@ -31,32 +32,32 @@ type Notifier struct {
 	body     string
 }
 
-// New собирает отправителя по настройкам из окружения.
+// New builds the sender from the environment settings.
 func New(db *sqlx.DB) *Notifier {
 	n := &Notifier{
 		registry: devices.NewRegistry(db),
 		db:       db,
 		title:    envOr("APNS_TITLE", "2bytes"),
-		// Текст сообщения в уведомление не попадает и попасть не может: чтобы
-		// показать его в баннере, пришлось бы отправить текст Apple. Здесь
-		// только сообщение о том, что что-то пришло.
-		body: envOr("APNS_BODY", "Новое сообщение"),
+		// The message text never reaches the notification and cannot: showing it
+		// in the banner would mean handing the text to Apple. This is only a
+		// hint that something arrived.
+		body: envOr("APNS_BODY", "New message"),
 	}
 
 	cfg, ok := apns.ConfigFromEnv()
 	if !ok {
-		logx.Info("уведомления выключены: ключ Apple не задан (APNS_KEY_PATH и остальные)")
+		logx.Info("notifications disabled: no Apple key configured (APNS_KEY_PATH and the rest)")
 		return n
 	}
 
 	sender, err := apns.New(cfg)
 	if err != nil {
-		logx.Errorf("уведомления выключены: %v", err)
+		logx.Errorf("notifications disabled: %v", err)
 		return n
 	}
 
 	n.sender = sender
-	logx.Infof("уведомления включены, приложение %s", cfg.Topic)
+	logx.Infof("notifications enabled for app %s", cfg.Topic)
 
 	return n
 }
@@ -69,34 +70,36 @@ func envOr(name, fallback string) string {
 	return fallback
 }
 
-// Enabled — настроена ли отправка.
+// Enabled reports whether sending is configured.
 func (n *Notifier) Enabled() bool {
 	return n != nil && n.sender != nil
 }
 
-// NewMessage уведомляет получателя о новом сообщении.
+// NewMessage notifies the recipient about a new message.
 //
-// onlineAuthKeyIds — ключи сессий, которым сообщение уже ушло по соединению;
-// их устройства пропускаются. peerType/peerId — чат, в который пришло
-// сообщение: по ним проверяется, не заглушен ли он.
-// Отправка идёт в стороне от доставки сообщения: ответ Apple занимает сотни
-// миллисекунд, а при недоступности сети — до минуты. Ждать этого перед тем, как
-// показать сообщение остальным устройствам, нельзя.
+// onlineAuthKeyIds are the session keys the message already went to over the
+// connection; their devices are skipped. peerType/peerId identify the chat the
+// message arrived in and are used to check whether it is muted.
+//
+// Sending happens aside from message delivery: Apple answers in hundreds of
+// milliseconds, and up to a minute when the network is down. Waiting for that
+// before showing the message on the other devices is not acceptable.
 func (n *Notifier) NewMessage(ctx context.Context, userId int64, peerType int32, peerId int64, onlineAuthKeyIds []int64) {
 	if !n.Enabled() {
 		return
 	}
 
 	threading.GoSafe(func() {
-		// Свой контекст: исходный отменится, как только сообщение доставлено.
+		// A context of our own: the original one is cancelled as soon as the
+		// message is delivered.
 		sendCtx, cancel := context.WithTimeout(context.Background(), sendTimeout)
 		defer cancel()
 		n.notify(sendCtx, userId, peerType, peerId, onlineAuthKeyIds)
 	})
 }
 
-// sendTimeout — сколько всего отводится на уведомление одного человека, включая
-// запросы к базе и все его устройства.
+// sendTimeout is the total budget for notifying one person, database queries and
+// all of their devices included.
 const sendTimeout = 30 * time.Second
 
 func (n *Notifier) notify(ctx context.Context, userId int64, peerType int32, peerId int64, onlineAuthKeyIds []int64) {
@@ -120,9 +123,10 @@ func (n *Notifier) notify(ctx context.Context, userId int64, peerType int32, pee
 	}
 }
 
-// offlineTargets — устройства, которым нужно уведомление: те, где приложение
-// закрыто. Устройству с живой сессией сообщение уже ушло по соединению, и
-// уведомление о том, что человек видит на экране, только раздражает.
+// offlineTargets returns the devices that need a notification: those where the
+// app is closed. A device with a live session already got the message over the
+// connection, and a notification about what the person sees on screen is merely
+// annoying.
 func offlineTargets(list []devices.DeviceDO, onlineAuthKeyIds []int64) []devices.DeviceDO {
 	online := make(map[int64]bool, len(onlineAuthKeyIds))
 	for _, id := range onlineAuthKeyIds {
@@ -149,41 +153,42 @@ func (n *Notifier) send(ctx context.Context, d devices.DeviceDO, badge int) {
 
 	switch {
 	case err == nil:
-		logx.WithContext(ctx).Infof("уведомление отправлено: пользователь %d, устройство %d", d.UserId, d.AuthKeyId)
+		logx.WithContext(ctx).Infof("notification sent: user %d, device %d", d.UserId, d.AuthKeyId)
 	case errors.Is(err, apns.ErrTokenGone):
-		logx.WithContext(ctx).Infof("токен устарел, забываем: пользователь %d, устройство %d", d.UserId, d.AuthKeyId)
+		logx.WithContext(ctx).Infof("token is gone, forgetting it: user %d, device %d", d.UserId, d.AuthKeyId)
 		_ = n.registry.Forget(ctx, d.TokenType, d.Token)
 	default:
-		logx.WithContext(ctx).Errorf("уведомление не отправлено: пользователь %d - %v", d.UserId, err)
+		logx.WithContext(ctx).Errorf("notification not sent: user %d - %v", d.UserId, err)
 	}
 }
 
-// muted — заглушён ли чат получателем. Настройки заглушения хранит biz-слой,
-// но ходить туда по сети ради каждого сообщения дорого, а таблица простая.
+// muted reports whether the recipient muted this chat. Mute settings belong to
+// the biz layer, but a network call per message is expensive and the table is
+// simple.
 func (n *Notifier) muted(ctx context.Context, userId int64, peerType int32, peerId int64) bool {
 	var muteUntil int32
 	query := "select mute_until from user_notify_settings where user_id = ? and peer_type = ? and peer_id = ? and deleted = 0"
 
 	if err := n.db.QueryRow(ctx, &muteUntil, query, userId, peerType, peerId); err != nil {
-		// Записи нет — чат не заглушен, это обычный случай.
+		// No row means the chat is not muted, which is the common case.
 		return false
 	}
 
-	// -1 означает «настройка не задана», 0 — «звук включён»,
-	// большое значение — заглушено надолго.
+	// -1 means "not configured", 0 means "sound on", a large value means muted
+	// for a long time.
 	return int64(muteUntil) > time.Now().Unix()
 }
 
-// unreadCount — сколько непрочитанных всего. Это число iOS ставит на иконку;
-// посчитать его больше некому, расширения приложения у нас нет.
+// unreadCount is the total number of unread messages. iOS puts this number on
+// the icon; nobody else can compute it since we ship no app extension.
 func (n *Notifier) unreadCount(ctx context.Context, userId int64) int {
 	var total int64
 	query := "select coalesce(sum(unread_count), 0) from dialogs where user_id = ? and deleted = 0"
 
 	if err := n.db.QueryRow(ctx, &total, query, userId); err != nil {
-		logx.WithContext(ctx).Errorf("не посчитать непрочитанные для %d: %v", userId, err)
-		// Отрицательное значение просит iOS не трогать бейдж: лучше оставить
-		// как есть, чем показать неверное число.
+		logx.WithContext(ctx).Errorf("cannot count unread messages for %d: %v", userId, err)
+		// A negative value asks iOS to leave the badge alone: better keep it as
+		// is than show a wrong number.
 		return -1
 	}
 

@@ -86,7 +86,7 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 		in := object.(*mtproto.TLLangpackGetLangPack)
 		return langpack.Difference(in.GetLangCode()), nil
 	case "TLLangpackGetLanguages":
-		// Пустой список подвешивал экран выбора языка навсегда.
+		// An empty list left the language picker spinning forever.
 		return &mtproto.Vector_LangPackLanguage{
 			Datas: langpack.Languages(),
 		}, nil

@@ -25,8 +25,8 @@ import (
 // AccountUnregisterDevice
 // account.unregisterDevice#6a0d3206 token_type:int token:string other_uids:Vector<long> = Bool;
 //
-// Приложение зовёт это при выходе из учётной записи. Забыть токен обязательно:
-// иначе уведомления продолжат приходить человеку, который вышел.
+// The app calls this on sign-out. Forgetting the token is mandatory: otherwise
+// notifications keep reaching a person who has left.
 func (c *NotificationCore) AccountUnregisterDevice(in *mtproto.TLAccountUnregisterDevice) (*mtproto.Bool, error) {
 	if c.svcCtx.Dao.Devices == nil {
 		return mtproto.BoolTrue, nil

@@ -33,8 +33,8 @@ type Dao struct {
 	user_client.UserClient
 	chat_client.ChatClient
 	sync_client.SyncClient
-	// Devices пуст, если база не настроена: сервис остаётся рабочим, уведомления
-	// просто никуда не записываются.
+	// Devices stays nil when no database is configured: the service keeps
+	// working, tokens are just not stored anywhere.
 	Devices *devices.Registry
 }
 

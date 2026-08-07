@@ -1,9 +1,9 @@
-// Package discovery — получение адресов сервиса без обязательного реестра.
+// Package discovery resolves service addresses without requiring a registry.
 //
-// Изначально адреса инстансов брались только из etcd. Когда все сервисы живут
-// на одной машине и их адреса известны заранее, реестр — лишняя движущаяся часть,
-// поэтому здесь поддержаны оба режима: подписка на реестр, если он настроен,
-// и прямые адреса из конфига, если нет.
+// Originally instance addresses came from etcd only. When every service lives on
+// one machine and the addresses are known in advance, a registry is one moving
+// part too many, so both modes are supported here: subscribing to the registry
+// when it is configured, and direct addresses from the config when it is not.
 package discovery
 
 import (
@@ -12,15 +12,15 @@ import (
 	"github.com/zeromicro/go-zero/core/discov"
 )
 
-// Watch вызывает update со списком адресов сервиса.
+// Watch calls update with the list of service addresses.
 //
-// Если задан реестр — подписывается на изменения и вызывает update при каждом.
-// Если реестра нет, а есть прямые адреса — вызывает update один раз: список
-// статический, меняться ему неоткуда.
+// With a registry configured it subscribes to changes and calls update on each
+// one. Without a registry but with direct addresses it calls update once: the
+// list is static and has no source of change.
 func Watch(etcd discov.EtcdConf, endpoints []string, update func(values []string)) error {
 	if len(etcd.Hosts) == 0 {
 		if len(endpoints) == 0 {
-			return fmt.Errorf("не задан ни реестр (Etcd), ни прямые адреса (Endpoints)")
+			return fmt.Errorf("neither a registry (Etcd) nor direct addresses (Endpoints) are configured")
 		}
 		update(endpoints)
 		return nil

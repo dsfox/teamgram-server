@@ -26,9 +26,10 @@ import (
 
 // AuthResetAuthorizations
 // auth.resetAuthorizations#9fab0d1a = Bool;
-// Завершает все сеансы, кроме текущего. Апстрим отвечал ошибкой, и кнопка
-// «Завершить все другие сеансы» показывала алерт — оставалось выходить по одному.
-// Нулевой hash сервис трактует как «все, кроме указанного ключа».
+// Terminates every session except the current one. Upstream answered with an
+// error, so the "Terminate all other sessions" button raised an alert and the
+// only way out was one by one. A zero hash means "all but the given key" to the
+// service.
 func (c *AuthorizationCore) AuthResetAuthorizations(in *mtproto.TLAuthResetAuthorizations) (*mtproto.Bool, error) {
 	keyIdList, err := c.svcCtx.AuthsessionClient.AuthsessionResetAuthorization(c.ctx, &authsession.TLAuthsessionResetAuthorization{
 		UserId:    c.MD.UserId,
@@ -40,9 +41,9 @@ func (c *AuthorizationCore) AuthResetAuthorizations(in *mtproto.TLAuthResetAutho
 		return nil, err
 	}
 
-	// Каждому завершённому сеансу сообщаем, что он больше не действителен,
-	// иначе устройство продолжит работать до ближайшего переподключения.
-	// Порядок тот же, что в account.resetAuthorization для одного сеанса.
+	// Tell every terminated session it is no longer valid, otherwise the device
+	// keeps working until its next reconnect. Same order as in
+	// account.resetAuthorization for a single session.
 	for _, keyId := range keyIdList.GetDatas() {
 		c.svcCtx.SyncClient.SyncUpdatesMe(c.ctx, &sync.TLSyncUpdatesMe{
 			UserId:        c.MD.UserId,

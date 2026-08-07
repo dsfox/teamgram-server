@@ -42,7 +42,7 @@ type BucketConfig struct {
 }
 
 type MinioConfig struct {
-	// Endpoint пуст — файлы лежат на диске в каталоге Dir, объектное хранилище не нужно
+	// An empty Endpoint means files live on disk in Dir and no object store is needed
 	Endpoint        string `json:",optional"`
 	AccessKeyID     string `json:",optional"`
 	SecretAccessKey string `json:",optional"`
@@ -59,13 +59,13 @@ type MinioUtil struct {
 }
 
 func MustNewMinioClient(c *MinioConfig) *MinioUtil {
-	// Без адреса объектного хранилища работаем с файлами на диске.
+	// Without an object store address we work with files on disk.
 	if c.Endpoint == "" {
 		dir := c.Dir
 		if dir == "" {
 			dir = "../data/files"
 		}
-		logx.Infof("файлы хранятся локально: %s", dir)
+		logx.Infof("files are stored locally: %s", dir)
 		return &MinioUtil{c: c, local: newLocalStore(dir)}
 	}
 

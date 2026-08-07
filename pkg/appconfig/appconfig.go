@@ -1,27 +1,27 @@
-// Package appconfig — настройки, которыми сервер управляет поведением клиента.
+// Package appconfig holds the settings by which the server steers client behaviour.
 //
-// Клиент Telegram спрашивает их методом help.getAppConfig и по ним решает, что
-// показывать: платные подписки, звёзды, кошелёк и прочее. В открытой версии
-// teamgram метод возвращает пустоту, поэтому клиент рисует всё подряд, включая
-// разделы, за которыми у нас ничего нет.
+// The Telegram client asks for them via help.getAppConfig and decides what to
+// show: paid subscriptions, stars, the wallet and so on. In the open teamgram
+// build the method returns nothing, so the client draws everything, including
+// sections with nothing behind them.
 package appconfig
 
 import "github.com/teamgram/proto/mtproto"
 
-// flags — что выключено. Названия ключей задаёт клиент, менять их нельзя.
+// flags lists what is switched off. The client dictates the key names; they must not change.
 var flags = map[string]bool{
-	// Скрывает разделы «Premium» и «Business» в настройках: платежей у нас нет,
-	// и оба раздела ведут в тупик.
+	// Hides the "Premium" and "Business" sections in settings: we have no
+	// payments and both sections lead nowhere.
 	"premium_purchase_blocked": true,
-	// Звёзды — внутренняя валюта, тоже про платежи.
+	// Stars are an internal currency, also about payments.
 	"stars_purchase_blocked": true,
-	// Розыгрыши подписок: без подписок бессмысленны.
+	// Subscription giveaways: pointless without subscriptions.
 	"giveaway_gifts_purchase_available": false,
 	"premium_gift_attach_menu_icon":     false,
 	"premium_gift_text_field_icon":      false,
 }
 
-// Value собирает настройки в том виде, в каком их ждёт клиент.
+// Value assembles the settings in the shape the client expects.
 func Value() *mtproto.JSONValue {
 	values := make([]*mtproto.JSONObjectValue, 0, len(flags))
 	for key, enabled := range flags {

@@ -45,11 +45,11 @@ func (s *Server) Initialize() error {
 
 	ctx := svc.NewServiceContext(c)
 
-	// Приём работы напрямую по gRPC — так очередь перестаёт быть обязательной.
+	// Accepting work straight over gRPC is what makes the queue optional.
 	s.grpcSrv = grpc.New(ctx, c.RpcServerConf)
 	go s.grpcSrv.Start()
 
-	// Очередь поднимаем, только если она настроена.
+	// Start the queue only when it is configured.
 	if len(c.SyncConsumer.Brokers) > 0 {
 		s.mq = mq.New(ctx, c.SyncConsumer)
 		go s.mq.Start()

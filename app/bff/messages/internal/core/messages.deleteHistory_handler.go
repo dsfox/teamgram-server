@@ -82,13 +82,13 @@ func (c *MessagesCore) MessagesDeleteHistory(in *mtproto.TLMessagesDeleteHistory
 	return affectedHistory, nil
 }
 
-// deleteHistoryByDate удаляет сообщения переписки за указанный период.
+// deleteHistoryByDate removes the conversation messages within a period.
 //
-// Апстрим на этот запрос ничего не удалял, но отвечал успехом: пользователь
-// считал переписку стёртой, а она оставалась на месте. Для мессенджера,
-// который обещает приватность, это худший вид ошибки — молчаливый.
+// Upstream deleted nothing for this request yet answered with success: the user
+// believed the conversation was wiped while it stayed in place. For a messenger
+// that promises privacy this is the worst kind of bug — a silent one.
 //
-// Границы включительные; нулевая граница означает «без ограничения с этой стороны».
+// Both bounds are inclusive; a zero bound means "unbounded on that side".
 func (c *MessagesCore) deleteHistoryByDate(peer *mtproto.PeerUtil, minDate, maxDate int32, revoke bool) (*mtproto.Messages_AffectedHistory, error) {
 	const pageSize = 100
 
@@ -97,7 +97,7 @@ func (c *MessagesCore) deleteHistoryByDate(peer *mtproto.PeerUtil, minDate, maxD
 		offsetId int32 = 0
 	)
 
-	// Идём по истории страницами от новых к старым, пока не выйдем за нижнюю границу.
+	// Walk the history page by page from new to old until we pass the lower bound.
 	for {
 		boxList, err := c.svcCtx.Dao.MessageClient.MessageGetHistoryMessages(c.ctx, &message.TLMessageGetHistoryMessages{
 			UserId:   c.MD.UserId,
@@ -107,7 +107,7 @@ func (c *MessagesCore) deleteHistoryByDate(peer *mtproto.PeerUtil, minDate, maxD
 			Limit:    pageSize,
 		})
 		if err != nil {
-			c.Logger.Errorf("messages.deleteHistory - чтение истории: %v", err)
+			c.Logger.Errorf("messages.deleteHistory - reading history: %v", err)
 			return nil, err
 		}
 
@@ -128,7 +128,7 @@ func (c *MessagesCore) deleteHistoryByDate(peer *mtproto.PeerUtil, minDate, maxD
 		for _, msg := range messages {
 			date := msg.GetDate()
 			if minDate > 0 && date < minDate {
-				// история отсортирована от новых к старым: дальше только старее
+				// history is sorted new to old: everything further back is older
 				outOfRange = true
 				break
 			}
@@ -143,7 +143,7 @@ func (c *MessagesCore) deleteHistoryByDate(peer *mtproto.PeerUtil, minDate, maxD
 			break
 		}
 		if offsetId == 0 {
-			// в странице не нашлось ни одного подходящего сообщения — сдвигаемся по последнему
+			// no suitable message on this page: move on from the last one
 			offsetId = messages[len(messages)-1].GetId()
 		}
 	}
@@ -156,8 +156,8 @@ func (c *MessagesCore) deleteHistoryByDate(peer *mtproto.PeerUtil, minDate, maxD
 		}).To_Messages_AffectedHistory(), nil
 	}
 
-	// Удаление по списку идентификаторов не привязано к собеседнику: сообщения
-	// уже найдены. Соседний messages.deleteMessages вызывает его так же.
+	// Deleting by a list of ids is not tied to a peer: the messages are already
+	// found. The neighbouring messages.deleteMessages calls it the same way.
 	affected, err := c.svcCtx.Dao.MsgClient.MsgDeleteMessages(c.ctx, &msgpb.TLMsgDeleteMessages{
 		UserId:    c.MD.UserId,
 		AuthKeyId: c.MD.PermAuthKeyId,
@@ -167,7 +167,7 @@ func (c *MessagesCore) deleteHistoryByDate(peer *mtproto.PeerUtil, minDate, maxD
 		Id:        idList,
 	})
 	if err != nil {
-		c.Logger.Errorf("messages.deleteHistory - удаление: %v", err)
+		c.Logger.Errorf("messages.deleteHistory - deleting: %v", err)
 		return nil, err
 	}
 

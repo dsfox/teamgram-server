@@ -4,11 +4,11 @@ import (
 	"github.com/teamgram/proto/mtproto"
 )
 
-// notifyOfflineDevices отправляет уведомление на устройства, где приложение
-// сейчас закрыто.
+// notifyOfflineDevices sends a notification to the devices where the app is
+// currently closed.
 //
-// onlineAuthKeyIds — сессии, которым обновление уже ушло по соединению: там
-// человек и так всё видит.
+// onlineAuthKeyIds are the sessions the update already went to over the
+// connection: there the person sees everything anyway.
 func (c *SyncCore) notifyOfflineDevices(userId int64, onlineAuthKeyIds []int64, ups *mtproto.Updates) {
 	if !c.svcCtx.Dao.Notifier.Enabled() {
 		return
@@ -22,11 +22,11 @@ func (c *SyncCore) notifyOfflineDevices(userId int64, onlineAuthKeyIds []int64, 
 	c.svcCtx.Dao.Notifier.NewMessage(c.ctx, userId, peer.PeerType, peer.PeerId, onlineAuthKeyIds)
 }
 
-// incomingMessagePeer — чат, в который пришло чужое сообщение, или nil, если
-// в пачке обновлений нет ничего, о чём стоит уведомлять.
+// incomingMessagePeer returns the chat that received someone else's message, or
+// nil when the batch of updates holds nothing worth notifying about.
 //
-// Уведомляем только о входящих сообщениях: об отметках о прочтении, правках и
-// прочей служебной синхронизации человека будить незачем.
+// Only incoming messages count: waking a person for read marks, edits and other
+// housekeeping synchronisation is pointless.
 func incomingMessagePeer(userId int64, ups *mtproto.Updates) *mtproto.PeerUtil {
 	var peer *mtproto.PeerUtil
 
@@ -42,8 +42,8 @@ func incomingMessagePeer(userId int64, ups *mtproto.Updates) *mtproto.PeerUtil {
 			if msg == nil || msg.GetOut() {
 				return
 			}
-			// Служебные сообщения («вы добавлены в группу») не несут текста,
-			// но о них уведомить стоит — человек должен узнать, что его добавили.
+			// Service messages ("you were added to a group") carry no text, yet
+			// they are worth a notification — the person should learn about it.
 			if p := mtproto.FromPeer(msg.GetPeerId()); p != nil {
 				peer = p
 			}

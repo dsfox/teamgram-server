@@ -5,15 +5,16 @@ import (
 	"strings"
 )
 
-// DeviceDO — строка таблицы devices: токен уведомлений одного приложения
-// на одном устройстве.
+// DeviceDO is a row of the devices table: the notification token of one app on
+// one device.
 //
-// Устройство опознаётся ключом авторизации: он живёт ровно столько же, сколько
-// сессия приложения на телефоне, и переживает смену токена уведомлений.
-// Поэтому уникальность в таблице — по (auth_key_id, user_id, token_type),
-// а сам токен перезаписывается.
+// A device is identified by its authorization key: the key lives exactly as long
+// as the app session on the phone and survives notification token changes. Hence
+// the table is unique on (auth_key_id, user_id, token_type) while the token
+// itself is overwritten.
 //
-// Имена в тегах db сверяются с базой гейтом tests/schema_gate.py.
+// The names in the db tags are checked against the database by
+// tests/schema_gate.py.
 type DeviceDO struct {
 	Id           int64  `db:"id" json:"id"`
 	AuthKeyId    int64  `db:"auth_key_id" json:"auth_key_id"`
@@ -28,20 +29,20 @@ type DeviceDO struct {
 	State        int32  `db:"state" json:"state"`
 }
 
-// Типы токенов из account.registerDevice. Нас интересует только APNs:
-// приложение под Android мы пока не собираем, а VoIP-токены не запрашиваем.
+// Token types from account.registerDevice. Only APNs matters to us: we do not
+// build an Android app yet and we do not request VoIP tokens.
 const (
 	TokenTypeAPNs = 1
 )
 
-// IsAPNs — можно ли отправить на этот токен уведомление через Apple.
+// IsAPNs reports whether a notification can be sent to this token through Apple.
 func (d *DeviceDO) IsAPNs() bool {
 	return d.TokenType == TokenTypeAPNs && d.Token != ""
 }
 
-// JoinUids складывает список учётных записей, вошедших на этом устройстве,
-// в одну строку. Приложение присылает его вместе с токеном; нам он пока нужен
-// только чтобы ничего не потерять при обратном разборе.
+// JoinUids packs the list of accounts signed in on this device into a single
+// string. The app sends it along with the token; for now we keep it only so that
+// nothing is lost when the record is read back.
 func JoinUids(uids []int64) string {
 	parts := make([]string, 0, len(uids))
 	for _, uid := range uids {

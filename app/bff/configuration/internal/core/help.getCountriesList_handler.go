@@ -16,8 +16,9 @@ import (
 // HelpGetCountriesList
 // help.getCountriesList#735787a8 lang_code:string hash:int = help.CountriesList;
 //
-// В апстриме метод отдаёт пустой список («требуется лицензионный ключ»), из-за чего
-// на экране входа не открывается выбор страны. Справочник живёт в pkg/countries.
+// Upstream returns an empty list here ("license key required"), which leaves the
+// country picker on the sign-in screen unable to open. The reference data lives
+// in pkg/countries.
 func (c *ConfigurationCore) HelpGetCountriesList(in *mtproto.TLHelpGetCountriesList) (*mtproto.Help_CountriesList, error) {
 	russian := strings.HasPrefix(strings.ToLower(in.GetLangCode()), "ru")
 

@@ -13,9 +13,9 @@ import (
 	userpb "github.com/teamgram/teamgram-server/app/service/biz/user/user"
 )
 
-// normalizePhone приводит номер к тому виду, в каком он лежит в базе:
-// только цифры, без плюса, скобок и пробелов. Из телефонной книги номера
-// приходят как угодно — «+7 999 123-45-67» должен найтись так же, как «79991234567».
+// normalizePhone brings a number to the shape stored in the database: digits
+// only, without a plus, brackets or spaces. Numbers come from the address book
+// in any form — "+7 999 123-45-67" must be found just like "79991234567".
 func normalizePhone(phone string) string {
 	var digits strings.Builder
 	for _, r := range phone {
@@ -29,9 +29,9 @@ func normalizePhone(phone string) string {
 // ContactsImportContacts
 // contacts.importContacts#2c800be5 contacts:Vector<InputContact> = contacts.ImportedContacts;
 //
-// Клиент присылает телефонную книгу и ждёт, кто из неё уже зарегистрирован.
-// В апстриме метод возвращал пустой ответ, поэтому список контактов всегда
-// оставался пустым, сколько бы номеров ни было в книге.
+// The client sends the address book and expects to learn who is already
+// registered. Upstream returned an empty answer, so the contact list stayed
+// empty no matter how many numbers the book held.
 func (c *ContactsCore) ContactsImportContacts(in *mtproto.TLContactsImportContacts) (*mtproto.Contacts_ImportedContacts, error) {
 	var (
 		imported = make([]*mtproto.ImportedContact, 0, len(in.GetContacts()))
@@ -50,11 +50,11 @@ func (c *ContactsCore) ContactsImportContacts(in *mtproto.TLContactsImportContac
 			Phone: normalizePhone(phoneContact.GetPhone()),
 		})
 		if err != nil || id.GetV() == 0 {
-			// Номера нет среди зарегистрированных — это обычное дело для телефонной книги.
+			// The number is not registered, which is normal for an address book.
 			continue
 		}
 		if id.GetV() == c.MD.UserId {
-			continue // сам себя в контакты не добавляем
+			continue // never add yourself to the contacts
 		}
 
 		found = append(found, id.GetV())
@@ -95,9 +95,9 @@ func (c *ContactsCore) ContactsImportContacts(in *mtproto.TLContactsImportContac
 			LastName:                 contact.GetLastName(),
 			Phone:                    normalizePhone(contact.GetPhone()),
 		}); err != nil {
-			// Один неудачный контакт не должен ронять импорт всей книги:
-			// клиент повторит его отдельно, если сочтёт нужным.
-			c.Logger.Errorf("contacts.importContacts - добавление %d: %v", id, err)
+			// A single failed contact must not sink the whole import: the client
+			// will retry it separately if it sees fit.
+			c.Logger.Errorf("contacts.importContacts - adding %d: %v", id, err)
 			retry = append(retry, contact.GetClientId())
 		}
 	}

@@ -7,9 +7,9 @@ import (
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
-// Registry — список устройств, на которые пользователю можно отправить
-// уведомление. Общий для двух сервисов: notification сюда пишет (приложение
-// сообщило токен), sync отсюда читает (кому отправлять, когда человек оффлайн).
+// Registry is the list of devices a person can be notified on. Shared by two
+// services: notification writes here (the app reported a token) and sync reads
+// from here (whom to notify while the person is offline).
 type Registry struct {
 	db *sqlx.DB
 }
@@ -18,10 +18,10 @@ func NewRegistry(db *sqlx.DB) *Registry {
 	return &Registry{db: db}
 }
 
-// Register запоминает токен устройства.
+// Register remembers a device token.
 //
-// Приложение присылает токен при каждом запуске, а Apple время от времени его
-// меняет — поэтому запись обновляется, а не добавляется второй раз.
+// The app reports the token on every launch and Apple rotates it now and then,
+// so the row is updated instead of being inserted a second time.
 func (r *Registry) Register(ctx context.Context, d *DeviceDO) error {
 	query := "insert into devices(auth_key_id, user_id, token_type, token, no_muted, app_sandbox, secret, other_uids) " +
 		"values (:auth_key_id, :user_id, :token_type, :token, :no_muted, :app_sandbox, :secret, :other_uids) " +
@@ -36,8 +36,7 @@ func (r *Registry) Register(ctx context.Context, d *DeviceDO) error {
 	return nil
 }
 
-// Unregister убирает устройство: человек вышел из учётной записи или запретил
-// уведомления.
+// Unregister drops a device: the person signed out or disabled notifications.
 func (r *Registry) Unregister(ctx context.Context, authKeyId, userId int64, tokenType int32, token string) error {
 	query := "delete from devices where auth_key_id = ? and user_id = ? and token_type = ? and token = ?"
 
@@ -49,7 +48,7 @@ func (r *Registry) Unregister(ctx context.Context, authKeyId, userId int64, toke
 	return nil
 }
 
-// ListByUser — все устройства пользователя.
+// ListByUser returns every device of the user.
 func (r *Registry) ListByUser(ctx context.Context, userId int64) ([]DeviceDO, error) {
 	var list []DeviceDO
 	query := "select id, auth_key_id, user_id, token_type, token, no_muted, locked_period, app_sandbox, secret, other_uids, state " +
@@ -63,9 +62,9 @@ func (r *Registry) ListByUser(ctx context.Context, userId int64) ([]DeviceDO, er
 	return list, nil
 }
 
-// Forget убирает токен, который Apple объявила недействительной: приложение
-// удалено с устройства. Продолжать слать на такой токен запрещено правилами
-// Apple, а нам это ещё и лишняя работа при каждом сообщении.
+// Forget drops a token Apple declared invalid: the app was removed from the
+// device. Apple's rules forbid sending to such a token, and for us it is wasted
+// work on every message.
 func (r *Registry) Forget(ctx context.Context, tokenType int32, token string) error {
 	query := "delete from devices where token_type = ? and token = ?"
 

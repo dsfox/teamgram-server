@@ -93,7 +93,7 @@ func (s *Server) Initialize() error {
 		s.grpcSrv.Start()
 	}()
 
-	// Очередь поднимаем, только если она настроена: приём inbox уже висит на gRPC.
+	// Start the queue only when configured: inbox already accepts work over gRPC.
 	if len(c.InboxConsumer.Brokers) > 0 {
 		s.mq = inbox_helper.New(inbox_helper.Config{
 			RpcServerConf:   c.RpcServerConf,

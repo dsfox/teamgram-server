@@ -27,9 +27,10 @@ import (
 // MessagesReadMentions
 // messages.readMentions#f0189d3 flags:# peer:InputPeer top_msg_id:flags.0?int = messages.AffectedHistory;
 //
-// Отмечает упоминания в переписке прочитанными. Апстрим отвечал ошибкой, и значок
-// упоминаний в группе не сбрасывался никогда — висел, даже когда всё прочитано.
-// Отметка выполняется тем же путём, что и для остальных непрочитанных вложений.
+// Marks mentions in a conversation as read. Upstream answered with an error, so
+// the mention badge in a group never cleared — it hung there even when
+// everything had been read. Marking follows the same path as other unread
+// attachments.
 func (c *MessagesCore) MessagesReadMentions(in *mtproto.TLMessagesReadMentions) (*mtproto.Messages_AffectedHistory, error) {
 	peer := mtproto.FromInputPeer2(c.MD.UserId, in.GetPeer())
 	if !peer.IsChatOrUser() {
@@ -84,8 +85,8 @@ func (c *MessagesCore) MessagesReadMentions(in *mtproto.TLMessagesReadMentions) 
 	return mtproto.MakeTLMessagesAffectedHistory(&mtproto.Messages_AffectedHistory{
 		Pts:      affected.GetPts(),
 		PtsCount: affected.GetPtsCount(),
-		// Ненулевое смещение просит клиента повторить вызов: за один заход
-		// отмечаем страницу, остальное он дочитает следующим запросом.
+		// A non-zero offset asks the client to call again: one pass marks a
+		// single page, the rest follows with the next request.
 		Offset: 0,
 	}).To_Messages_AffectedHistory(), nil
 }

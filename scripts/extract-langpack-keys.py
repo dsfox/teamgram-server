@@ -1,21 +1,21 @@
-"""Достаёт из клиента ключи интерфейса, которые нужно перевести.
+"""Extracts the interface keys that need translating from the client.
 
-Английские строки лежат в клиенте, остальные языки клиент берёт с сервера.
-Переводить все 12 тысяч ключей разом незачем: непереведённые клиент показывает
-по-английски, поэтому начинаем с того, что видно на каждом экране.
+The English strings live in the client, other languages come from the server.
+There is no point translating all twelve thousand keys at once: untranslated ones
+fall back to English, so we start with what is visible on every screen.
 
-Запуск: python3 server/scripts/extract-langpack-keys.py <Localizable.strings> [префикс ...]
+Usage: python3 server/scripts/extract-langpack-keys.py <Localizable.strings> [prefix ...]
 """
 import json
 import re
 import sys
 from pathlib import Path
 
-# Ключ и значение в формате .strings: "Ключ" = "Значение";
+# A key and value in .strings format: "Key" = "Value";
 LINE = re.compile(r'^"([^"]+)"\s*=\s*"((?:[^"\\]|\\.)*)";\s*$')
 
-# Разделы, которые пользователь видит первым делом: вход, список чатов,
-# переписка, настройки, общие кнопки.
+# The sections a user sees first: sign-in, the chat list, a conversation,
+# settings and the common buttons.
 DEFAULT_PREFIXES = (
     "Login.", "Localization.", "Common.", "Conversation.", "Chat.", "ChatList.",
     "Settings.", "Notification.", "Contacts.", "Group.", "Profile.", "UserInfo.",
@@ -37,7 +37,7 @@ def main(path: Path, prefixes):
         if not key.startswith(tuple(prefixes)):
             continue
 
-        # Формы множественного числа помечены суффиксом: Ключ_one, Ключ_many и т.д.
+        # Plural forms carry a suffix: Key_one, Key_many and so on.
         parts = key.rsplit("_", 1)
         if len(parts) == 2 and parts[1] in ("zero", "one", "two", "few", "many", "other", "any"):
             base, form = parts

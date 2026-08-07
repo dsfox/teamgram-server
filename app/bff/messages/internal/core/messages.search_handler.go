@@ -173,8 +173,8 @@ func (c *MessagesCore) MessagesSearch(in *mtproto.TLMessagesSearch) (*mtproto.Me
 			return rValues, nil
 		}
 	case mtproto.FilterVoice:
-		// Голосовые и «кружки» хранятся под одним типом медиа: берём оба
-		// и оставляем только голосовые — иначе вкладка была бы вперемешку.
+		// Voice notes and round videos share one media type: take both and keep
+		// only the voice ones, otherwise the tab would be a mixture.
 		boxList, err = c.svcCtx.Dao.MessageClient.MessageSearchByMediaType(c.ctx, &message.TLMessageSearchByMediaType{
 			UserId:    c.MD.UserId,
 			PeerType:  peer.PeerType,
@@ -255,16 +255,19 @@ func (c *MessagesCore) MessagesSearch(in *mtproto.TLMessagesSearch) (*mtproto.Me
 		}
 		boxList = filterMessageBoxes(boxList, mtproto.IsRoundVideoMessage)
 	case mtproto.FilterMyMentions:
-		// Такой отбор хранилище не поддерживает: отдельного типа медиа для него нет.
-		// Возвращаем пустой список, а не ошибку, — вкладка просто окажется пустой.
+		// The storage does not support this filter: there is no dedicated media
+		// type for it. Return an empty list rather than an error, so the tab is
+		// simply empty.
 		return rValues, nil
 	case mtproto.FilterGeo:
-		// Такой отбор хранилище не поддерживает: отдельного типа медиа для него нет.
-		// Возвращаем пустой список, а не ошибку, — вкладка просто окажется пустой.
+		// The storage does not support this filter: there is no dedicated media
+		// type for it. Return an empty list rather than an error, so the tab is
+		// simply empty.
 		return rValues, nil
 	case mtproto.FilterContacts:
-		// Такой отбор хранилище не поддерживает: отдельного типа медиа для него нет.
-		// Возвращаем пустой список, а не ошибку, — вкладка просто окажется пустой.
+		// The storage does not support this filter: there is no dedicated media
+		// type for it. Return an empty list rather than an error, so the tab is
+		// simply empty.
 		return rValues, nil
 	case mtproto.FilterPinned:
 		boxList, err = c.svcCtx.Dao.MessageClient.MessageSearchByPinned(c.ctx, &message.TLMessageSearchByPinned{
@@ -364,8 +367,8 @@ func (c *MessagesCore) MessagesSearch(in *mtproto.TLMessagesSearch) (*mtproto.Me
 	return rValues, nil
 }
 
-// filterMessageBoxes оставляет только те сообщения, что подходят под условие.
-// Нужен там, где в хранилище нет отдельного типа для вида сообщения.
+// filterMessageBoxes keeps only the messages that match the predicate. Needed
+// where the storage has no dedicated type for a kind of message.
 func filterMessageBoxes(boxList *mtproto.MessageBoxList, keep func(*mtproto.Message) bool) *mtproto.MessageBoxList {
 	if boxList == nil {
 		return boxList

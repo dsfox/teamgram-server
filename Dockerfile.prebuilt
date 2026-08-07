@@ -1,15 +1,16 @@
-# Образ из готовых бинарников: компиляции здесь нет.
+# An image made of ready binaries: no compilation happens here.
 #
-# Бинарники собираются на рабочей машине скриптом server/build-linux.sh — Go
-# умеет собирать под чужую архитектуру без эмуляции, и это занимает полминуты
-# вместо десятков минут на сервере. Серверу остаётся только положить их в
-# образ рядом с ffmpeg.
+# The binaries are built on the workstation by server/build-linux.sh — Go
+# compiles for a foreign architecture without emulation, which takes half a
+# minute instead of tens of minutes on the server. All the server has to do is
+# place them into an image next to ffmpeg.
 #
-# Сборка: docker build -f Dockerfile.prebuilt -t 2bytes-server .
+# Build: docker build -f Dockerfile.prebuilt -t 2bytes-server .
 FROM ubuntu:latest
-# ffmpeg обязателен: из него берётся первый кадр видео для превью. Без превью
-# клиент не показывает видео в переписке — проверено вживую, выглядит как
-# «сообщение не дошло». Ставим только его и psmisc (killall в скриптах запуска).
+# ffmpeg is mandatory: it produces the first video frame used as a thumbnail.
+# Without a thumbnail the client does not show the video in a chat — verified in
+# practice, it looks like "the message never arrived". We install only it and
+# psmisc (killall in the startup scripts).
 RUN apt update -y && apt install -y ffmpeg psmisc && apt-get clean
 
 WORKDIR /app

@@ -25,12 +25,13 @@ import (
 // AuthCheckPassword
 // auth.checkPassword#d18b4d16 password:InputCheckPasswordSRP = auth.Authorization;
 func (c *AuthorizationCore) AuthCheckPassword(in *mtproto.TLAuthCheckPassword) (*mtproto.Auth_Authorization, error) {
-	// Проверка пароля не реализована: апстрим выдаёт авторизацию, НЕ сверив пароль.
-	// Пока двухфакторная защита не написана, вход по паролю должен быть закрыт —
-	// иначе достаточно включить эту ветку, и подойдёт любой пароль.
-	// Сейчас ветка недостижима (account.getPassword всегда сообщает, что пароля нет),
-	// но оставлять её открытой нельзя.
+	// Password verification is not implemented: upstream grants authorization
+	// WITHOUT checking the password. Until two-factor protection is written,
+	// password sign-in must stay closed — otherwise enabling this branch would
+	// make any password work. The branch is currently unreachable
+	// (account.getPassword always reports no password), but leaving it open is
+	// not acceptable.
 	err := mtproto.ErrPasswordHashInvalid
-	c.Logger.Errorf("auth.checkPassword: проверка пароля не реализована, вход отклонён")
+	c.Logger.Errorf("auth.checkPassword: password verification is not implemented, sign-in rejected")
 	return nil, err
 }

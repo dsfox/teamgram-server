@@ -25,10 +25,10 @@ import (
 // MessagesGetSearchResultsCalendar
 // messages.getSearchResultsCalendar#49f0bde9 peer:InputPeer filter:MessagesFilter offset_id:int offset_date:int = messages.SearchResultsCalendar;
 func (c *MessagesCore) MessagesGetSearchResultsCalendar(in *mtproto.TLMessagesGetSearchResultsCalendar) (*mtproto.Messages_SearchResultsCalendar, error) {
-	// Календарь показывает, в какие дни в переписке были сообщения. Раскладку
-	// по датам мы не считаем, но и ошибкой отвечать нельзя: клиент показывает
-	// пользователю алерт. Пустой ответ он принимает спокойно — календарь просто
-	// открывается без отметок.
+	// The calendar shows which days had messages in a conversation. We do not
+	// compute that breakdown, yet answering with an error is not an option: the
+	// client raises an alert. An empty answer is accepted calmly — the calendar
+	// simply opens without marks.
 	return mtproto.MakeTLMessagesSearchResultsCalendar(&mtproto.Messages_SearchResultsCalendar{
 		Inexact:        false,
 		Count:          0,

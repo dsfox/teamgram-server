@@ -1,12 +1,12 @@
-// Package langpack — языки интерфейса, о которых сервер сообщает клиенту.
+// Package langpack lists the interface languages the server advertises.
 //
-// Клиент спрашивает список методом langpack.getLanguages. В открытой версии
-// teamgram ответ пустой, и экран выбора языка висит в загрузке навсегда.
+// The client asks for the list via langpack.getLanguages. In the open teamgram
+// build the answer is empty and the language screen spins forever.
 //
-// Здесь перечислены языки, строки которых есть в самом приложении. Языки,
-// которых нет в клиенте, добавлять сюда нельзя: сервер должен будет отдать
-// для них перевод (langpack.getLangPack), а отдавать нечего — выбрав такой
-// язык, пользователь получит интерфейс из пустых строк.
+// Listed here are the languages whose strings exist in the app itself. Adding a
+// language the client does not carry is not allowed: the server would have to
+// serve its translation (langpack.getLangPack) and there is nothing to serve —
+// picking such a language leaves the user with a blank interface.
 package langpack
 
 import "github.com/teamgram/proto/mtproto"
@@ -18,18 +18,18 @@ type Language struct {
 	PluralCode string
 }
 
-// Available — языки, встроенные в клиент.
+// Available lists the languages built into the client.
 var Available = []Language{
 	{Code: "en", Name: "English", NativeName: "English", PluralCode: "en"},
 	{Code: "ru", Name: "Russian", NativeName: "Русский", PluralCode: "ru"},
 }
 
-// Languages возвращает список для langpack.getLanguages.
+// Languages returns the list for langpack.getLanguages.
 func Languages() []*mtproto.LangPackLanguage {
 	list := make([]*mtproto.LangPackLanguage, 0, len(Available))
 	for _, language := range Available {
-		// Язык без строк показывать нельзя: выбрав его, пользователь получит
-		// интерфейс из пустых надписей. Английский встроен в клиент.
+		// A language without strings must not be offered: choosing it leaves the
+		// user with blank labels. English is built into the client.
 		if language.Code != "en" && !Loaded(language.Code) {
 			continue
 		}

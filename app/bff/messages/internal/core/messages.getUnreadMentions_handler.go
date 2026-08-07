@@ -109,8 +109,8 @@ func (c *MessagesCore) MessagesGetUnreadMentions(in *mtproto.TLMessagesGetUnread
 
 		return nil, mtproto.ErrEnterpriseIsBlocked
 	case mtproto.PEER_USER, mtproto.PEER_SELF:
-		// Ветки для личной переписки не было вовсе, и клиент получал PEER_ID_INVALID,
-		// хотя упоминания бывают и в личных чатах.
+		// There was no branch for private chats at all, so the client got
+		// PEER_ID_INVALID even though mentions happen in private chats too.
 		rValues = mtproto.MakeTLMessagesMessages(&mtproto.Messages_Messages{
 			Messages: []*mtproto.Message{},
 			Chats:    []*mtproto.Chat{},

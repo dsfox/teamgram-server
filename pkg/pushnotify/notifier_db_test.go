@@ -9,13 +9,13 @@ import (
 	"github.com/teamgram/teamgram-server/pkg/devices"
 )
 
-// Чтение из базы иначе нигде не проверяется: сценарии сверяют запись токена,
-// а читает его код отправки, который без ключа Apple не запускается. Здесь
-// проверяется именно чтение — типы колонок легко разъезжаются с Go-структурой
-// и обнаруживаются только в бою.
+// Reading from the database is not covered anywhere else: the scenarios verify
+// that a token is written, while reading it back is done by the sending code,
+// which never runs without an Apple key. Column types drift away from the Go
+// struct easily and such drift shows up only in production.
 //
-// Тест требует поднятого стенда (deploy/docker-compose.yml). Без него молча
-// пропускается, чтобы не ломать сборку там, где базы нет.
+// The test needs a running stand (deploy/docker-compose.yml). Without one it is
+// silently skipped so that builds without a database keep working.
 const testDSN = "teamgram:teamgram@tcp(127.0.0.1:3306)/teamgram?charset=utf8mb4&parseTime=true"
 
 func openTestDB(t *testing.T) *sqlx.DB {
@@ -28,7 +28,7 @@ func openTestDB(t *testing.T) *sqlx.DB {
 
 	db := sqlx.NewMySQL(&sqlx.Config{DSN: dsn, Active: 2, Idle: 2})
 	if err := db.QueryRow(context.Background(), new(int), "select 1"); err != nil {
-		t.Skipf("база недоступна, тест пропущен: %v", err)
+		t.Skipf("database unavailable, test skipped: %v", err)
 	}
 
 	return db
@@ -39,12 +39,12 @@ func TestReadDeviceBack(t *testing.T) {
 	ctx := context.Background()
 	registry := devices.NewRegistry(db)
 
-	const userId = -424242 // заведомо несуществующий человек, чтобы не мешать данным
+	const userId = -424242 // a deliberately non-existent person, so real data stays untouched
 	want := devices.DeviceDO{
 		AuthKeyId:  -1,
 		UserId:     userId,
 		TokenType:  devices.TokenTypeAPNs,
-		Token:      "проверка чтения",
+		Token:      "read-back check",
 		NoMuted:    true,
 		AppSandbox: true,
 		Secret:     "00ff",
@@ -52,7 +52,7 @@ func TestReadDeviceBack(t *testing.T) {
 	}
 
 	if err := registry.Register(ctx, &want); err != nil {
-		t.Fatalf("не записать устройство: %v", err)
+		t.Fatalf("cannot store the device: %v", err)
 	}
 	t.Cleanup(func() {
 		_ = registry.Unregister(ctx, want.AuthKeyId, want.UserId, want.TokenType, want.Token)
@@ -60,62 +60,62 @@ func TestReadDeviceBack(t *testing.T) {
 
 	list, err := registry.ListByUser(ctx, userId)
 	if err != nil {
-		t.Fatalf("не прочитать устройства: %v", err)
+		t.Fatalf("cannot read the devices back: %v", err)
 	}
 	if len(list) != 1 {
-		t.Fatalf("ожидалось одно устройство, получено %d", len(list))
+		t.Fatalf("expected one device, got %d", len(list))
 	}
 
 	got := list[0]
 	switch {
 	case got.Token != want.Token:
-		t.Errorf("токен: %q вместо %q", got.Token, want.Token)
+		t.Errorf("token: %q instead of %q", got.Token, want.Token)
 	case got.TokenType != want.TokenType:
-		t.Errorf("тип токена: %d вместо %d", got.TokenType, want.TokenType)
+		t.Errorf("token type: %d instead of %d", got.TokenType, want.TokenType)
 	case !got.AppSandbox:
-		t.Error("потеряна пометка о песочнице: уведомление уйдёт не на тот сервер Apple")
+		t.Error("sandbox flag lost: the notification would go to the wrong Apple server")
 	case !got.NoMuted:
-		t.Error("потерян признак no_muted")
+		t.Error("no_muted flag lost")
 	case got.Secret != want.Secret:
-		t.Errorf("секрет: %q вместо %q", got.Secret, want.Secret)
+		t.Errorf("secret: %q instead of %q", got.Secret, want.Secret)
 	case !got.IsAPNs():
-		t.Error("устройство не опознано как пригодное для уведомлений")
+		t.Error("the device is not recognised as notifiable")
 	}
 }
 
 func TestUnreadCountReadsAsNumber(t *testing.T) {
 	db := openTestDB(t)
 
-	// sum() в MySQL возвращает decimal, а не целое: если чтение написано
-	// неаккуратно, здесь будет ошибка преобразования типа.
+	// sum() in MySQL returns a decimal rather than an integer: sloppy reading
+	// code fails here with a type conversion error.
 	n := &Notifier{db: db}
 	ctx := context.Background()
 
 	if got := n.unreadCount(ctx, -424242); got != 0 {
-		t.Fatalf("для человека без переписок ожидался 0, получено %d", got)
+		t.Fatalf("expected 0 for a person without conversations, got %d", got)
 	}
 
-	// Пустая выборка отдаёт ноль из coalesce и ничего не доказывает про типы.
-	// Настоящая проверка — на человеке с непрочитанными.
+	// An empty selection returns the zero from coalesce and proves nothing about
+	// types. The real check needs a person with unread messages.
 	var userId int64
 	err := db.QueryRow(ctx, &userId,
 		"select user_id from dialogs where unread_count > 0 and deleted = 0 limit 1")
 	if err != nil {
-		t.Skip("в базе нет непрочитанных сообщений, проверку типа делать не на чем")
+		t.Skip("no unread messages in the database, nothing to check the type on")
 	}
 
 	if got := n.unreadCount(ctx, userId); got <= 0 {
-		t.Fatalf("у человека есть непрочитанные, а посчитано %d", got)
+		t.Fatalf("the person has unread messages, but the count is %d", got)
 	}
 }
 
 func TestMutedForUnknownPeer(t *testing.T) {
 	db := openTestDB(t)
 
-	// Настроек нет — чат не заглушен. Обратный ответ означал бы, что уведомления
-	// молча не приходят никому.
+	// No settings means the chat is not muted. The opposite answer would mean
+	// notifications silently reach nobody.
 	n := &Notifier{db: db}
 	if n.muted(context.Background(), -424242, 2, -424243) {
-		t.Fatal("чат без настроек считается заглушенным")
+		t.Fatal("a chat without settings is treated as muted")
 	}
 }

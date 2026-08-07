@@ -1,11 +1,11 @@
-// Package apns отправляет уведомления на устройства Apple.
+// Package apns delivers notifications to Apple devices.
 //
-// Важное свойство: в уведомление не попадает ни текст сообщения, ни имя
-// отправителя — только «Новое сообщение». Это осознанный выбор: показать текст
-// в баннере можно лишь передав его Apple, пусть и зашифрованным. Мы не передаём
-// ничего — сервер Apple видит только факт события. Расшифровкой и подстановкой
-// текста в Telegram занимается отдельное расширение приложения, которого у нас
-// нет; см. docs/03-push-uvedomleniya.md.
+// Important property: a notification carries neither the message text nor the
+// sender name — only "New message". This is deliberate: showing the text in the
+// banner would require handing it to Apple, even if encrypted. We hand over
+// nothing, so Apple only ever sees that an event happened. In Telegram the
+// decryption and text substitution are done by a separate app extension, which
+// we do not ship; see docs/03-push-notifications.md.
 package apns
 
 import (
@@ -22,31 +22,33 @@ import (
 	"golang.org/x/net/http2"
 )
 
-// ErrTokenGone — Apple сообщила, что токен больше не существует: приложение
-// удалено с устройства. Такой токен нужно забыть, повторять отправку бесполезно.
+// ErrTokenGone means Apple reported the token no longer exists: the app was
+// removed from the device. Such a token must be forgotten; retrying is useless.
 var ErrTokenGone = errors.New("apns: device token is no longer valid")
 
-// ErrWrongEnvironment — ключ выдан для другой среды. Ключи Apple бывают
-// привязаны к одной: боевой или песочнице. Отдельная ошибка, потому что по
-// коду ответа причина неочевидна, а лечится она только новым ключом.
-var ErrWrongEnvironment = errors.New("apns: ключ не обслуживает эту среду")
+// ErrWrongEnvironment means the key was issued for a different environment.
+// Apple keys can be bound to one of them: production or sandbox. It gets its own
+// error because the response code alone does not explain the cause, and the only
+// cure is a new key.
+var ErrWrongEnvironment = errors.New("apns: key does not serve this environment")
 
-// reasonBadEnvironmentKey — ответ Apple, когда ключ выдан для другой среды.
-// В библиотеке константы нет: ключи с привязкой к среде появились позже.
+// reasonBadEnvironmentKey is Apple's answer when the key belongs to another
+// environment. The library has no constant for it: environment-bound keys
+// appeared later.
 const reasonBadEnvironmentKey = "BadEnvironmentKeyInToken"
 
-// Config — то, что выдаёт портал разработчика Apple. Ключ бессрочный и один
-// на все приложения команды.
+// Config holds what the Apple developer portal issues. The key never expires and
+// one key covers every app of the team.
 type Config struct {
-	KeyPath string // файл .p8 с закрытым ключом
-	KeyId   string // идентификатор ключа, 10 символов
-	TeamId  string // идентификатор команды, 10 символов
-	Topic   string // идентификатор приложения, он же bundle id
+	KeyPath string // .p8 file with the private key
+	KeyId   string // key identifier, 10 characters
+	TeamId  string // team identifier, 10 characters
+	Topic   string // app identifier, same as the bundle id
 }
 
-// ConfigFromEnv читает настройки из окружения. Второе значение — заданы ли они
-// вообще: без ключа сервер работает как раньше, просто молча не отправляет
-// уведомления.
+// ConfigFromEnv reads the settings from the environment. The second value tells
+// whether they are set at all: without a key the server runs exactly as before,
+// it just silently sends no notifications.
 func ConfigFromEnv() (Config, bool) {
 	c := Config{
 		KeyPath: os.Getenv("APNS_KEY_PATH"),
@@ -58,9 +60,10 @@ func ConfigFromEnv() (Config, bool) {
 	return c, c.KeyPath != "" && c.KeyId != "" && c.TeamId != "" && c.Topic != ""
 }
 
-// Sender отправляет уведомления. Держит два подключения: боевое и к песочнице.
-// Смешивать их нельзя — токен, выданный устройству в одной среде, в другой
-// недействителен, поэтому среду выбирает вызывающий по данным устройства.
+// Sender delivers notifications. It keeps two connections: production and
+// sandbox. They must not be mixed — a token issued to a device in one
+// environment is invalid in the other, so the caller picks the environment from
+// the device record.
 type Sender struct {
 	topic      string
 	production *apns2.Client
@@ -70,7 +73,7 @@ type Sender struct {
 func New(c Config) (*Sender, error) {
 	authKey, err := token.AuthKeyFromFile(c.KeyPath)
 	if err != nil {
-		return nil, fmt.Errorf("apns: не прочитать ключ %s: %w", c.KeyPath, err)
+		return nil, fmt.Errorf("apns: cannot read key %s: %w", c.KeyPath, err)
 	}
 
 	tok := &token.Token{
@@ -86,9 +89,9 @@ func New(c Config) (*Sender, error) {
 	}, nil
 }
 
-// newClient повторяет настройки apns2 по умолчанию, добавляя ограничение на
-// время жизни простаивающего соединения. Без него число горутин растёт:
-// соединения к Apple копятся и не закрываются (sideshow/apns2#238).
+// newClient repeats the apns2 defaults and adds a limit on how long an idle
+// connection lives. Without it the goroutine count grows: connections to Apple
+// pile up and are never closed (sideshow/apns2#238).
 func newClient(tok *token.Token) *apns2.Client {
 	transport := &http2.Transport{
 		ReadIdleTimeout: apns2.ReadIdleTimeout,
@@ -103,10 +106,10 @@ func newClient(tok *token.Token) *apns2.Client {
 	return client
 }
 
-// Notify — уведомление о новом событии для одного устройства.
+// Notify describes a notification about a new event for a single device.
 //
-// Badge — число непрочитанных; iOS ставит его на иконку как есть. Отрицательное
-// значение означает «не трогать бейдж».
+// Badge is the unread count; iOS puts it on the icon as is. A negative value
+// means "leave the badge alone".
 type Notify struct {
 	Title   string
 	Body    string
@@ -114,7 +117,8 @@ type Notify struct {
 	Sandbox bool
 }
 
-// Send доставляет уведомление. Возвращает ErrTokenGone, если токен пора забыть.
+// Send delivers the notification. It returns ErrTokenGone when the token should
+// be forgotten.
 func (s *Sender) Send(ctx context.Context, deviceToken string, n Notify) error {
 	p := payload.NewPayload().
 		AlertTitle(n.Title).
@@ -135,29 +139,29 @@ func (s *Sender) Send(ctx context.Context, deviceToken string, n Notify) error {
 		Payload:     p,
 		Priority:    apns2.PriorityHigh,
 		PushType:    apns2.PushTypeAlert,
-		// Уведомление о непрочитанном сообщении устаревает: если телефон был
-		// выключен сутки, показывать его при включении незачем — человек и так
-		// увидит переписку.
+		// A notification about an unread message goes stale: if the phone stayed
+		// off for a day, showing it at power-on is pointless — the person will
+		// see the conversation anyway.
 		Expiration: time.Now().Add(24 * time.Hour),
 	})
 	if err != nil {
-		return fmt.Errorf("apns: отправка не удалась: %w", err)
+		return fmt.Errorf("apns: delivery failed: %w", err)
 	}
 
 	switch res.Reason {
 	case apns2.ReasonUnregistered, apns2.ReasonBadDeviceToken, apns2.ReasonExpiredToken:
 		return ErrTokenGone
 	case reasonBadEnvironmentKey, apns2.ReasonBadCertificateEnvironment:
-		env := "боевую"
+		env := "production"
 		if n.Sandbox {
-			env = "песочницу"
+			env = "sandbox"
 		}
-		return fmt.Errorf("%w: устройство ждёт уведомления через %s, "+
-			"нужен ключ Apple для этой среды", ErrWrongEnvironment, env)
+		return fmt.Errorf("%w: the device expects notifications through %s, "+
+			"an Apple key for that environment is required", ErrWrongEnvironment, env)
 	}
 
 	if !res.Sent() {
-		return fmt.Errorf("apns: отказ %d %s", res.StatusCode, res.Reason)
+		return fmt.Errorf("apns: rejected %d %s", res.StatusCode, res.Reason)
 	}
 
 	return nil

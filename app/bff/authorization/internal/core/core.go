@@ -90,10 +90,11 @@ func checkPhoneNumberInvalid(phone string) (string, string, error) {
 	// We need getRegionCode from phone_number
 	pNumber, err := phonenumber.MakePhoneNumberHelper(phone, "")
 	if err != nil {
-		// Строгая проверка отвергает номера, которых нет в плане нумерации страны.
-		// Для сервера, который никому не звонит и не шлёт SMS, это лишнее препятствие:
-		// на тестовом стенде номера всё равно произвольные. Поэтому принимаем любой
-		// номер в международном формате, а разбор страны оставляем необязательным.
+		// Strict validation rejects numbers absent from a country numbering plan.
+		// For a server that never calls or texts anyone this is a pointless
+		// obstacle: on a test stand the numbers are arbitrary anyway. So accept
+		// any number in international format and treat country parsing as
+		// optional.
 		if digits, ok := plausiblePhoneNumber(phone); ok {
 			return "", digits, nil
 		}
@@ -103,8 +104,9 @@ func checkPhoneNumberInvalid(phone string) (string, string, error) {
 	return pNumber.GetRegionCode(), pNumber.GetNormalizeDigits(), nil
 }
 
-// plausiblePhoneNumber принимает номер, похожий на международный: плюс и 8–15 цифр
-// (E.164 допускает до 15). Возвращает номер без плюса — в таком виде он хранится.
+// plausiblePhoneNumber accepts a number that looks international: a plus and
+// 8-15 digits (E.164 allows up to 15). It returns the number without the plus,
+// which is how it is stored.
 func plausiblePhoneNumber(phone string) (string, bool) {
 	digits := strings.TrimPrefix(phone, "+")
 	if len(digits) < 8 || len(digits) > 15 {

@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# Собирает бинарники под сервер (Linux x86-64) на любой машине с Go.
+# Builds the server binaries (Linux x86-64) on any machine that has Go.
 #
-# Зачем отдельно от build.sh: компиляция — самая тяжёлая часть сборки, и на
-# скромном сервере она занимает десятки минут, а пакет сгенерированного
-# протокола там вообще упирается в память. Go умеет собирать под чужую
-# архитектуру без эмуляции, поэтому разумнее компилировать на рабочей машине,
-# а серверу отдавать готовое.
+# Why separate from build.sh: compilation is the heaviest part of the build. On a
+# modest server it takes tens of minutes, and the generated protocol package runs
+# straight out of memory there. Go compiles for a foreign architecture without
+# emulation, so it is wiser to compile on the workstation and hand the server the
+# finished product.
 #
-# Один сервис (dfs) тянет обработку webp, а та написана на C, поэтому нужен
-# кросс-компилятор C. Проще всего его даёт zig: `brew install zig`. Без zig
-# соберутся все сервисы, кроме dfs, и скрипт честно об этом скажет.
+# One service (dfs) pulls in webp processing, which is written in C, so a C
+# cross-compiler is required. The easiest source is zig: `brew install zig`.
+# Without zig every service but dfs is built, and the script says so plainly.
 #
-# Запуск: server/build-linux.sh
+# Usage: server/build-linux.sh
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -21,9 +21,9 @@ INSTALL="$PWD/teamgramd"
 export GOOS=linux GOARCH=amd64
 export GOFLAGS=${GOFLAGS:--mod=mod}
 
-# Статическая линковка с musl: бинарнику всё равно, какие библиотеки на сервере.
-# Линковку выполняет сам zig (linkmode external) — стандартный компоновщик Go
-# не умеет собирать чужую архитектуру вместе с объектниками C.
+# Static linking against musl: the binary does not care which libraries the
+# server carries. zig does the linking itself (linkmode external) — the standard
+# Go linker cannot combine a foreign architecture with C object files.
 LDFLAGS="-s -w"
 if command -v zig >/dev/null; then
   export CGO_ENABLED=1
@@ -32,11 +32,11 @@ if command -v zig >/dev/null; then
   LDFLAGS="$LDFLAGS -linkmode external -extldflags '-static'"
 else
   export CGO_ENABLED=0
-  echo "zig не найден: dfs собран не будет (brew install zig)"
+  echo "zig not found: dfs will not be built (brew install zig)"
   echo
 fi
 
-# Пути к сервисам совпадают с build.sh — список один на оба скрипта
+# Service paths match build.sh — one list serves both scripts
 SERVICES="
 service/idgen/cmd/idgen
 service/status/cmd/status
@@ -52,13 +52,13 @@ interface/gnetway/cmd/gnetway
 "
 
 started=$(date +%s)
-for put in $SERVICES; do
-  name=$(basename "$put")
+for service_path in $SERVICES; do
+  name=$(basename "$service_path")
   printf '%-14s ' "$name"
-  (cd "$APP/$put" && eval go build -ldflags=\"$LDFLAGS\" -o "$INSTALL/bin/$name" .)
-  echo "готово"
+  (cd "$APP/$service_path" && eval go build -ldflags=\"$LDFLAGS\" -o "$INSTALL/bin/$name" .)
+  echo "done"
 done
 
 echo
-echo "собрано за $(( $(date +%s) - started )) с, всего $(du -sh "$INSTALL/bin" | cut -f1)"
+echo "built in $(( $(date +%s) - started ))s, total $(du -sh "$INSTALL/bin" | cut -f1)"
 file "$INSTALL/bin/bff" | cut -c1-80

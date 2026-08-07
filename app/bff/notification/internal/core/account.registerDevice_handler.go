@@ -29,18 +29,18 @@ import (
 // AccountRegisterDevice
 // account.registerDevice#ec86017a flags:# no_muted:flags.0?true token_type:int token:string app_sandbox:Bool secret:bytes other_uids:Vector<long> = Bool;
 //
-// Приложение вызывает это при каждом запуске: Apple выдаёт токен устройства
-// заново и время от времени его меняет. Запись перезаписывается по ключу
-// авторизации — одно устройство, один токен.
+// The app calls this on every launch: Apple hands out the device token anew and
+// rotates it from time to time. The row is overwritten per authorization key —
+// one device, one token.
 func (c *NotificationCore) AccountRegisterDevice(in *mtproto.TLAccountRegisterDevice) (*mtproto.Bool, error) {
 	if c.svcCtx.Dao.Devices == nil {
-		c.Logger.Errorf("account.registerDevice - уведомления выключены: база не настроена")
+		c.Logger.Errorf("account.registerDevice - notifications disabled: no database configured")
 		return mtproto.BoolFalse, nil
 	}
 
 	token := strings.TrimSpace(in.GetToken())
 	if token == "" {
-		c.Logger.Errorf("account.registerDevice - пустой токен, тип %d", in.GetTokenType())
+		c.Logger.Errorf("account.registerDevice - empty token, type %d", in.GetTokenType())
 		return mtproto.BoolFalse, nil
 	}
 
@@ -51,9 +51,9 @@ func (c *NotificationCore) AccountRegisterDevice(in *mtproto.TLAccountRegisterDe
 		Token:      token,
 		NoMuted:    in.GetNoMuted(),
 		AppSandbox: mtproto.FromBool(in.GetAppSandbox()),
-		// Секрет нужен только для шифрования текста внутри уведомления. Текст мы
-		// не отправляем, но храним — иначе при появлении расширения приложения
-		// пришлось бы просить все устройства перерегистрироваться.
+		// The secret is only needed to encrypt text inside a notification. We do
+		// not send the text, yet we keep the secret — otherwise adding an app
+		// extension later would force every device to register anew.
 		Secret:    hex.EncodeToString(in.GetSecret()),
 		OtherUids: devices.JoinUids(in.GetOtherUids()),
 	})

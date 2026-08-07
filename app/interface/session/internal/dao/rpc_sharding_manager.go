@@ -107,7 +107,7 @@ func (sess *RpcShardingManager) Start() {
 		}
 	}
 
-	// Без реестра инстанс один: шардирование замыкается на него самого.
+	// Without a registry there is a single instance: sharding closes on itself.
 	if err := discovery.Watch(sess.c, []string{sess.pubListenOn}, update); err != nil {
 		logx.Must(err)
 	}

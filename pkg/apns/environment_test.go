@@ -9,17 +9,17 @@ import (
 	"testing"
 )
 
-// Ключи Apple бывают привязаны к одной среде: боевой или песочнице. Ключ не той
-// среды даёт BadEnvironmentKeyInToken, и уведомления молча не приходят —
-// сообщение об этом видно только в логе сервера.
+// Apple keys can be bound to a single environment: production or sandbox. A key
+// from the wrong environment yields BadEnvironmentKeyInToken, and notifications
+// silently stop arriving — the only trace is a line in the server log.
 //
-// Тест отвечает на вопрос «какие среды обслуживает наш ключ»: отправляет
-// заведомо неверный токен устройства в обе.
+// The test answers "which environments does our key serve" by sending a
+// deliberately invalid device token to both.
 //
-//	BadDeviceToken           — среда работает, забракован только выдуманный токен;
-//	BadEnvironmentKeyInToken — ключ для этой среды не годится.
+//	BadDeviceToken           — the environment works, only the made-up token was rejected;
+//	BadEnvironmentKeyInToken — the key does not fit this environment.
 //
-// Без ключа тест пропускается.
+// Without a key the test is skipped.
 func TestKeyEnvironments(t *testing.T) {
 	keyPath, keyId := findKey(t)
 
@@ -30,9 +30,9 @@ func TestKeyEnvironments(t *testing.T) {
 		Topic:   envOrDefault("APNS_TOPIC", "app.twobytes.ios"),
 	})
 	if err != nil {
-		t.Fatalf("ключ не читается: %v", err)
+		t.Fatalf("cannot read the key: %v", err)
 	}
-	t.Logf("ключ: %s", filepath.Base(keyPath))
+	t.Logf("key: %s", filepath.Base(keyPath))
 
 	const fakeToken = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
 
@@ -41,45 +41,45 @@ func TestKeyEnvironments(t *testing.T) {
 		sandbox  bool
 		required bool
 	}{
-		// Приложение мы раздаём через TestFlight, а такие сборки работают
-		// только с боевой средой. Без неё уведомлений не будет ни у кого.
-		{"боевая (сборки из TestFlight)", false, true},
-		// Песочница нужна лишь для сборок, поставленных на устройство напрямую.
-		// Ключ, привязанный к одной среде, её не обслуживает — это не поломка.
-		{"песочница (сборки на устройство)", true, false},
+		// We hand out the app through TestFlight, and such builds work with the
+		// production environment only. Without it nobody gets notifications.
+		{"production (TestFlight builds)", false, true},
+		// The sandbox matters only for builds installed on a device directly. A
+		// key bound to one environment does not serve it, and that is not a fault.
+		{"sandbox (direct device builds)", true, false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			err := sender.Send(context.Background(), fakeToken, Notify{
-				Title: "проверка", Body: "проверка", Badge: -1, Sandbox: c.sandbox,
+				Title: "check", Body: "check", Badge: -1, Sandbox: c.sandbox,
 			})
 
 			switch {
 			case errors.Is(err, ErrTokenGone):
-				t.Log("среда работает: ключ принят, забракован только выдуманный токен")
+				t.Log("environment works: the key was accepted, only the made-up token was rejected")
 			case err == nil:
-				t.Error("выдуманный токен принят — так быть не должно")
+				t.Error("the made-up token was accepted, which must not happen")
 			case c.required:
-				t.Errorf("среда недоступна, а она обязательна: %v", err)
+				t.Errorf("environment unavailable although it is required: %v", err)
 			default:
-				t.Skipf("среда недоступна, для нашей раздачи она и не нужна: %v", err)
+				t.Skipf("environment unavailable, and our distribution does not need it: %v", err)
 			}
 		})
 	}
 }
 
-// findKey ищет ключ в secrets. Имя файла Apple выдаёт в виде
-// AuthKey_<идентификатор>.p8, поэтому идентификатор берётся оттуда же —
-// хранить его отдельно в коде значило бы держать два источника правды.
+// findKey looks for the key in secrets. Apple names the file
+// AuthKey_<identifier>.p8, so the identifier comes from there — keeping it
+// separately in the code would mean two sources of truth.
 func findKey(t *testing.T) (path, keyId string) {
 	t.Helper()
 
 	matches, _ := filepath.Glob("../../../secrets/AuthKey_*.p8")
 	switch len(matches) {
 	case 0:
-		t.Skip("ключа в secrets нет, проверять нечего")
+		t.Skip("no key in secrets, nothing to check")
 	case 1:
 	default:
-		t.Skipf("ключей несколько (%v) — какой проверять, неочевидно", matches)
+		t.Skipf("several keys found (%v), unclear which one to check", matches)
 	}
 
 	name := filepath.Base(matches[0])

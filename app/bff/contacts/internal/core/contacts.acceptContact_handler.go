@@ -14,10 +14,10 @@ import (
 // ContactsAcceptContact
 // contacts.acceptContact#f831a20f id:InputUser = Updates;
 //
-// Так работает кнопка «Поделиться номером» в плашке над перепиской с незнакомцем.
-// Апстрим возвращал пустой ответ: кнопка нажималась, но ничего не происходило.
-// По сути это добавление в контакты — имя берётся из профиля собеседника,
-// потому что вводить его пользователю здесь негде.
+// This is what the "Share my phone number" button does in the bar above a chat
+// with a stranger. Upstream returned an empty answer: the button could be
+// pressed but nothing happened. In essence it adds a contact — the name comes
+// from the peer's profile because there is nowhere for the user to type one.
 func (c *ContactsCore) ContactsAcceptContact(in *mtproto.TLContactsAcceptContact) (*mtproto.Updates, error) {
 	id := mtproto.FromInputUser(c.MD.UserId, in.Id)
 	if !id.IsUser() || id.IsSelf() || id.PeerId == c.MD.UserId {
@@ -56,8 +56,8 @@ func (c *ContactsCore) ContactsAcceptContact(in *mtproto.TLContactsAcceptContact
 	cUser.MutualContact = mtproto.FromBool(changeMutual)
 	me, _ := users.GetUnsafeUserSelf(c.MD.UserId)
 
-	// Плашка над перепиской должна исчезнуть — сообщаем клиенту, что предлагать
-	// больше нечего.
+	// The bar above the chat should disappear, so tell the client there is
+	// nothing left to offer.
 	return mtproto.MakeUpdatesByUpdatesUsers(
 		[]*mtproto.User{me, cUser},
 		mtproto.MakeTLUpdatePeerSettings(&mtproto.Update{

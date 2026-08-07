@@ -29,8 +29,8 @@ type Config struct {
 	UserClient zrpc.RpcClientConf
 	ChatClient zrpc.RpcClientConf
 	SyncClient *queue.Conf
-	// База нужна ровно для одного: запомнить токен устройства, на который потом
-	// отправляется уведомление. Без неё сервис работает как прежде, просто
-	// уведомления не приходят.
+	// The database serves exactly one purpose here: remember the device token a
+	// notification is later sent to. Without it the service works as before,
+	// notifications simply do not arrive.
 	Mysql sqlx.Config `json:",optional"`
 }

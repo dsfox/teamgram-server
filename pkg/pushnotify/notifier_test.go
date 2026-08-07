@@ -24,8 +24,8 @@ func tokens(list []devices.DeviceDO) []string {
 }
 
 func TestOfflineTargets(t *testing.T) {
-	phone := apnsDevice(1, "телефон")
-	tablet := apnsDevice(2, "планшет")
+	phone := apnsDevice(1, "phone")
+	tablet := apnsDevice(2, "tablet")
 
 	cases := []struct {
 		name   string
@@ -33,43 +33,43 @@ func TestOfflineTargets(t *testing.T) {
 		online []int64
 		want   []string
 	}{{
-		name: "приложение закрыто везде — уведомление на оба устройства",
+		name: "app closed everywhere: notify both devices",
 		list: []devices.DeviceDO{phone, tablet},
-		want: []string{"телефон", "планшет"},
+		want: []string{"phone", "tablet"},
 	}, {
-		name:   "на телефоне приложение открыто — уведомление только на планшет",
+		name:   "app open on the phone: notify only the tablet",
 		list:   []devices.DeviceDO{phone, tablet},
 		online: []int64{1},
-		want:   []string{"планшет"},
+		want:   []string{"tablet"},
 	}, {
-		name:   "человек читает переписку на всех устройствах — уведомлять некого",
+		name:   "person reads on every device: nobody to notify",
 		list:   []devices.DeviceDO{phone, tablet},
 		online: []int64{1, 2},
 		want:   []string{},
 	}, {
-		name: "чужой тип токена пропускается: отправить его через Apple нельзя",
+		name: "foreign token type is skipped: Apple cannot deliver it",
 		list: []devices.DeviceDO{{AuthKeyId: 3, TokenType: 2, Token: "android"}, phone},
-		want: []string{"телефон"},
+		want: []string{"phone"},
 	}, {
-		name: "пустой токен пропускается",
+		name: "empty token is skipped",
 		list: []devices.DeviceDO{{AuthKeyId: 4, TokenType: devices.TokenTypeAPNs}, phone},
-		want: []string{"телефон"},
+		want: []string{"phone"},
 	}, {
-		name:   "сессия без устройства не мешает остальным",
+		name:   "a session without a device does not disturb the others",
 		list:   []devices.DeviceDO{phone},
 		online: []int64{99},
-		want:   []string{"телефон"},
+		want:   []string{"phone"},
 	}}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			got := tokens(offlineTargets(c.list, c.online))
 			if len(got) != len(c.want) {
-				t.Fatalf("получено %v, ожидалось %v", got, c.want)
+				t.Fatalf("got %v, want %v", got, c.want)
 			}
 			for i := range got {
 				if got[i] != c.want[i] {
-					t.Fatalf("получено %v, ожидалось %v", got, c.want)
+					t.Fatalf("got %v, want %v", got, c.want)
 				}
 			}
 		})

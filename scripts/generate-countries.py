@@ -1,11 +1,11 @@
-"""Генерирует список стран для help.getCountriesList.
+"""Generates the country list for help.getCountriesList.
 
-В открытой версии teamgram этот метод — заглушка, отдающая пустой список
-(«требуется лицензионный ключ»), из-за чего в клиенте не открывается выбор
-страны при входе. Данные берём из phonenumbers (телефонные коды и шаблоны
-номеров) и pycountry (названия, включая русские).
+In the open teamgram build this method is a stub returning an empty list
+("license key required"), which keeps the country picker from opening at sign-in.
+The data comes from phonenumbers (dialling codes and number patterns) and
+pycountry (names, Russian ones included).
 
-Запуск: python3 server/scripts/generate-countries.py > server/pkg/countries/countries.go
+Usage: python3 server/scripts/generate-countries.py > server/pkg/countries/countries.go
 """
 import gettext
 import json
@@ -14,22 +14,22 @@ import phonenumbers
 import pycountry
 from phonenumbers import phonemetadata
 
-HEADER = '''// Package countries — справочник стран для help.getCountriesList.
+HEADER = '''// Package countries is the country reference data for help.getCountriesList.
 //
-// Файл сгенерирован: server/scripts/generate-countries.py
-// Данные: библиотеки phonenumbers (коды и длины номеров) и pycountry (названия).
+// Generated file: server/scripts/generate-countries.py
+// Sources: the phonenumbers library (codes and number lengths) and pycountry (names).
 package countries
 
-// Country — страна в том виде, в каком её ждёт клиент на экране входа.
+// Country is a country in the shape the client expects on the sign-in screen.
 type Country struct {
-	ISO2        string   // код страны, например RS
-	NameEN      string   // название по-английски
-	NameRU      string   // название по-русски
-	CountryCode string   // телефонный код без плюса, например 381
-	Patterns    []string // шаблоны номера: X — любая цифра
+	ISO2        string   // country code, for example RS
+	NameEN      string   // name in English
+	NameRU      string   // name in Russian
+	CountryCode string   // phone code without the plus, for example 381
+	Patterns    []string // number patterns: X stands for any digit
 }
 
-// All — все страны, отсортированы по английскому названию.
+// All holds every country, sorted by the English name.
 var All = []Country{
 '''
 
@@ -37,7 +37,7 @@ FOOTER = "}\n"
 
 
 def patterns_for(region: str) -> list:
-    """Шаблоны вида 'XX XXX XXXX' — по ним клиент подсказывает формат номера."""
+    """Patterns like 'XX XXX XXXX': the client uses them to hint the number format."""
     metadata = phonemetadata.PhoneMetadata.metadata_for_region(region)
     if metadata is None or metadata.mobile is None:
         return []
@@ -59,7 +59,7 @@ def main():
         if not code:
             continue
         patterns = ", ".join(json.dumps(p) for p in patterns_for(region))
-        # через json.dumps, иначе апострофы в названиях (Côte d'Ivoire) ломают литерал
+        # via json.dumps, otherwise apostrophes in names (Côte d'Ivoire) break the literal
         rows.append((name_en, f"\t{{ISO2: {json.dumps(region)}, NameEN: {json.dumps(name_en)}, "
                               f"NameRU: {json.dumps(name_ru, ensure_ascii=False)}, "
                               f"CountryCode: {json.dumps(str(code))}, "

@@ -36,7 +36,7 @@ type Dao struct {
 	status_client.StatusClient
 	chat_client.ChatClient
 	PushClient sync_client.SyncClient
-	// Notifier доводит сообщение до устройств, где приложение закрыто.
+	// Notifier reaches the devices where the app is closed.
 	Notifier *pushnotify.Notifier
 }
 
