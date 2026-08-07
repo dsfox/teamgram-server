@@ -173,8 +173,21 @@ func (c *MessagesCore) MessagesSearch(in *mtproto.TLMessagesSearch) (*mtproto.Me
 			return rValues, nil
 		}
 	case mtproto.FilterVoice:
-		c.Logger.Errorf("messages.search - invalid filter: %s", in)
-		return rValues, nil
+		// Голосовые и «кружки» хранятся под одним типом медиа: берём оба
+		// и оставляем только голосовые — иначе вкладка была бы вперемешку.
+		boxList, err = c.svcCtx.Dao.MessageClient.MessageSearchByMediaType(c.ctx, &message.TLMessageSearchByMediaType{
+			UserId:    c.MD.UserId,
+			PeerType:  peer.PeerType,
+			PeerId:    peer.PeerId,
+			MediaType: mtproto.MEDIA_AUDIO,
+			Offset:    offsetId,
+			Limit:     limit,
+		})
+		if err != nil {
+			c.Logger.Errorf("messages.search - error: %v", err)
+			return rValues, nil
+		}
+		boxList = filterMessageBoxes(boxList, mtproto.IsVoiceMessage)
 	case mtproto.FilterMusic:
 		boxList, err = c.svcCtx.Dao.MessageClient.MessageSearchByMediaType(c.ctx, &message.TLMessageSearchByMediaType{
 			UserId:    c.MD.UserId,
@@ -228,16 +241,30 @@ func (c *MessagesCore) MessagesSearch(in *mtproto.TLMessagesSearch) (*mtproto.Me
 			return rValues, nil
 		}
 	case mtproto.FilterRoundVideo:
-		c.Logger.Errorf("messages.search - invalid filter: %s", in)
-		return rValues, nil
+		boxList, err = c.svcCtx.Dao.MessageClient.MessageSearchByMediaType(c.ctx, &message.TLMessageSearchByMediaType{
+			UserId:    c.MD.UserId,
+			PeerType:  peer.PeerType,
+			PeerId:    peer.PeerId,
+			MediaType: mtproto.MEDIA_AUDIO,
+			Offset:    offsetId,
+			Limit:     limit,
+		})
+		if err != nil {
+			c.Logger.Errorf("messages.search - error: %v", err)
+			return rValues, nil
+		}
+		boxList = filterMessageBoxes(boxList, mtproto.IsRoundVideoMessage)
 	case mtproto.FilterMyMentions:
-		c.Logger.Errorf("messages.search - invalid filter: %s", in)
+		// Такой отбор хранилище не поддерживает: отдельного типа медиа для него нет.
+		// Возвращаем пустой список, а не ошибку, — вкладка просто окажется пустой.
 		return rValues, nil
 	case mtproto.FilterGeo:
-		c.Logger.Errorf("messages.search - invalid filter: %s", in)
+		// Такой отбор хранилище не поддерживает: отдельного типа медиа для него нет.
+		// Возвращаем пустой список, а не ошибку, — вкладка просто окажется пустой.
 		return rValues, nil
 	case mtproto.FilterContacts:
-		c.Logger.Errorf("messages.search - invalid filter: %s", in)
+		// Такой отбор хранилище не поддерживает: отдельного типа медиа для него нет.
+		// Возвращаем пустой список, а не ошибку, — вкладка просто окажется пустой.
 		return rValues, nil
 	case mtproto.FilterPinned:
 		boxList, err = c.svcCtx.Dao.MessageClient.MessageSearchByPinned(c.ctx, &message.TLMessageSearchByPinned{
@@ -335,4 +362,23 @@ func (c *MessagesCore) MessagesSearch(in *mtproto.TLMessagesSearch) (*mtproto.Me
 		})
 
 	return rValues, nil
+}
+
+// filterMessageBoxes оставляет только те сообщения, что подходят под условие.
+// Нужен там, где в хранилище нет отдельного типа для вида сообщения.
+func filterMessageBoxes(boxList *mtproto.MessageBoxList, keep func(*mtproto.Message) bool) *mtproto.MessageBoxList {
+	if boxList == nil {
+		return boxList
+	}
+
+	kept := make([]*mtproto.MessageBox, 0, len(boxList.GetBoxList()))
+	for _, box := range boxList.GetBoxList() {
+		if keep(box.GetMessage()) {
+			kept = append(kept, box)
+		}
+	}
+
+	return mtproto.MakeTLMessageBoxList(&mtproto.MessageBoxList{
+		BoxList: kept,
+	}).To_MessageBoxList()
 }
