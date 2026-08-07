@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/teamgram/proto/mtproto"
+	"github.com/teamgram/teamgram-server/pkg/langpack"
 	"github.com/teamgram/proto/mtproto/crypto"
 
 	"github.com/zeromicro/go-zero/core/logx"
@@ -80,27 +81,19 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 	// langpack
 	case "TLLangpackGetDifference":
 		in := object.(*mtproto.TLLangpackGetDifference)
-		return mtproto.MakeTLLangPackDifference(&mtproto.LangPackDifference{
-			LangCode:    in.GetLangCode(),
-			FromVersion: in.GetFromVersion(),
-			Version:     in.GetFromVersion(),
-			Strings:     []*mtproto.LangPackString{},
-		}).To_LangPackDifference(), nil
+		return langpack.Difference(in.GetLangCode()), nil
 	case "TLLangpackGetLangPack":
 		in := object.(*mtproto.TLLangpackGetLangPack)
-		return mtproto.MakeTLLangPackDifference(&mtproto.LangPackDifference{
-			LangCode:    in.GetLangCode(),
-			FromVersion: 0,
-			Version:     0,
-			Strings:     []*mtproto.LangPackString{},
-		}).To_LangPackDifference(), nil
+		return langpack.Difference(in.GetLangCode()), nil
 	case "TLLangpackGetLanguages":
+		// Пустой список подвешивал экран выбора языка навсегда.
 		return &mtproto.Vector_LangPackLanguage{
-			Datas: []*mtproto.LangPackLanguage{},
+			Datas: langpack.Languages(),
 		}, nil
 	case "TLLangpackGetStrings":
+		in := object.(*mtproto.TLLangpackGetStrings)
 		return &mtproto.Vector_LangPackString{
-			Datas: []*mtproto.LangPackString{},
+			Datas: langpack.Strings(in.GetLangCode(), in.GetKeys()),
 		}, nil
 
 	// webpage
