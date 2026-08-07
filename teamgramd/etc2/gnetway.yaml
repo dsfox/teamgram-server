@@ -34,9 +34,13 @@ Gnetway:
       Addresses:
         - 0.0.0.0:10443
         - 0.0.0.0:5222
-    - Proto: websocket
-      Addresses:
-        - 0.0.0.0:11443
+    # WebSocket is for a web client, which we do not build yet. Listening on a
+    # port nobody reaches is a port to forget about later: it stays closed at the
+    # firewall, and the day a web client appears the omission looks like a bug in
+    # the client. Bring the block back together with the web build.
+    #- Proto: websocket
+    #  Addresses:
+    #    - 0.0.0.0:11443
   Multicore: false
   SendBuf: 65536
   ReceiveBuf: 65536

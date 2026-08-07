@@ -57,6 +57,8 @@ func TestStubAnswersEncode(t *testing.T) {
 		&mtproto.TLMessagesGetSuggestedDialogFilters{},
 		&mtproto.TLMessagesGetScheduledHistory{},
 		&mtproto.TLMessagesGetStickerSet{},
+		&mtproto.TLChannelsGetAdminedPublicChannels{},
+		&mtproto.TLHelpGetPremiumPromo{},
 	}
 
 	// The switch never touches the receiver for these methods.

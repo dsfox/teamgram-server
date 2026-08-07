@@ -412,6 +412,21 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 			Users: []*mtproto.User{},
 		}).To_Payments_SavedStarGifts(), nil
 
+	case "TLHelpGetPremiumPromo":
+		return mtproto.MakeTLHelpPremiumPromo(&mtproto.Help_PremiumPromo{
+			StatusText:     "",
+			StatusEntities: []*mtproto.MessageEntity{},
+			VideoSections:  []string{},
+			Videos:         []*mtproto.Document{},
+			PeriodOptions:  []*mtproto.PremiumSubscriptionOption{},
+			Users:          []*mtproto.User{},
+		}).To_Help_PremiumPromo(), nil
+
+	case "TLChannelsGetAdminedPublicChannels":
+		return mtproto.MakeTLMessagesChats(&mtproto.Messages_Chats{
+			Chats: []*mtproto.Chat{},
+		}).To_Messages_Chats(), nil
+
 	case "TLMessagesGetScheduledHistory":
 		return mtproto.MakeTLMessagesMessagesNotModified(nil).To_Messages_Messages(), nil
 
