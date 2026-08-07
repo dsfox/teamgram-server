@@ -289,6 +289,54 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 			Authorizations: []*mtproto.WebAuthorization{},
 			Users:          []*mtproto.User{},
 		}).To_Account_WebAuthorizations(), nil
+
+	// Decorations the client asks for at every start: reaction sets, emoji lists,
+	// the star balance. We have none of it, but an error is not an acceptable
+	// answer — the client retries the failed call in a loop and never finishes
+	// its initial load, showing an endless "Updating". An empty answer it accepts
+	// calmly.
+	case "TLMessagesGetTopReactions",
+		"TLMessagesGetRecentReactions",
+		"TLMessagesGetDefaultTagReactions",
+		"TLMessagesGetSavedReactionTags":
+		return mtproto.MakeTLMessagesReactionsNotModified(nil).To_Messages_Reactions(), nil
+
+	case "TLAccountGetDefaultEmojiStatuses",
+		"TLAccountGetRecentEmojiStatuses",
+		"TLAccountGetChannelDefaultEmojiStatuses",
+		"TLAccountGetCollectibleEmojiStatuses":
+		return mtproto.MakeTLAccountEmojiStatusesNotModified(nil).To_Account_EmojiStatuses(), nil
+
+	case "TLAccountGetDefaultProfilePhotoEmojis",
+		"TLAccountGetDefaultGroupPhotoEmojis",
+		"TLAccountGetDefaultBackgroundEmojis",
+		"TLAccountGetChannelRestrictedStatusEmojis":
+		return mtproto.MakeTLEmojiListNotModified(nil).To_EmojiList(), nil
+
+	case "TLAccountGetReactionsNotifySettings":
+		return mtproto.MakeTLReactionsNotifySettings(&mtproto.ReactionsNotifySettings{
+			Sound:        mtproto.MakeTLNotificationSoundDefault(nil).To_NotificationSound(),
+			ShowPreviews: mtproto.BoolTrue,
+		}).To_ReactionsNotifySettings(), nil
+
+	// Stars are an internal currency we do not have. A zero balance keeps the
+	// client from asking again.
+	case "TLPaymentsGetStarsStatus":
+		return mtproto.MakeTLPaymentsStarsStatus(&mtproto.Payments_StarsStatus{
+			Balance_STARSAMOUNT: mtproto.MakeTLStarsAmount(&mtproto.StarsAmount{
+				Amount:      0,
+				Nanos:       0,
+			}).To_StarsAmount(),
+			History: []*mtproto.StarsTransaction{},
+			Chats:   []*mtproto.Chat{},
+			Users:   []*mtproto.User{},
+		}).To_Payments_StarsStatus(), nil
+
+	case "TLPaymentsGetStarGiftActiveAuctions":
+		return mtproto.MakeTLPaymentsStarGiftActiveAuctionsNotModified(nil).To_Payments_StarGiftActiveAuctions(), nil
+
+	case "TLStoriesGetAllStories":
+		return mtproto.MakeTLStoriesAllStoriesNotModified(nil).To_Stories_AllStories(), nil
 	}
 
 	logx.WithContext(ctx).Errorf("%s blocked, License key from https://teamgram.net required to unlock enterprise features.", rt.Name())
