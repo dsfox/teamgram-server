@@ -26,6 +26,15 @@ import (
 // удалено с устройства. Такой токен нужно забыть, повторять отправку бесполезно.
 var ErrTokenGone = errors.New("apns: device token is no longer valid")
 
+// ErrWrongEnvironment — ключ выдан для другой среды. Ключи Apple бывают
+// привязаны к одной: боевой или песочнице. Отдельная ошибка, потому что по
+// коду ответа причина неочевидна, а лечится она только новым ключом.
+var ErrWrongEnvironment = errors.New("apns: ключ не обслуживает эту среду")
+
+// reasonBadEnvironmentKey — ответ Apple, когда ключ выдан для другой среды.
+// В библиотеке константы нет: ключи с привязкой к среде появились позже.
+const reasonBadEnvironmentKey = "BadEnvironmentKeyInToken"
+
 // Config — то, что выдаёт портал разработчика Apple. Ключ бессрочный и один
 // на все приложения команды.
 type Config struct {
@@ -138,6 +147,13 @@ func (s *Sender) Send(ctx context.Context, deviceToken string, n Notify) error {
 	switch res.Reason {
 	case apns2.ReasonUnregistered, apns2.ReasonBadDeviceToken, apns2.ReasonExpiredToken:
 		return ErrTokenGone
+	case reasonBadEnvironmentKey, apns2.ReasonBadCertificateEnvironment:
+		env := "боевую"
+		if n.Sandbox {
+			env = "песочницу"
+		}
+		return fmt.Errorf("%w: устройство ждёт уведомления через %s, "+
+			"нужен ключ Apple для этой среды", ErrWrongEnvironment, env)
 	}
 
 	if !res.Sent() {
