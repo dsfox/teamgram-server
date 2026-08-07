@@ -59,6 +59,12 @@ for service_path in $SERVICES; do
   echo "done"
 done
 
+# The alert utility lives outside app/, so it is built separately. It is what
+# turns a finding in the health check into a notification on the owner's phone.
+printf '%-14s ' "alert"
+(cd "$PWD/cmd/alert" && eval go build -ldflags=\"$LDFLAGS\" -o "$INSTALL/bin/alert" .)
+echo "done"
+
 echo
 echo "built in $(( $(date +%s) - started ))s, total $(du -sh "$INSTALL/bin" | cut -f1)"
 file "$INSTALL/bin/bff" | cut -c1-80
