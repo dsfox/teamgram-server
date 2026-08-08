@@ -360,6 +360,13 @@ func (d *Dao) UpdateUserEmojiStatus(ctx context.Context, id int64, emojiStatusDo
 }
 
 func (d *Dao) DeleteUser(ctx context.Context, id int64, phoneNumber string, reason string) bool {
+	// Erase what the account leaves behind before the row that names it goes:
+	// if this fails, the account is still there and the caller learns the
+	// deletion did not happen, rather than the person being told it did.
+	if err := d.EraseUserData(ctx, id); err != nil {
+		return false
+	}
+
 	_, _, err := d.CachedConn.Exec(
 		ctx,
 		func(ctx context.Context, conn *sqlx.DB) (int64, int64, error) {
