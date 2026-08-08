@@ -484,7 +484,14 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 		return mtproto.MakeTLMessagesMessagesNotModified(nil).To_Messages_Messages(), nil
 
 	case "TLMessagesGetStickerSet":
-		return mtproto.MakeTLMessagesStickerSetNotModified(nil).To_Messages_StickerSet(), nil
+		// Not stickerSetNotModified: the client asks for a named set without a hash,
+		// so "unchanged" is not an answer to the question. Worse, in the Android
+		// client TL_messages_stickerSetNotModified extends TL_messages_stickerSet,
+		// so its instanceof check passes and it dereferences a set that is not
+		// there - two crashes right after sign-up. We have no sticker sets at all
+		// (#20), and STICKERSET_INVALID is what a real server says about a set it
+		// does not have; both clients handle it quietly.
+		return nil, mtproto.ErrStickersetInvalid
 
 	case "TLStoriesGetAlbums":
 		return mtproto.MakeTLStoriesAlbumsNotModified(nil).To_Stories_Albums(), nil
