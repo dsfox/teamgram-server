@@ -141,7 +141,7 @@ func (c *ContactsCore) ContactsSearch(in *mtproto.TLContactsSearch) (*mtproto.Co
 					found.Results = append(found.Results, mtproto.MakePeerChannel(ch.GetId()))
 				}
 			} else {
-				c.Logger.Errorf("contacts.search blocked, License key from https://teamgram.net required to unlock enterprise features.")
+				c.Logger.Infof("contacts.search blocked, License key from https://teamgram.net required to unlock enterprise features.")
 			}
 		})
 
