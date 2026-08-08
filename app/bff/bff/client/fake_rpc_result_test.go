@@ -30,6 +30,13 @@ func TestStubAnswersEncode(t *testing.T) {
 		name := typeName(request)
 		t.Run(name, func(t *testing.T) {
 			answer, err := proxy.TryReturnFakeRpcResult(context.Background(), request)
+			if refusesOnPurpose[reflect.TypeOf(request).Elem().Name()] {
+				if err == nil {
+					t.Fatalf("expected a refusal, got an answer: this method is listed "+
+						"as one where an error is the truthful reply")
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("no stub answer, the client would get an error and retry in a loop: %v", err)
 			}
@@ -52,6 +59,22 @@ func TestStubAnswersEncode(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Where an error is the answer, not a failure to give one.
+//
+// The rule above holds for anything the client asks unconditionally at startup:
+// an error there stalls its service queue. It does not hold when the client asks
+// about a particular thing and we simply do not have it. Both clients catch this
+// one and move on - iOS through `catch` in LoadedStickerPack and
+// StickerManagement, Android by its instanceof check failing - while the
+// friendly-looking "not modified" crashed Android outright, because there
+// TL_messages_stickerSetNotModified extends TL_messages_stickerSet.
+//
+// Keyed by the request's Go type: an empty request prints as nothing, so the
+// subtest name cannot identify it.
+var refusesOnPurpose = map[string]bool{
+	"TLMessagesGetStickerSet": true,
 }
 
 // Everything the client asks for at startup and gets a stub answer to.
