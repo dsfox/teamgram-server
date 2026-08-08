@@ -100,7 +100,7 @@ func (s *Server) OnShutdown(eng gnet.Engine) {
 // OnOpen fires when a new connection has been opened.
 // The parameter out is the return value which is going to be sent back to the peer.
 func (s *Server) OnOpen(c gnet.Conn) (out []byte, action gnet.Action) {
-	logx.Debugf("onNewConn - conn(%s)", c)
+	logx.Infof("conn opened: conn(%s)", c)
 
 	ctx := newConnContext()
 	if host, _, err := net.SplitHostPort(c.RemoteAddr().String()); err == nil {
@@ -204,6 +204,10 @@ func (s *Server) OnClose(c gnet.Conn, err error) (action gnet.Action) {
 // OnTraffic fires when a local socket receives data from the peer.
 func (s *Server) OnTraffic(c gnet.Conn) (action gnet.Action) {
 	ctx := c.Context().(*connContext)
+	// Every byte that reaches this process is recorded here, before any codec can
+	// swallow it. Together with the client logging its local port on each write,
+	// a packet can be followed from one side to the other without guesswork.
+	logx.Infof("traffic in: conn(%s) %d bytes buffered", c, c.InboundBuffered())
 	ctx.spoke = true
 	s.extendIdleDeadline(c, ctx)
 	if ctx.ppv1 {
@@ -475,7 +479,7 @@ func (s *Server) onMTPRawMessage(ctx *connContext, c gnet.Conn, authKeyId int64,
 	// and leave no trace anywhere on this side: not a handled request, not a
 	// parse error, nothing. Recording every packet as it arrives is the only way
 	// to tell "never reached us" from "reached us and was dropped silently".
-	logx.Infof("packet in: conn(%s) authKeyId=%d, %d bytes", c, authKeyId, len(msg2))
+	logx.Infof("packet decoded: conn(%s) authKeyId=%d, %d bytes", c, authKeyId, len(msg2))
 
 	if authKeyId == 0 {
 		out, err := s.onHandshake(c, msg2)

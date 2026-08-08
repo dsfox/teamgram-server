@@ -109,6 +109,9 @@ type MainAuthWrapper struct {
 	finish               sync.WaitGroup
 	running              *syncx.AtomicBool
 	onlineExpired        int64
+	// Whether the client itself said it went away. Kept apart from the expiry
+	// clock: traffic must not silently overrule what the client stated.
+	reportedOffline bool
 	clientType           int
 	nextNotifyId         int64
 	nextPushId           int64
@@ -242,6 +245,15 @@ func (m *MainAuthWrapper) resetAuth(kType int, authId int64) (lastAuthId int64) 
 }
 
 func (m *MainAuthWrapper) setOnline(ctx context.Context) {
+	// A backgrounded app keeps its connection and keeps pinging, and every ping
+	// used to put the session back online. Marking it offline once therefore
+	// lasted about a second, and a message arriving after that still woke
+	// nobody. The client's own word outlives its traffic: until it says it is
+	// back, it is away.
+	if m.reportedOffline {
+		return
+	}
+
 	//setOnlineTTL(s.AuthUserId, s.authKeyId, getServerID(), s.Layer, 60)
 	date := time.Now().Unix()
 	if (m.onlineExpired == 0 || date > m.onlineExpired-kPingAddTimeout) && m.AuthUserId != 0 {
@@ -286,6 +298,32 @@ func (m *MainAuthWrapper) trySetOffline(ctx context.Context) {
 	if m.AuthUserId > 0 {
 		logx.WithContext(ctx).Infof("authSessions]]>> offline: %s", m)
 		m.cb.Dao.StatusClient.StatusSetSessionOffline(ctx, &status.TLStatusSetSessionOffline{
+			UserId:    m.AuthUserId,
+			AuthKeyId: m.authKeyId,
+		})
+	}
+	m.onlineExpired = 0
+}
+
+// setOnlineNow undoes setOfflineNow: the client is back on screen.
+func (m *MainAuthWrapper) setOnlineNow(ctx context.Context) {
+	if !m.reportedOffline {
+		return
+	}
+	m.reportedOffline = false
+	logx.WithContext(ctx).Infof("online on client request: %s", m)
+	m.setOnline(ctx)
+}
+
+// setOfflineNow drops the online record without asking whether some other
+// session of the same key still looks alive. trySetOffline is right when a
+// connection merely dropped - another one may still be serving the app - but
+// when the client itself reports going offline there is nothing to weigh.
+func (m *MainAuthWrapper) setOfflineNow(ctx context.Context) {
+	m.reportedOffline = true
+	if m.AuthUserId > 0 {
+		logx.WithContext(ctx).Infof("offline on client request: %s", m)
+		_, _ = m.cb.Dao.StatusClient.StatusSetSessionOffline(ctx, &status.TLStatusSetSessionOffline{
 			UserId:    m.AuthUserId,
 			AuthKeyId: m.authKeyId,
 		})
