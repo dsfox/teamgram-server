@@ -1064,14 +1064,21 @@ func (m *MainAuthWrapper) onSyncData(ctx context.Context, syncMsg *syncData) {
 
 	if upds, ok := syncMsg.data.obj.(*mtproto.Updates); ok {
 		if upds.PredicateName == mtproto.Predicate_updateAccountResetAuthorization {
-			logx.WithContext(ctx).Info("recv updateAccountResetAuthorization - ", reflect.TypeOf(syncMsg.data.obj))
-			if m.AuthUserId != upds.GetUserId() {
-				logx.WithContext(ctx).Error("upds -- ", upds)
+			// The update names the authorisation that was terminated. Matching on
+			// the user instead of the key deleted every session that user has,
+			// including the one that asked for the reset: it lost the answer to
+			// its own request - the server had already computed boolTrue - and
+			// then had to be announced a new session to carry on. `active_sessions`
+			// hung on exactly that.
+			if upds.GetAuthKeyId() != m.authKeyId {
+				logx.WithContext(ctx).Infof(
+					"updateAccountResetAuthorization for key %d, not ours (%d) - ignoring",
+					upds.GetAuthKeyId(), m.authKeyId)
+				return
 			}
-			// m.cb.Dao.PutCacheUserId(context.Background(), m.authKeyId, 0)
-			// m.cb.DeleteByAuthKeyId(m.authKeyId)
+
+			logx.WithContext(ctx).Info("recv updateAccountResetAuthorization - ", reflect.TypeOf(syncMsg.data.obj))
 			m.changeAuthState(ctx, mtproto.AuthStateDeleted, 0)
-			// m.AuthUserId = 0
 			return
 		}
 	}
