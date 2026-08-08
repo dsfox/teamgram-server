@@ -14,7 +14,20 @@
       "predicate_name": "boolFalse"
     },
     "this_dc": 1,
-    "dc_options": [],
+    "dc_options": [
+      {
+        "predicate_name": "dcOption",
+        "id": 1,
+        "ip_address": "5.23.53.210",
+        "port": 10443,
+        "ipv6": false,
+        "media_only": false,
+        "tcpo_only": false,
+        "cdn": false,
+        "static": true,
+        "this_port_only": false
+      }
+    ],
     "dc_txt_domain_name": "apv2.stel.com",
     "chat_size_max": 200,
     "megagroup_size_max": 100000,
@@ -58,13 +71,13 @@
     "message_length_max": 4096,
     "webfile_dc_id": 4,
     "suggested_lang_code": {
-      "value":"classic-zh-cn"
+      "value": "classic-zh-cn"
     },
     "lang_pack_version": {
-      "value":262834
+      "value": 262834
     },
     "base_lang_pack_version": {
-      "value":0
+      "value": 0
     }
   }
 }
