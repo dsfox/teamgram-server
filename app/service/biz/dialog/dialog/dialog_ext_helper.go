@@ -14,6 +14,7 @@ import (
 	"github.com/teamgram/proto/mtproto"
 
 	"github.com/zeromicro/go-zero/core/jsonx"
+	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/mr"
 )
 
@@ -257,7 +258,46 @@ func (m DialogExtList) DoGetMessagesDialogs(
 			}
 		})
 
+	dialogsData.dropDialogsWithoutTheirPeer(ctx, selfUserId)
+
 	return dialogsData
+}
+
+// dropDialogsWithoutTheirPeer removes dialogs whose peer did not come back with
+// the answer.
+//
+// A client will not show a chat whose peer it does not know, but the unread
+// count of that dialog still reaches the badge - which is how a phone ends up
+// showing one unread with no chat to open and nothing to read. The service
+// account behaved exactly like this: it exists in `users`, yet the lookup that
+// fills this list skips it, silently. Sending such a dialog is worse than
+// sending nothing, and the log line is what makes the next one findable.
+func (d *DialogsDataHelper) dropDialogsWithoutTheirPeer(ctx context.Context, selfUserId int64) {
+	known := make(map[int64]bool, len(d.Users)+len(d.Chats))
+	for _, u := range d.Users {
+		known[u.GetId()] = true
+	}
+	for _, c := range d.Chats {
+		known[c.GetId()] = true
+	}
+
+	kept := d.Dialogs[:0]
+	for _, dlg := range d.Dialogs {
+		peer := mtproto.FromPeer(dlg.GetPeer())
+		if peer.IsUser() && peer.PeerId == selfUserId {
+			// Saved messages: the peer is the user, always present.
+			kept = append(kept, dlg)
+			continue
+		}
+		if known[peer.PeerId] {
+			kept = append(kept, dlg)
+			continue
+		}
+		logx.WithContext(ctx).Errorf(
+			"dialog dropped: user %d has a dialog with %d (%d unread) whose peer could not be loaded",
+			selfUserId, peer.PeerId, dlg.GetUnreadCount())
+	}
+	d.Dialogs = kept
 }
 
 func (m *DialogExt) HasDialog() bool {

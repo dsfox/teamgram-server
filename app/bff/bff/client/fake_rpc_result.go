@@ -85,6 +85,22 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 	case "TLLangpackGetLangPack":
 		in := object.(*mtproto.TLLangpackGetLangPack)
 		return langpack.Difference(in.GetLangCode()), nil
+	case "TLMessagesGetEmojiGameInfo":
+		// There is no dice game here; saying so plainly beats an error the
+		// client retries against.
+		return mtproto.MakeTLMessagesEmojiGameUnavailable(&mtproto.Messages_EmojiGameInfo{}).To_Messages_EmojiGameInfo(), nil
+
+	case "TLPaymentsGetStarGiftCollections":
+		return mtproto.MakeTLPaymentsStarGiftCollectionsNotModified(&mtproto.Payments_StarGiftCollections{
+			//
+		}).To_Payments_StarGiftCollections(), nil
+
+	case "TLLangpackGetLanguage":
+		in := object.(*mtproto.TLLangpackGetLanguage)
+		if language := langpack.LanguageByCode(in.GetLangCode()); language != nil {
+			return language, nil
+		}
+		return nil, mtproto.ErrLangPackInvalid
 	case "TLLangpackGetLanguages":
 		// An empty list left the language picker spinning forever.
 		return &mtproto.Vector_LangPackLanguage{

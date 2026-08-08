@@ -33,7 +33,9 @@ import (
 	"github.com/teamgram/teamgram-server/pkg/env2"
 	"github.com/teamgram/teamgram-server/pkg/phonenumber"
 
+	"github.com/zeromicro/go-zero/core/contextx"
 	"github.com/zeromicro/go-zero/core/logx"
+	"github.com/zeromicro/go-zero/core/threading"
 )
 
 type AuthorizationCore struct {
@@ -129,7 +131,16 @@ If you didn't request this code by trying to log in on another device, simply ig
 )
 
 func (c *AuthorizationCore) pushSignInMessage(ctx context.Context, signInUserId int64, code string) {
-	time.AfterFunc(2*time.Second, func() {
+	// Delivered at once, not after a pause. The client asks for its dialog list
+	// once, right after signing in, and then lives on its local copy: a chat
+	// that does not exist yet at that moment never appears at all - not after a
+	// relaunch, not after a force quit - while its unread count still reaches
+	// the badge. Two seconds of delay cost a chat that is invisible forever.
+	//
+	// The context is detached because the request that started this returns
+	// immediately and would cancel the delivery with it.
+	ctx = contextx.ValueOnlyFrom(ctx)
+	threading.GoSafe(func() {
 		message := mtproto.MakeTLMessage(&mtproto.Message{
 			Out:     true,
 			Date:    int32(time.Now().Unix()),

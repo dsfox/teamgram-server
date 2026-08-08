@@ -24,6 +24,19 @@ var Available = []Language{
 	{Code: "ru", Name: "Russian", NativeName: "Русский", PluralCode: "ru"},
 }
 
+// Language returns one entry for langpack.getLanguage. The client asks for it
+// before it downloads anything: without an answer the language picker spins
+// forever and the switch never happens, which is how a missing method looks
+// from the outside.
+func LanguageByCode(code string) *mtproto.LangPackLanguage {
+	for _, l := range Languages() {
+		if l.GetLangCode() == code {
+			return l
+		}
+	}
+	return nil
+}
+
 // Languages returns the list for langpack.getLanguages.
 func Languages() []*mtproto.LangPackLanguage {
 	list := make([]*mtproto.LangPackLanguage, 0, len(Available))
