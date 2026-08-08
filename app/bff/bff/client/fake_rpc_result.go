@@ -113,10 +113,20 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 		}, nil
 
 	// webpage
-	case "TLMessagesGetWebPage32CA8F91", "TLMessagesGetWebPage8D9692A3":
-		return mtproto.MakeTLWebPageEmpty(&mtproto.WebPage{
-			Id: 0,
-		}).To_WebPage(), nil
+	// The two versions of this method do not answer with the same type, and the
+	// registry in the proto package is the one place that says so. The newer one
+	// wants the wrapper, which carries the page along with the chats and users it
+	// mentions; sending it a bare webPageEmpty made the Android client say
+	// "can't parse magic 211a1788" while iOS dropped the answer without a word.
+	case "TLMessagesGetWebPage32CA8F91":
+		return mtproto.MakeTLWebPageEmpty(&mtproto.WebPage{Id: 0}).To_WebPage(), nil
+
+	case "TLMessagesGetWebPage8D9692A3":
+		return mtproto.MakeTLMessagesWebPage(&mtproto.Messages_WebPage{
+			Webpage: mtproto.MakeTLWebPageEmpty(&mtproto.WebPage{Id: 0}).To_WebPage(),
+			Chats:   []*mtproto.Chat{},
+			Users:   []*mtproto.User{},
+		}).To_Messages_WebPage(), nil
 	// wallpaper
 	case "TLAccountGetWallPapers":
 		return mtproto.MakeTLAccountWallPapers(&mtproto.Account_WallPapers{
@@ -295,8 +305,13 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 		return mtproto.BoolTrue, nil
 	case "TLChannelsReportSpam":
 		return mtproto.BoolTrue, nil
-	case "TLMessagesReport8953AB4E", "TLMessagesReportFC78AF9B":
+	// Same story as getWebPage: the older version answers Bool, the newer one a
+	// ReportResult. Found by the type gate, not by a person.
+	case "TLMessagesReport8953AB4E":
 		return mtproto.BoolTrue, nil
+
+	case "TLMessagesReportFC78AF9B":
+		return mtproto.MakeTLReportResultReported(nil).To_ReportResult(), nil
 	case "TLMessagesReportSpam":
 		return mtproto.BoolTrue, nil
 

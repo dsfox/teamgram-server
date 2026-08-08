@@ -170,6 +170,45 @@ func stubRequests() []mtproto.TLObject {
 	}
 }
 
+// Encoding proves the answer is well formed; it says nothing about whether it is
+// the right answer. messages.getDialogFilters once returned a bare vector where
+// the wrapper belonged, and messages.getWebPage a bare webPageEmpty where the
+// newer version of the method wants messages.WebPage. Both encoded perfectly.
+// Both left the client unable to decode what it got, retrying behind a stalled
+// queue - "Updating" with no error anywhere near the cause.
+//
+// The proto package knows what each method answers with: rpcContextRegisters
+// maps the request type to a constructor for the reply. Comparing against it
+// turns a whole class of bug into a build failure.
+func TestStubAnswersHaveTheRightType(t *testing.T) {
+	var proxy *BFFProxyClient
+
+	registers := mtproto.GetRPCContextRegisters()
+	for _, request := range stubRequests() {
+		name := reflect.TypeOf(request).Elem().Name()
+		t.Run(name, func(t *testing.T) {
+			if refusesOnPurpose[name] {
+				return
+			}
+			tuple, ok := registers[name]
+			if !ok {
+				t.Skipf("%s is not in the proto registry, nothing to compare against", name)
+			}
+
+			answer, err := proxy.TryReturnFakeRpcResult(context.Background(), request)
+			if err != nil {
+				t.Fatalf("no stub answer: %v", err)
+			}
+
+			want := reflect.TypeOf(tuple.NewReplyFunc())
+			if got := reflect.TypeOf(answer); got != want {
+				t.Fatalf("answers with %s where the method returns %s - the client "+
+					"cannot decode this and will retry forever", got, want)
+			}
+		})
+	}
+}
+
 // A stub added without a line in the list above would never be encoded here,
 // and the panic it can hide would reach the phone instead of the build. So the
 // list is checked against the source of truth rather than kept by hand.
