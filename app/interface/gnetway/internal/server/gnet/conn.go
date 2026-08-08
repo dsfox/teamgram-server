@@ -49,6 +49,8 @@ type connContext struct {
 	newSession bool
 	nextSeqNo  int32
 	closeDate  int64
+	// Whether the client has ever sent anything on this connection.
+	spoke bool
 	ppv1       bool
 }
 

@@ -204,6 +204,7 @@ func (s *Server) OnClose(c gnet.Conn, err error) (action gnet.Action) {
 // OnTraffic fires when a local socket receives data from the peer.
 func (s *Server) OnTraffic(c gnet.Conn) (action gnet.Action) {
 	ctx := c.Context().(*connContext)
+	ctx.spoke = true
 	s.extendIdleDeadline(c, ctx)
 	if ctx.ppv1 {
 		ppv1, err := c.Peek(-1)
@@ -275,7 +276,17 @@ func (s *Server) OnTick() (delay time.Duration, action gnet.Action) {
 				return
 			}
 			if now >= ctx.closeDate {
-				logx.Errorf("close conn(%s) by timeout", c)
+				// The two cases mean very different things and must not share a
+				// counter. A connection that never spoke is the client's own pool
+				// churn - measured at 34 abandoned out of 38 opened - and reaping
+				// it is the point. A connection that went quiet after carrying
+				// traffic is one the client may still believe in, and that is
+				// worth an alarm.
+				if ctx.spoke {
+					logx.Errorf("close conn(%s) by idle timeout after traffic", c)
+				} else {
+					logx.Infof("close conn(%s) by timeout, never spoke", c)
+				}
 				metricConnTimeout.Inc()
 				_ = c.Close()
 			} else {
