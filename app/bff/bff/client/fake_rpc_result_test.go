@@ -100,6 +100,7 @@ func stubRequests() []mtproto.TLObject {
 		&mtproto.TLMessagesGetSuggestedDialogFilters{},
 		&mtproto.TLMessagesGetScheduledHistory{},
 		&mtproto.TLMessagesGetMessagesReactions{},
+		&mtproto.TLMessagesGetQuickReplies{},
 		&mtproto.TLMessagesGetStickerSet{},
 		&mtproto.TLChannelsGetAdminedPublicChannels{},
 		&mtproto.TLHelpGetPremiumPromo{},

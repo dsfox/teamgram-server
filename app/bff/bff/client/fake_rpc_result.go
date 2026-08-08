@@ -508,6 +508,17 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 			Date:    int32(time.Now().Unix()),
 		}).To_Updates(), nil
 
+	// Quick replies are not implemented, and the client asks as it opens a chat.
+	// An empty list is an answer; an error is a retry - the lesson getStickerSet
+	// taught twice.
+	case "TLMessagesGetQuickReplies":
+		return mtproto.MakeTLMessagesQuickReplies(&mtproto.Messages_QuickReplies{
+			QuickReplies: []*mtproto.QuickReply{},
+			Messages:     []*mtproto.Message{},
+			Chats:        []*mtproto.Chat{},
+			Users:        []*mtproto.User{},
+		}).To_Messages_QuickReplies(), nil
+
 	case "TLMessagesGetStickerSet":
 		// Third answer to this question, and the first that holds. We have no
 		// sticker sets (#20), and the client asks for one at startup.
