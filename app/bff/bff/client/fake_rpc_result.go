@@ -498,6 +498,16 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 	case "TLMessagesGetScheduledHistory":
 		return mtproto.MakeTLMessagesMessagesNotModified(nil).To_Messages_Messages(), nil
 
+	// Reactions are not implemented (#18), but the client asks for them as it
+	// scrolls, and an error there stalls the queue the messages come down.
+	case "TLMessagesGetMessagesReactions":
+		return mtproto.MakeTLUpdates(&mtproto.Updates{
+			Updates: []*mtproto.Update{},
+			Users:   []*mtproto.User{},
+			Chats:   []*mtproto.Chat{},
+			Date:    int32(time.Now().Unix()),
+		}).To_Updates(), nil
+
 	case "TLMessagesGetStickerSet":
 		// Not stickerSetNotModified: the client asks for a named set without a hash,
 		// so "unchanged" is not an answer to the question. Worse, in the Android

@@ -25,8 +25,8 @@ import (
 // HelpSaveAppLog
 // help.saveAppLog#6f02f748 events:Vector<InputAppEvent> = Bool;
 func (c *MiscellaneousCore) HelpSaveAppLog(in *mtproto.TLHelpSaveAppLog) (*mtproto.Bool, error) {
-	// TODO: not impl
-	c.Logger.Errorf("help.saveAppLog blocked, License key from https://teamgram.net required to unlock enterprise features.")
-
-	return nil, mtproto.ErrEnterpriseIsBlocked
+	// The client offers us its own telemetry; we do not collect any. Accepting
+	// and dropping it is the honest answer - refusing only makes the client try
+	// again, and its queue waits behind the retry.
+	return mtproto.BoolTrue, nil
 }

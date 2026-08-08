@@ -25,8 +25,10 @@ import (
 // HelpGetInviteText
 // help.getInviteText#4d392343 = help.InviteText;
 func (c *ConfigurationCore) HelpGetInviteText(in *mtproto.TLHelpGetInviteText) (*mtproto.Help_InviteText, error) {
-	// TODO: not impl
-	c.Logger.Errorf("help.getInviteText blocked, License key from https://teamgram.net required to unlock enterprise features.")
-
-	return nil, mtproto.ErrEnterpriseIsBlocked
+	// The text a person sends to a friend who is not here yet. There is nothing
+	// enterprise about it, and refusing left the client retrying at every visit
+	// to the contact list.
+	return mtproto.MakeTLHelpInviteText(&mtproto.Help_InviteText{
+		Message: "Let's use 2bytes to chat.",
+	}).To_Help_InviteText(), nil
 }

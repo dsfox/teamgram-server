@@ -122,6 +122,7 @@ func stubRequests() []mtproto.TLObject {
 		&mtproto.TLMessagesGetEmojiStickerGroups{},
 		&mtproto.TLMessagesGetSuggestedDialogFilters{},
 		&mtproto.TLMessagesGetScheduledHistory{},
+		&mtproto.TLMessagesGetMessagesReactions{},
 		&mtproto.TLMessagesGetStickerSet{},
 		&mtproto.TLChannelsGetAdminedPublicChannels{},
 		&mtproto.TLHelpGetPremiumPromo{},
