@@ -233,7 +233,18 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 		}).To_Messages_AvailableReactions(), nil
 
 	// folders
-	case "TLMessagesGetDialogFiltersEFD48C89", "TLMessagesGetDialogFiltersF19ED96D":
+	case "TLMessagesGetDialogFiltersEFD48C89":
+		// The newer form answers with a wrapper, not a bare vector. Handing back
+		// a vector made the client fail to decode it - "Type constructor
+		// 1cb5c415 not found" - and it asks for this at startup and keeps
+		// retrying, so the whole service queue stalls behind it. One user sat on
+		// connecting/updating for hours with 45 of these in four.
+		return mtproto.MakeTLMessagesDialogFilters(&mtproto.Messages_DialogFilters{
+			TagsEnabled: false,
+			Filters:     []*mtproto.DialogFilter{},
+		}).To_Messages_DialogFilters(), nil
+
+	case "TLMessagesGetDialogFiltersF19ED96D":
 		return &mtproto.Vector_DialogFilter{
 			Datas: []*mtproto.DialogFilter{},
 		}, nil
