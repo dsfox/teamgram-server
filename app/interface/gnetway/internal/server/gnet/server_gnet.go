@@ -471,6 +471,12 @@ func (s *Server) GetConnCounts() int {
 }
 
 func (s *Server) onMTPRawMessage(ctx *connContext, c gnet.Conn, authKeyId int64, needAck bool, msg2 []byte) (action gnet.Action) {
+	// A client can retry the same 40-byte handshake message every twelve seconds
+	// and leave no trace anywhere on this side: not a handled request, not a
+	// parse error, nothing. Recording every packet as it arrives is the only way
+	// to tell "never reached us" from "reached us and was dropped silently".
+	logx.Infof("packet in: conn(%s) authKeyId=%d, %d bytes", c, authKeyId, len(msg2))
+
 	if authKeyId == 0 {
 		out, err := s.onHandshake(c, msg2)
 		if err != nil {
