@@ -509,14 +509,34 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 		}).To_Updates(), nil
 
 	case "TLMessagesGetStickerSet":
-		// Not stickerSetNotModified: the client asks for a named set without a hash,
-		// so "unchanged" is not an answer to the question. Worse, in the Android
-		// client TL_messages_stickerSetNotModified extends TL_messages_stickerSet,
-		// so its instanceof check passes and it dereferences a set that is not
-		// there - two crashes right after sign-up. We have no sticker sets at all
-		// (#20), and STICKERSET_INVALID is what a real server says about a set it
-		// does not have; both clients handle it quietly.
-		return nil, mtproto.ErrStickersetInvalid
+		// Third answer to this question, and the first that holds. We have no
+		// sticker sets (#20), and the client asks for one at startup.
+		//
+		// stickerSetNotModified crashed the Android client: there
+		// TL_messages_stickerSetNotModified extends TL_messages_stickerSet, so the
+		// instanceof check passes and the dereference follows.
+		//
+		// STICKERSET_INVALID, which is what a real server says, looked safe - both
+		// clients catch it where I read them - and put Android into a retry once a
+		// second, forever, with its request queue stalled behind it and the app
+		// stuck on "Connecting". There was a third call site I had not read.
+		//
+		// So: an empty set that is a real set. The client gets the shape it asks
+		// for, finds nothing in it, and stops asking.
+		return mtproto.MakeTLMessagesStickerSet(&mtproto.Messages_StickerSet{
+			Set: mtproto.MakeTLStickerSet(&mtproto.StickerSet{
+				Id:        0,
+				AccessHash: 0,
+				Title:     "",
+				ShortName: "",
+				Count:     0,
+				Hash:      0,
+				Thumbs:    []*mtproto.PhotoSize{},
+			}).To_StickerSet(),
+			Packs:     []*mtproto.StickerPack{},
+			Keywords:  []*mtproto.StickerKeyword{},
+			Documents: []*mtproto.Document{},
+		}).To_Messages_StickerSet(), nil
 
 	case "TLStoriesGetAlbums":
 		return mtproto.MakeTLStoriesAlbumsNotModified(nil).To_Stories_Albums(), nil
