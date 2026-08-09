@@ -25,8 +25,13 @@ Telemetry:
 KV:
   - Host: redis:6379
 
+# How a sign-in code is checked. Leaving Name empty selects the verifier that
+# compares against the code the server actually generated, and accepts an
+# invitation minted with the invite tool for a phone that has no session to send
+# one to. "none" is upstream's placeholder: it accepts 12345 for any number, and
+# naming it here is the one way to reopen that door.
 Code:
-  Name: "none"
+  Name: ""
   SendCodeUrl: ""
   VerifyCodeUrl: ""
   Key: ""

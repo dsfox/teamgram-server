@@ -69,7 +69,9 @@ func mint(ctx context.Context, store kv.Store, hours int, note string) (string, 
 		key := invite.InvitationKey(code)
 
 		// Taken already: try another rather than overwrite somebody's invitation.
-		if _, err := store.GetCtx(ctx, key); err == nil {
+		// A missing key is an empty string, not an error - checking the error is
+		// how this loop used to decide every code was taken.
+		if existing, err := store.GetCtx(ctx, key); err == nil && existing != "" {
 			continue
 		}
 

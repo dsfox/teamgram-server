@@ -102,12 +102,12 @@ type mapStore struct {
 	data map[string]string
 }
 
+// A missing key is an empty string and no error, which is what the store this
+// stands in for does. The first version of this fake returned an error instead,
+// and that convenience hid a bug: the tool that mints invitations decided every
+// code was taken and could not mint any.
 func (m *mapStore) GetCtx(_ context.Context, key string) (string, error) {
-	value, ok := m.data[key]
-	if !ok {
-		return "", errMissing{}
-	}
-	return value, nil
+	return m.data[key], nil
 }
 
 func (m *mapStore) SetexCtx(_ context.Context, key, value string, _ int) error {

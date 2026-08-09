@@ -134,12 +134,11 @@ func (v *verifier) useInvitation(ctx context.Context, code string) bool {
 		return false
 	}
 
-	key := InvitationKey(code)
-	if _, err := v.store.GetCtx(ctx, key); err != nil {
-		return false
-	}
-
-	deleted, err := v.store.DelCtx(ctx, key)
+	// No existence check first: a missing key comes back as an empty string with
+	// no error, so asking proves nothing. The deletion is the proof - it returns
+	// 1 only for the attempt that actually took the invitation, which is also
+	// what stops two people racing the same code from both getting in.
+	deleted, err := v.store.DelCtx(ctx, InvitationKey(code))
 	if err != nil {
 		logx.WithContext(ctx).Errorf("sign-in: cannot spend the invitation: %v", err)
 		return false
