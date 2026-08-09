@@ -47,12 +47,25 @@ func TestOfflineTargets(t *testing.T) {
 		online: []int64{1, 2},
 		want:   []string{},
 	}, {
-		name: "foreign token type is skipped: Apple cannot deliver it",
-		list: []devices.DeviceDO{{AuthKeyId: 3, TokenType: 2, Token: "android"}, phone},
+		name: "an Android device is a target too, through Firebase",
+		list: []devices.DeviceDO{{AuthKeyId: 3, TokenType: devices.TokenTypeFCM, Token: "android"}, phone},
+		want: []string{"android", "phone"},
+	}, {
+		name:   "an Android device with the app open is left alone",
+		list:   []devices.DeviceDO{{AuthKeyId: 3, TokenType: devices.TokenTypeFCM, Token: "android"}, phone},
+		online: []int64{3},
+		want:   []string{"phone"},
+	}, {
+		name: "a token type we cannot reach is skipped",
+		list: []devices.DeviceDO{{AuthKeyId: 5, TokenType: 7, Token: "something else"}, phone},
 		want: []string{"phone"},
 	}, {
 		name: "empty token is skipped",
 		list: []devices.DeviceDO{{AuthKeyId: 4, TokenType: devices.TokenTypeAPNs}, phone},
+		want: []string{"phone"},
+	}, {
+		name: "an empty Firebase token is skipped as well",
+		list: []devices.DeviceDO{{AuthKeyId: 6, TokenType: devices.TokenTypeFCM}, phone},
 		want: []string{"phone"},
 	}, {
 		name:   "a session without a device does not disturb the others",

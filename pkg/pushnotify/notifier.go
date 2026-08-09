@@ -15,49 +15,79 @@ import (
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/teamgram-server/pkg/apns"
 	"github.com/teamgram/teamgram-server/pkg/devices"
+	"github.com/teamgram/teamgram-server/pkg/fcm"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/threading"
 )
 
 // Notifier sends notifications about new messages.
 //
-// It is always created but works only when an Apple key is configured. Without
-// the key every call harmlessly does nothing: the server stays fully functional,
-// notifications simply do not arrive.
+// It is always created, and each platform switches on when its own credentials
+// are present: Apple with a key, Android with a Firebase service account. Either
+// missing costs only that platform's notifications - the server stays fully
+// functional and nothing else notices.
 type Notifier struct {
 	registry *devices.Registry
 	sender   *apns.Sender
+	fcm      *fcm.Sender
 	db       *sqlx.DB
 	title    string
 	body     string
 }
 
-// New builds the sender from the environment settings.
+// New builds the sender from the environment settings. The two platforms are
+// switched on separately: a missing Apple key must not cost Android its
+// notifications, which is exactly what a single early return used to do.
 func New(db *sqlx.DB) *Notifier {
 	n := &Notifier{
 		registry: devices.NewRegistry(db),
 		db:       db,
 		title:    envOr("APNS_TITLE", "2bytes"),
 		// The message text never reaches the notification and cannot: showing it
-		// in the banner would mean handing the text to Apple. This is only a
-		// hint that something arrived.
+		// in the banner would mean handing the text to Apple, or to Google. This
+		// is only a hint that something arrived.
 		body: envOr("APNS_BODY", "New message"),
 	}
 
+	return n.withApple().withFirebase()
+}
+
+// withApple turns on the iOS half, if it is configured.
+func (n *Notifier) withApple() *Notifier {
 	cfg, ok := apns.ConfigFromEnv()
 	if !ok {
-		logx.Info("notifications disabled: no Apple key configured (APNS_KEY_PATH and the rest)")
+		logx.Info("apple notifications disabled: no key configured (APNS_KEY_PATH and the rest)")
 		return n
 	}
 
 	sender, err := apns.New(cfg)
 	if err != nil {
-		logx.Errorf("notifications disabled: %v", err)
+		logx.Errorf("apple notifications disabled: %v", err)
 		return n
 	}
 
 	n.sender = sender
-	logx.Infof("notifications enabled for app %s", cfg.Topic)
+	logx.Infof("apple notifications enabled for app %s", cfg.Topic)
+
+	return n
+}
+
+// withFirebase turns on the Android half, if it is configured.
+func (n *Notifier) withFirebase() *Notifier {
+	cfg, ok := fcm.ConfigFromEnv()
+	if !ok {
+		logx.Info("android notifications disabled: no Firebase service account (FCM_SERVICE_ACCOUNT, FCM_PROJECT_ID)")
+		return n
+	}
+
+	sender, err := fcm.New(context.Background(), cfg)
+	if err != nil {
+		logx.Errorf("android notifications disabled: %v", err)
+		return n
+	}
+
+	n.fcm = sender
+	logx.Infof("android notifications enabled for project %s", cfg.ProjectId)
 
 	return n
 }
@@ -70,9 +100,9 @@ func envOr(name, fallback string) string {
 	return fallback
 }
 
-// Enabled reports whether sending is configured.
+// Enabled reports whether anything can be sent at all.
 func (n *Notifier) Enabled() bool {
-	return n != nil && n.sender != nil
+	return n != nil && (n.sender != nil || n.fcm != nil)
 }
 
 // NewMessage notifies the recipient about a new message.
@@ -135,7 +165,7 @@ func offlineTargets(list []devices.DeviceDO, onlineAuthKeyIds []int64) []devices
 
 	targets := make([]devices.DeviceDO, 0, len(list))
 	for _, d := range list {
-		if d.IsAPNs() && !online[d.AuthKeyId] {
+		if d.Reachable() && !online[d.AuthKeyId] {
 			targets = append(targets, d)
 		}
 	}
@@ -144,17 +174,32 @@ func offlineTargets(list []devices.DeviceDO, onlineAuthKeyIds []int64) []devices
 }
 
 func (n *Notifier) send(ctx context.Context, d devices.DeviceDO, badge int) {
-	err := n.sender.Send(ctx, d.Token, apns.Notify{
-		Title:   n.title,
-		Body:    n.body,
-		Badge:   badge,
-		Sandbox: d.AppSandbox,
-	})
+	var err error
+
+	switch {
+	case d.IsAPNs() && n.sender != nil:
+		err = n.sender.Send(ctx, d.Token, apns.Notify{
+			Title:   n.title,
+			Body:    n.body,
+			Badge:   badge,
+			Sandbox: d.AppSandbox,
+		})
+	case d.IsFCM() && n.fcm != nil:
+		err = n.fcm.Send(ctx, d.Token, fcm.Notify{
+			Title: n.title,
+			Body:  n.body,
+			Badge: badge,
+		})
+	default:
+		// A device of a kind we cannot reach, or whose platform is switched off.
+		// Not an error, and not worth a line per message.
+		return
+	}
 
 	switch {
 	case err == nil:
 		logx.WithContext(ctx).Infof("notification sent: user %d, device %d", d.UserId, d.AuthKeyId)
-	case errors.Is(err, apns.ErrTokenGone):
+	case errors.Is(err, apns.ErrTokenGone), errors.Is(err, fcm.ErrTokenGone):
 		logx.WithContext(ctx).Infof("token is gone, forgetting it: user %d, device %d", d.UserId, d.AuthKeyId)
 		_ = n.registry.Forget(ctx, d.TokenType, d.Token)
 	default:

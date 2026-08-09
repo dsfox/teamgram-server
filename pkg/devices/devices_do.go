@@ -29,15 +29,27 @@ type DeviceDO struct {
 	State        int32  `db:"state" json:"state"`
 }
 
-// Token types from account.registerDevice. Only APNs matters to us: we do not
-// build an Android app yet and we do not request VoIP tokens.
+// Token types from account.registerDevice. Two of them reach a phone of ours:
+// Apple's, and Firebase's, which the Android client registers. We do not request
+// VoIP tokens.
 const (
 	TokenTypeAPNs = 1
+	TokenTypeFCM  = 2
 )
 
 // IsAPNs reports whether a notification can be sent to this token through Apple.
 func (d *DeviceDO) IsAPNs() bool {
 	return d.TokenType == TokenTypeAPNs && d.Token != ""
+}
+
+// IsFCM reports whether a notification can be sent to this token through Firebase.
+func (d *DeviceDO) IsFCM() bool {
+	return d.TokenType == TokenTypeFCM && d.Token != ""
+}
+
+// Reachable reports whether we know how to wake this device at all.
+func (d *DeviceDO) Reachable() bool {
+	return d.IsAPNs() || d.IsFCM()
 }
 
 // JoinUids packs the list of accounts signed in on this device into a single
