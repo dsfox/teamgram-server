@@ -68,3 +68,7 @@ docs/specs
 
 .pending
 AGENTS.md
+
+# Stray binaries from a go build without -o: they belong in teamgramd/bin
+/invite
+/alert

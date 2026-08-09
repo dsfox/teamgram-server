@@ -22,7 +22,10 @@ import (
 	"context"
 
 	"github.com/teamgram/teamgram-server/pkg/code/conf"
+	"github.com/teamgram/teamgram-server/pkg/code/invite"
 	"github.com/teamgram/teamgram-server/pkg/code/none"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 type VerifyCodeInterface interface {
@@ -30,16 +33,24 @@ type VerifyCodeInterface interface {
 	VerifySmsCode(ctx context.Context, codeHash, code, extraData string) error
 }
 
-func NewVerifyCode(c *conf.SmsVerifyCodeConfig) VerifyCodeInterface {
+// NewVerifyCode picks how a sign-in code is checked.
+//
+// "none" is upstream's placeholder and compares the typed code against the
+// constant 12345, ignoring the one the server generated - anyone who knew a
+// phone number could sign in as its owner. It is kept only because removing a
+// name from a config file is not the way to close a hole; it is never selected
+// by default, and the deploy does not set it.
+func NewVerifyCode(c *conf.SmsVerifyCodeConfig, store invite.Store) VerifyCodeInterface {
 	if c == nil {
 		c = new(conf.SmsVerifyCodeConfig)
 	}
 
 	switch c.Name {
-	// case "predefined":
-	// 	return predefined.New(c)
 	case "none":
+		logx.Error("sign-in codes are NOT being checked: the 'none' verifier accepts 12345 " +
+			"for any number. Remove Code.Name from the config to use invitations.")
 		return none.New(c)
 	}
-	return none.New(c)
+
+	return invite.New(c, store)
 }

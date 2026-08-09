@@ -36,7 +36,7 @@ type ServiceContext struct {
 func NewServiceContext(c config.Config, code2 code.VerifyCodeInterface, plugin plugin.AuthorizationPlugin) *ServiceContext {
 	d := dao.New(c)
 	if code2 == nil {
-		code2 = code.NewVerifyCode(c.Code)
+		code2 = code.NewVerifyCode(c.Code, d.Store())
 	}
 	return &ServiceContext{
 		Config:    c,

@@ -29,6 +29,13 @@ import (
 	"github.com/zeromicro/go-zero/core/stores/kv"
 )
 
+// Store hands out the key-value store. The sign-in verifier keeps its attempt
+// counters and its invitations there, and it has no business knowing how the
+// rest of this dao is built.
+func (d *Dao) Store() kv.Store {
+	return d.kv
+}
+
 type Dao struct {
 	kv kv.Store
 	authsession_client.AuthsessionClient

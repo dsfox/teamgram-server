@@ -10,6 +10,7 @@ set -euo pipefail
 # gigabyte off the image.
 
 PWD=`pwd`
+ROOT=${PWD}
 TEAMGRAMAPP=${PWD}"/app"
 INSTALL=${PWD}"/teamgramd"
 
@@ -56,6 +57,17 @@ go build -ldflags="-s -w" -o ${INSTALL}/bin/session
 echo "build gnetway ..."
 cd ${TEAMGRAMAPP}/interface/gnetway/cmd/gnetway
 go build -ldflags="-s -w" -o ${INSTALL}/bin/gnetway
+
+# The two small tools that run inside the container. They were built by hand
+# once and then stopped travelling, which is how a stale binary sits next to
+# fresh ones - the same way the language packs stopped being shipped.
+echo "build alert ..."
+cd ${ROOT}/cmd/alert
+go build -ldflags="-s -w" -o ${INSTALL}/bin/alert
+
+echo "build invite ..."
+cd ${ROOT}/cmd/invite
+go build -ldflags="-s -w" -o ${INSTALL}/bin/invite
 
 #echo "build httpserver ..."
 #cd ${TEAMGRAMAPP}/interface/httpserver/cmd/httpserver
