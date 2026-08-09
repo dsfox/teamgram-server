@@ -1,6 +1,13 @@
 FROM golang:1.23.0 AS builder
+# The context is the repository root, because the server is built against our
+# fork of the schema module - the four MLS methods cannot be added from outside
+# it - and go.mod reaches it as ../proto. Copying only the server would fail with
+# "replacement directory ../proto does not exist", which names the symptom and
+# not this.
+WORKDIR /proto
+COPY proto/ .
 WORKDIR /app
-COPY . .
+COPY server/ .
 # The generated protocol package is the heaviest in the build: the compiler needs
 # about 3.5 GB for it, and on a modest machine it gets killed by memory pressure.
 # GOGC makes the compiler tidy up more often, lowering the peak; -p=1 prevents

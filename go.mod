@@ -147,5 +147,10 @@ require (
 
 // github.com/panjf2000/gnet/v2 => ../gnet
 // github.com/teamgram/marmota => ../marmota
-// github.com/teamgram/proto => ../proto
+
+// Our fork, for the four MLS methods. Incoming objects are built from a map the
+// upstream module keeps private, so there is no way to add a method without
+// this. The fork carries one file and is otherwise upstream.
+replace github.com/teamgram/proto => ../proto
+
 replace github.com/panjf2000/gnet/v2 v2.9.1 => github.com/teamgram/gnet/v2 v2.9.1-teamgram
