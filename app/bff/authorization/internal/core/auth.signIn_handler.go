@@ -205,6 +205,12 @@ func (c *AuthorizationCore) AuthSignIn(in *mtproto.TLAuthSignIn) (*mtproto.Auth_
 			Updates:       mtproto.MakeUpdatesByUpdates(signInN),
 		})
 
+	// Whoever just got in has a device to read it on. If they got in by
+	// spending their recovery code, this is where the next one reaches them;
+	// if they never had one - an account from before this existed - this is
+	// where they finally do.
+	c.ensureRecoveryCode(c.ctx, user.Id(), phoneNumber)
+
 	return mtproto.MakeTLAuthAuthorization(&mtproto.Auth_Authorization{
 		SetupPasswordRequired: false,
 		OtherwiseReloginDays:  nil,

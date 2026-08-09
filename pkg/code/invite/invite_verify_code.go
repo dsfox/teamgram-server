@@ -11,7 +11,9 @@
 //   - the code the server generated for this attempt, which reaches a person
 //     who already has the app open somewhere as a service message;
 //   - an invitation minted by the owner, for a phone with no session at all - a
-//     new person, or a familiar one on a new device.
+//     new person, or a familiar one on a new device;
+//   - the account's own recovery code, handed to its owner once and kept by
+//     them, which is the only way back that needs nobody else awake.
 //
 // An invitation is bound to what it may open. One minted for a number opens
 // that number and no other; one minted for nobody in particular opens only a
@@ -55,6 +57,7 @@ const (
 // verifier can be tested with a map instead of a Redis.
 type Store interface {
 	GetCtx(ctx context.Context, key string) (string, error)
+	SetCtx(ctx context.Context, key, value string) error
 	SetexCtx(ctx context.Context, key, value string, seconds int) error
 	IncrCtx(ctx context.Context, key string) (int64, error)
 	DelCtx(ctx context.Context, keys ...string) (int, error)
@@ -148,6 +151,10 @@ func (v *verifier) VerifySmsCode(ctx context.Context, a attempt.Attempt) error {
 
 	if v.useInvitation(ctx, a) {
 		logx.WithContext(ctx).Infof("sign-in: invitation accepted")
+		return nil
+	}
+
+	if v.useRecovery(ctx, a.PhoneNumber, a.Code) {
 		return nil
 	}
 

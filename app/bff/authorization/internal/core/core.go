@@ -30,6 +30,7 @@ import (
 	"github.com/teamgram/teamgram-server/app/bff/authorization/internal/svc"
 	msgpb "github.com/teamgram/teamgram-server/app/messenger/msg/msg/msg"
 	"github.com/teamgram/teamgram-server/pkg/code/conf"
+	"github.com/teamgram/teamgram-server/pkg/code/invite"
 	"github.com/teamgram/teamgram-server/pkg/env2"
 	"github.com/teamgram/teamgram-server/pkg/phonenumber"
 
@@ -128,7 +129,113 @@ const (
 This code can be used to log in to your %s account. We never ask it for anything else.
 
 If you didn't request this code by trying to log in on another device, simply ignore this message.`
+
+	// The recovery code is the answer to the question this service could not
+	// answer at all: a phone is lost, there is nowhere to send a code, and there
+	// is no SMS. So it is handed over in advance and kept by the person. It is
+	// said plainly here that nobody can look it up afterwards, because that is
+	// true and because a person who does not know it will not write it down.
+	recoveryMessageTpl = `Recovery code: %s
+
+Write it down and keep it away from your phone. If you lose the phone, this is what gets you back into your %s account: enter it instead of the login code.
+
+It works once. Nobody can look it up for you afterwards, not even us - we only keep enough to check it. After you use it, a new one arrives here.`
 )
+
+// boldRanges marks the given words bold, wherever they ended up. The offsets
+// used to be written by hand, which held only while the code was five digits
+// long: making it eight moved the text under them and the emphasis landed in
+// the middle of a word.
+func boldRanges(message string, words ...string) []*mtproto.MessageEntity {
+	entities := make([]*mtproto.MessageEntity, 0, len(words))
+	for _, word := range words {
+		at := strings.Index(message, word)
+		if at < 0 {
+			continue
+		}
+		entities = append(entities, mtproto.MakeTLMessageEntityBold(&mtproto.MessageEntity{
+			Offset: int32(at),
+			Length: int32(len(word)),
+		}).To_MessageEntity())
+	}
+	return entities
+}
+
+// pushServiceMessage delivers text from the service account to one person.
+func (c *AuthorizationCore) pushServiceMessage(ctx context.Context, userId int64, text string, bold ...string) {
+	// Delivered at once, not after a pause. The client asks for its dialog list
+	// once, right after signing in, and then lives on its local copy: a chat
+	// that does not exist yet at that moment never appears at all - not after a
+	// relaunch, not after a force quit - while its unread count still reaches
+	// the badge. Two seconds of delay cost a chat that is invisible forever.
+	//
+	// The context is detached because the request that started this returns
+	// immediately and would cancel the delivery with it.
+	ctx = contextx.ValueOnlyFrom(ctx)
+	threading.GoSafe(func() {
+		message := mtproto.MakeTLMessage(&mtproto.Message{
+			Out:      true,
+			Date:     int32(time.Now().Unix()),
+			FromId:   mtproto.MakePeerUser(777000),
+			PeerId:   mtproto.MakeTLPeerUser(&mtproto.Peer{UserId: userId}).To_Peer(),
+			Message:  text,
+			Entities: boldRanges(text, bold...),
+		}).To_Message()
+
+		c.svcCtx.Dao.MsgClient.MsgPushUserMessage(
+			ctx,
+			&msgpb.TLMsgPushUserMessage{
+				UserId:    777000,
+				AuthKeyId: 0,
+				PeerType:  mtproto.PEER_USER,
+				PeerId:    userId,
+				PushType:  1,
+				Message: msgpb.MakeTLOutboxMessage(&msgpb.OutboxMessage{
+					NoWebpage:    false,
+					Background:   false,
+					RandomId:     rand.Int63(),
+					Message:      message,
+					ScheduleDate: nil,
+				}).To_OutboxMessage(),
+			})
+	})
+}
+
+// pushRecoveryCode hands somebody the way back into their own account.
+func (c *AuthorizationCore) pushRecoveryCode(ctx context.Context, userId int64, code string) {
+	c.pushServiceMessage(ctx,
+		userId,
+		fmt.Sprintf(recoveryMessageTpl, code, env2.MyAppName),
+		"Recovery code:", "Write it down", "once")
+}
+
+// ensureRecoveryCode gives this account a way back if it has none, and says
+// nothing if it already has one - the old one is written down somewhere and
+// replacing it silently would turn that paper into a worthless one.
+//
+// Failing here must not fail the sign-in that called it: somebody with no
+// recovery code can still be let back in by an invitation, and being unable to
+// mint one is a thing to shout about in the log, not to lock people out over.
+func (c *AuthorizationCore) ensureRecoveryCode(ctx context.Context, userId int64, phoneNumber string) {
+	store := c.svcCtx.Dao.Store()
+	if store == nil {
+		c.Logger.Errorf("recovery: no store, so %d has no way back", userId)
+		return
+	}
+
+	if invite.HasRecoveryCode(ctx, store, phoneNumber) {
+		return
+	}
+
+	code, err := invite.MintRecoveryCode(ctx, store, phoneNumber)
+	if err != nil {
+		c.Logger.Errorf("recovery: cannot mint a code for %d: %v", userId, err)
+		return
+	}
+
+	c.Logger.Infof("recovery: a code was minted for %d", userId)
+	c.pushRecoveryCode(ctx, userId, code)
+}
 
 func (c *AuthorizationCore) pushSignInMessage(ctx context.Context, signInUserId int64, code string) {
 	// Delivered at once, not after a pause. The client asks for its dialog list
@@ -147,16 +254,11 @@ func (c *AuthorizationCore) pushSignInMessage(ctx context.Context, signInUserId 
 			FromId:  mtproto.MakePeerUser(777000),
 			PeerId:  mtproto.MakeTLPeerUser(&mtproto.Peer{UserId: signInUserId}).To_Peer(),
 			Message: fmt.Sprintf(signInMessageTpl, code, env2.MyAppName, env2.MyAppName),
-			Entities: []*mtproto.MessageEntity{
-				mtproto.MakeTLMessageEntityBold(&mtproto.MessageEntity{
-					Offset: 0,
-					Length: 11,
-				}).To_MessageEntity(),
-				mtproto.MakeTLMessageEntityBold(&mtproto.MessageEntity{
-					Offset: 22,
-					Length: 3,
-				}).To_MessageEntity(),
-			},
+			// Found in the text rather than counted out by hand: the offsets
+			// were written for a five-digit code and the code is eight now.
+			Entities: boldRanges(
+				fmt.Sprintf(signInMessageTpl, code, env2.MyAppName, env2.MyAppName),
+				"Login code:", "not"),
 		}).To_Message()
 
 		if len(c.svcCtx.Config.SignInMessage) > 0 {

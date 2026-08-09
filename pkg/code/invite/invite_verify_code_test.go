@@ -193,6 +193,11 @@ func (m *mapStore) GetCtx(_ context.Context, key string) (string, error) {
 	return m.data[key], nil
 }
 
+func (m *mapStore) SetCtx(_ context.Context, key, value string) error {
+	m.data[key] = value
+	return nil
+}
+
 func (m *mapStore) SetexCtx(_ context.Context, key, value string, _ int) error {
 	m.data[key] = value
 	return nil
@@ -224,6 +229,10 @@ type brokenStore struct{}
 
 func (brokenStore) GetCtx(context.Context, string) (string, error) {
 	return "", errMissing{}
+}
+
+func (brokenStore) SetCtx(context.Context, string, string) error {
+	return errMissing{}
 }
 
 func (brokenStore) SetexCtx(context.Context, string, string, int) error {

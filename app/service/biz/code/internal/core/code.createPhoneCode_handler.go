@@ -33,13 +33,16 @@ func (c *CodeCore) CodeCreatePhoneCode(in *code.TLCodeCreatePhoneCode) (*code.Ph
 			Phone:                 in.Phone,
 			SessionId:             in.SessionId,
 			PhoneNumberRegistered: in.PhoneNumberRegistered,
-			PhoneCode:             random2.RandomNumeric(5),
-			PhoneCodeHash:         crypto.GenerateStringNonce(16),
-			PhoneCodeExpired:      int32(time.Now().Unix() + 3*60),
-			SentCodeType:          in.SentCodeType,
-			FlashCallPattern:      "*",
-			NextCodeType:          in.NextCodeType,
-			State:                 code.CodeStateSend, // model.CodeStateSent
+			// Eight, not five. The client draws as many boxes as this is long,
+			// and the same field takes the recovery code - which has to survive
+			// guessing by somebody who has all the time in the world.
+			PhoneCode:        random2.RandomNumeric(8),
+			PhoneCodeHash:    crypto.GenerateStringNonce(16),
+			PhoneCodeExpired: int32(time.Now().Unix() + 3*60),
+			SentCodeType:     in.SentCodeType,
+			FlashCallPattern: "*",
+			NextCodeType:     in.NextCodeType,
+			State:            code.CodeStateSend, // model.CodeStateSent
 		}
 
 	} else if in.SessionId != codeData.SessionId {

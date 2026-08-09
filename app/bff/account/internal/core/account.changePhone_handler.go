@@ -25,6 +25,7 @@ import (
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/app/bff/authorization/model"
 	userpb "github.com/teamgram/teamgram-server/app/service/biz/user/user"
+	"github.com/teamgram/teamgram-server/pkg/code/invite"
 	"github.com/teamgram/teamgram-server/pkg/phonenumber"
 
 	"google.golang.org/grpc/status"
@@ -129,6 +130,12 @@ func (c *AccountCore) AccountChangePhone(in *mtproto.TLAccountChangePhone) (*mtp
 		c.Logger.Errorf("account.changePhone - error: %v")
 		// err = mtproto.ErrPhoneCodeInvalid
 		return nil, err
+	}
+
+	// The way back has to follow the account onto the new number, or the person
+	// keeps a code that opens a number they no longer have.
+	if store := c.svcCtx.Dao.Store(); store != nil {
+		invite.MoveRecoveryCode(c.ctx, store, user.User.Phone, phoneNumber)
 	}
 
 	user.User.Phone = phoneNumber
