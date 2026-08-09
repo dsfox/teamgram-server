@@ -20,6 +20,7 @@ require (
 	github.com/zeromicro/go-zero v1.10.0
 	go.opentelemetry.io/otel v1.24.0
 	golang.org/x/net v0.43.0
+	golang.org/x/oauth2 v0.30.0
 	google.golang.org/grpc v1.65.0
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
@@ -121,7 +122,6 @@ require (
 	golang.org/x/crypto v0.41.0 // indirect
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394 // indirect
 	golang.org/x/image v0.0.0-20211028202545-6944b10bf410 // indirect
-	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/term v0.34.0 // indirect

@@ -101,6 +101,7 @@ func stubRequests() []mtproto.TLObject {
 		&mtproto.TLMessagesGetScheduledHistory{},
 		&mtproto.TLMessagesGetMessagesReactions{},
 		&mtproto.TLMessagesGetQuickReplies{},
+		&mtproto.TLMessagesGetSavedReactionTags{},
 		&mtproto.TLMessagesGetStickerSet{},
 		&mtproto.TLChannelsGetAdminedPublicChannels{},
 		&mtproto.TLHelpGetPremiumPromo{},
@@ -199,7 +200,10 @@ func TestEveryStubIsCovered(t *testing.T) {
 		covered[reflect.TypeOf(r).Elem().Name()] = true
 	}
 
-	for _, m := range regexp.MustCompile(`case "(TL\w+)"`).FindAllStringSubmatch(string(source), -1) {
+	// Every quoted method name in the switch, not only the one after `case`. A
+	// case can list several - `case "A",\n"B":` - and matching the first hid the
+	// other thirteen, one of which was answering with the wrong type entirely.
+	for _, m := range regexp.MustCompile(`"(TL[A-Za-z0-9]+)"`).FindAllStringSubmatch(string(source), -1) {
 		if !covered[m[1]] {
 			t.Errorf("%s answers with a stub that no test ever encodes", m[1])
 		}

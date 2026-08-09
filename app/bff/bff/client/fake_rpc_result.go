@@ -338,12 +338,21 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 	// phone, which is what made sending a photo take a minute.
 	case "TLMessagesGetTopReactions",
 		"TLMessagesGetRecentReactions",
-		"TLMessagesGetDefaultTagReactions",
-		"TLMessagesGetSavedReactionTags":
+		"TLMessagesGetDefaultTagReactions":
 		return mtproto.MakeTLMessagesReactions(&mtproto.Messages_Reactions{
 			Hash:      0,
 			Reactions: []*mtproto.Reaction{},
 		}).To_Messages_Reactions(), nil
+
+	// Not messages.Reactions, however much the name suggests it: this one
+	// answers with its own type, and being folded in with its neighbours is how
+	// it came to send a shape the client could not read - "can't parse magic
+	// eafdf716", said out loud by the Android client on the profile screen.
+	case "TLMessagesGetSavedReactionTags":
+		return mtproto.MakeTLMessagesSavedReactionTags(&mtproto.Messages_SavedReactionTags{
+			Tags: []*mtproto.SavedReactionTag{},
+			Hash: 0,
+		}).To_Messages_SavedReactionTags(), nil
 
 	case "TLAccountGetDefaultEmojiStatuses",
 		"TLAccountGetRecentEmojiStatuses",
