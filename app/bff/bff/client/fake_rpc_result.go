@@ -105,10 +105,11 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, md *metadat
 	// client "android".
 	case "TLLangpackGetDifference":
 		in := object.(*mtproto.TLLangpackGetDifference)
-		return langpack.Difference(in.GetLangCode(), platformOf(md, in.GetLangPack())), nil
+		return langpack.Difference(in.GetLangCode(), platformOf(md, in.GetLangPack()), in.GetFromVersion()), nil
 	case "TLLangpackGetLangPack":
 		in := object.(*mtproto.TLLangpackGetLangPack)
-		return langpack.Difference(in.GetLangCode(), platformOf(md, in.GetLangPack())), nil
+		// getLangPack is the whole thing by definition: no version to start from.
+		return langpack.Difference(in.GetLangCode(), platformOf(md, in.GetLangPack()), 0), nil
 	case "TLMessagesGetEmojiGameInfo":
 		// There is no dice game here; saying so plainly beats an error the
 		// client retries against.

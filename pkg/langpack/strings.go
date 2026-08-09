@@ -94,9 +94,28 @@ func key(langCode, platform string) string {
 	return langCode + "/" + platform
 }
 
-// Difference returns the whole language pack: ours are small, and handing over
-// everything at once is cheaper than keeping a version history.
-func Difference(langCode, platform string) *mtproto.LangPackDifference {
+// resetForTest makes the loader read again. The packs are read once per process,
+// which is right for a server and inconvenient for a test that wants to point
+// Dir somewhere else.
+func resetForTest() {
+	loadOnce = sync.Once{}
+	packs = nil
+}
+
+// Difference answers langpack.getDifference and langpack.getLangPack.
+//
+// fromVersion is what the client already has, and it matters: a client that is
+// up to date must be told so, with an empty answer. Sending it the whole pack
+// again does not update anything, so it asks again - and again. That is what
+// happened: four requests a second, each answered with eleven thousand strings,
+// for as long as the app was open, with everything else the client wanted to do
+// queued behind it. A message that had already arrived by push took the best
+// part of a minute to appear in the chat.
+//
+// We keep no history, so any client that is behind gets the whole pack. That is
+// honest and cheap; what is not allowed is handing it over to a client that
+// asked whether anything had changed.
+func Difference(langCode, platform string, fromVersion int32) *mtproto.LangPackDifference {
 	loadOnce.Do(load)
 
 	loaded, ok := packs[key(langCode, platform)]
@@ -104,6 +123,16 @@ func Difference(langCode, platform string) *mtproto.LangPackDifference {
 		return mtproto.MakeTLLangPackDifference(&mtproto.LangPackDifference{
 			LangCode: langCode,
 			Strings:  []*mtproto.LangPackString{},
+		}).To_LangPackDifference()
+	}
+
+	if fromVersion >= loaded.Version {
+		// Nothing new. The client stops asking.
+		return mtproto.MakeTLLangPackDifference(&mtproto.LangPackDifference{
+			LangCode:    langCode,
+			FromVersion: fromVersion,
+			Version:     loaded.Version,
+			Strings:     []*mtproto.LangPackString{},
 		}).To_LangPackDifference()
 	}
 
@@ -128,7 +157,7 @@ func Difference(langCode, platform string) *mtproto.LangPackDifference {
 
 	return mtproto.MakeTLLangPackDifference(&mtproto.LangPackDifference{
 		LangCode:    langCode,
-		FromVersion: 0,
+		FromVersion: fromVersion,
 		Version:     loaded.Version,
 		Strings:     list,
 	}).To_LangPackDifference()
