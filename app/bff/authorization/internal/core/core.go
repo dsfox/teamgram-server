@@ -223,11 +223,14 @@ func (c *AuthorizationCore) ensureRecoveryCode(ctx context.Context, userId int64
 		return
 	}
 
-	if invite.HasRecoveryCode(ctx, store, phoneNumber) {
+	// Delivered, not merely existing: a code minted by hand for somebody who
+	// could not sign in may never have reached them, and an account whose way
+	// back nobody knows must not look covered.
+	if invite.HasDeliveredRecoveryCode(ctx, store, phoneNumber) {
 		return
 	}
 
-	code, err := invite.MintRecoveryCode(ctx, store, phoneNumber)
+	code, err := invite.MintRecoveryCode(ctx, store, phoneNumber, true)
 	if err != nil {
 		c.Logger.Errorf("recovery: cannot mint a code for %d: %v", userId, err)
 		return

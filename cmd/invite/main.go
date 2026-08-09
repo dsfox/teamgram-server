@@ -101,7 +101,7 @@ func mintRecovery(ctx context.Context, store kv.Store, phone string, force bool)
 		os.Exit(1)
 	}
 
-	code, err := invite.MintRecoveryCode(ctx, store, phone)
+	code, err := invite.MintRecoveryCode(ctx, store, phone, false)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -110,7 +110,9 @@ func mintRecovery(ctx context.Context, store kv.Store, phone string, force bool)
 	fmt.Println(code)
 	fmt.Fprintf(os.Stderr,
 		"the recovery code for %s. Works once, never expires, and cannot be read\n"+
-			"back - hand it over now or mint another.\n", phone)
+			"back - hand it over now or mint another. The server replaces it with\n"+
+			"one of its own the next time this account signs in, so that nobody is\n"+
+			"left holding a code that was never passed along.\n", phone)
 }
 
 // mint writes an invitation nobody has used yet. The code is five digits

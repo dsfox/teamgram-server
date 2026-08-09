@@ -3,6 +3,7 @@ package invite
 import (
 	"context"
 	crand "crypto/rand"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"strings"
@@ -28,21 +29,66 @@ func recoveryKey(phone string) string {
 	return recoveryPrefix + Digits(phone)
 }
 
-// HasRecoveryCode says whether this number already has one. Minting a second
-// would silently replace the first, and somebody has that one written down.
+// storedRecovery is what is kept for a number: enough to check a code, and
+// whether the person was ever actually told it.
+//
+// The second half matters more than it looks. A code minted by hand, for
+// somebody who cannot sign in at all, might never reach them - and without this
+// the server would see a code, decide the account was covered and never hand
+// out another. An account with a way back that nobody knows is worse than one
+// with none, because nothing ever says so.
+type storedRecovery struct {
+	Hash      string `json:"h"`
+	Delivered bool   `json:"d"`
+}
+
+func readRecovery(value string) (storedRecovery, bool) {
+	if value == "" {
+		return storedRecovery{}, false
+	}
+	var stored storedRecovery
+	if err := json.Unmarshal([]byte(value), &stored); err != nil || stored.Hash == "" {
+		// Written before this carried anything but the hash, and those were all
+		// minted and delivered by the server itself.
+		return storedRecovery{Hash: value, Delivered: true}, true
+	}
+	return stored, true
+}
+
+// HasRecoveryCode says whether this number has a code at all, delivered or not.
+// Minting a second would silently replace the first, and somebody may have that
+// one written down.
 func HasRecoveryCode(ctx context.Context, store Store, phone string) bool {
 	value, err := store.GetCtx(ctx, recoveryKey(phone))
 	if err != nil {
 		logx.WithContext(ctx).Errorf("recovery: cannot read the code: %v", err)
 		return true // Not knowing is no reason to hand out a second one.
 	}
-	return value != ""
+	_, ok := readRecovery(value)
+	return ok
+}
+
+// HasDeliveredRecoveryCode says whether this account has a way back that it was
+// actually told about. This, not the one above, is what decides whether the
+// server hands one over.
+func HasDeliveredRecoveryCode(ctx context.Context, store Store, phone string) bool {
+	value, err := store.GetCtx(ctx, recoveryKey(phone))
+	if err != nil {
+		logx.WithContext(ctx).Errorf("recovery: cannot read the code: %v", err)
+		return true
+	}
+	stored, ok := readRecovery(value)
+	return ok && stored.Delivered
 }
 
 // MintRecoveryCode makes a code for this number and stores what it takes to
 // check it - never the code itself. The code is returned once, to be delivered;
 // after that nobody, including us, can read it back.
-func MintRecoveryCode(ctx context.Context, store Store, phone string) (string, error) {
+//
+// delivered says whether it is about to reach the person by itself. The server
+// sets it; the tool that mints one by hand does not, because whether it gets
+// passed along is not something the tool can know.
+func MintRecoveryCode(ctx context.Context, store Store, phone string, delivered bool) (string, error) {
 	code, err := digits(recoveryDigits)
 	if err != nil {
 		return "", err
@@ -53,9 +99,14 @@ func MintRecoveryCode(ctx context.Context, store Store, phone string) (string, e
 		return "", fmt.Errorf("cannot hash the recovery code: %w", err)
 	}
 
+	body, err := json.Marshal(storedRecovery{Hash: string(hashed), Delivered: delivered})
+	if err != nil {
+		return "", fmt.Errorf("cannot record the recovery code: %w", err)
+	}
+
 	// No expiry: it is worth nothing until the phone is lost, and that can
 	// happen at any time.
-	if err = store.SetCtx(ctx, recoveryKey(phone), string(hashed)); err != nil {
+	if err = store.SetCtx(ctx, recoveryKey(phone), string(body)); err != nil {
 		return "", fmt.Errorf("cannot store the recovery code: %w", err)
 	}
 
@@ -88,16 +139,17 @@ func (v *verifier) useRecovery(ctx context.Context, phone, code string) bool {
 		return false
 	}
 
-	stored, err := v.store.GetCtx(ctx, recoveryKey(phone))
+	value, err := v.store.GetCtx(ctx, recoveryKey(phone))
 	if err != nil {
 		logx.WithContext(ctx).Errorf("recovery: cannot read the code: %v", err)
 		return false
 	}
-	if stored == "" {
+	stored, ok := readRecovery(value)
+	if !ok {
 		return false
 	}
 
-	if err = bcrypt.CompareHashAndPassword([]byte(stored), []byte(code)); err != nil {
+	if err = bcrypt.CompareHashAndPassword([]byte(stored.Hash), []byte(code)); err != nil {
 		return false
 	}
 
