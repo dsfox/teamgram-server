@@ -10,6 +10,13 @@
 //	invite --phone +79991234567        # for that number only - a lost phone
 //	invite --hours 2 --note "Natalya"
 //	invite --list                      # what is outstanding
+//	invite --recovery --phone +7999...  # a recovery code for an account
+//
+// The recovery code is normally handed to a person by the server itself, at
+// registration, in their service chat. --recovery is for the accounts that
+// predate that, and for somebody who has lost both the phone and the paper. It
+// refuses to overwrite a code that exists, because that paper is somebody's
+// only way back; --force says you know.
 //
 // A code with no number opens only a phone that has no account yet, so handing
 // one out cannot cost somebody their account. Getting back into an account that
@@ -39,6 +46,8 @@ func main() {
 	note := flag.String("note", "", "who it is for, for your own records")
 	phone := flag.String("phone", "", "the only number this code may open; empty means any number without an account")
 	list := flag.Bool("list", false, "show outstanding invitations")
+	recovery := flag.Bool("recovery", false, "mint this number's recovery code instead of an invitation")
+	force := flag.Bool("force", false, "with --recovery: replace a code that already exists")
 	flag.Parse()
 
 	store := kv.NewStore(kv.KvConf{{
@@ -57,6 +66,11 @@ func main() {
 		return
 	}
 
+	if *recovery {
+		mintRecovery(ctx, store, *phone, *force)
+		return
+	}
+
 	code, err := mint(ctx, store, *hours, invite.Invitation{Phone: *phone, Note: *note})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -69,6 +83,34 @@ func main() {
 	} else {
 		fmt.Fprintf(os.Stderr, "good for %d hour(s), works once, for a number with no account\n", *hours)
 	}
+}
+
+// mintRecovery hands back the account's own way in. Unlike an invitation this
+// one does not expire: it is worth nothing until a phone is lost, and that can
+// happen at any time.
+func mintRecovery(ctx context.Context, store kv.Store, phone string, force bool) {
+	if phone == "" {
+		fmt.Fprintln(os.Stderr, "--recovery needs --phone: a recovery code belongs to one account")
+		os.Exit(1)
+	}
+
+	if !force && invite.HasRecoveryCode(ctx, store, phone) {
+		fmt.Fprintf(os.Stderr,
+			"%s already has a recovery code and somebody has it written down.\n"+
+				"Minting another makes that paper worthless. --force if you mean it.\n", phone)
+		os.Exit(1)
+	}
+
+	code, err := invite.MintRecoveryCode(ctx, store, phone)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	fmt.Println(code)
+	fmt.Fprintf(os.Stderr,
+		"the recovery code for %s. Works once, never expires, and cannot be read\n"+
+			"back - hand it over now or mint another.\n", phone)
 }
 
 // mint writes an invitation nobody has used yet. The code is five digits
