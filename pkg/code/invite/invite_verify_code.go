@@ -136,6 +136,13 @@ func (v *verifier) VerifySmsCode(ctx context.Context, a attempt.Attempt) error {
 		return mtproto.ErrPhoneCodeEmpty
 	}
 
+	// Asked first, and about the number rather than this request: three tries
+	// per request stops nobody, because the next connection brings three more.
+	if waiting, seconds := v.guessedAtTooOften(ctx, a.PhoneNumber); waiting {
+		logx.WithContext(ctx).Infof("sign-in refused: this number is waiting out its guesses")
+		return errWait(seconds)
+	}
+
 	if v.spent(ctx, a.CodeHash) {
 		logx.WithContext(ctx).Infof("sign-in refused: too many attempts on one code")
 		return mtproto.ErrPhoneCodeInvalid
@@ -146,18 +153,22 @@ func (v *verifier) VerifySmsCode(ctx context.Context, a attempt.Attempt) error {
 	// and how long it takes to give should not hint at how much of it was right.
 	if a.Generated != "" &&
 		subtle.ConstantTimeCompare([]byte(a.Code), []byte(a.Generated)) == 1 {
+		v.forgetFailures(ctx, a.PhoneNumber)
 		return nil
 	}
 
 	if v.useInvitation(ctx, a) {
 		logx.WithContext(ctx).Infof("sign-in: invitation accepted")
+		v.forgetFailures(ctx, a.PhoneNumber)
 		return nil
 	}
 
 	if v.useRecovery(ctx, a.PhoneNumber, a.Code) {
+		v.forgetFailures(ctx, a.PhoneNumber)
 		return nil
 	}
 
+	v.recordFailure(ctx, a.PhoneNumber)
 	logx.WithContext(ctx).Infof("sign-in refused: wrong code")
 	return mtproto.ErrPhoneCodeInvalid
 }

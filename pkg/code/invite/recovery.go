@@ -165,6 +165,18 @@ func (v *verifier) useRecovery(ctx context.Context, phone, code string) bool {
 	return true
 }
 
+// Code is a sign-in code with no pattern to it, the length everything here
+// uses. Exported so that whatever mints one cannot pick a length the client
+// cannot type: the code field is exactly as many boxes as the server declares.
+func Code() string {
+	code, err := digits(recoveryDigits)
+	if err != nil {
+		// Falling back to something predictable would defeat the point.
+		panic(err)
+	}
+	return code
+}
+
 // digits is a code with no pattern to it. crypto/rand and a rejection-free
 // modulus: guessing is the attack this has to survive.
 func digits(n int) (string, error) {

@@ -28,11 +28,9 @@ package main
 
 import (
 	"context"
-	cryptorand "crypto/rand"
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/teamgram/teamgram-server/pkg/code/invite"
@@ -115,11 +113,12 @@ func mintRecovery(ctx context.Context, store kv.Store, phone string, force bool)
 			"left holding a code that was never passed along.\n", phone)
 }
 
-// mint writes an invitation nobody has used yet. The code is five digits
-// because that is the size of the field both clients draw.
+// mint writes an invitation nobody has used yet. The code is as long as every
+// other sign-in code, because the clients draw exactly as many boxes as the
+// server declares - a shorter one simply cannot be typed in.
 func mint(ctx context.Context, store kv.Store, hours int, inv invite.Invitation) (string, error) {
 	for attempt := 0; attempt < 20; attempt++ {
-		code := fiveDigits()
+		code := invite.Code()
 		key := invite.InvitationKey(code)
 
 		// Taken already: try another rather than overwrite somebody's invitation.
@@ -163,26 +162,6 @@ func showOutstanding(ctx context.Context, store kv.Store) {
 	if found == 0 {
 		fmt.Println("no invitations outstanding")
 	}
-}
-
-// fiveDigits is a code with no pattern to it: crypto/rand, because guessing is
-// the attack this has to survive.
-func fiveDigits() string {
-	const digits = "0123456789"
-	b := make([]byte, 5)
-	if _, err := randRead(b); err != nil {
-		// Falling back to something predictable would defeat the point.
-		panic(fmt.Sprintf("no randomness available: %v", err))
-	}
-	out := strings.Builder{}
-	for _, v := range b {
-		out.WriteByte(digits[int(v)%len(digits)])
-	}
-	return out.String()
-}
-
-func randRead(b []byte) (int, error) {
-	return cryptorand.Read(b)
 }
 
 func envOr(name, fallback string) string {

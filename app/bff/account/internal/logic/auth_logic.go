@@ -206,8 +206,11 @@ func (m *AuthLogic) DoAuthChangePhone(ctx context.Context,
 	//}
 
 	if cb != nil {
+		// Passed through, not flattened. The verifier answers "wrong code" for a
+		// wrong code and "wait" when a number has been guessed at too often, and
+		// turning the second into the first leaves a person staring at "invalid"
+		// with no idea that waiting is what fixes it.
 		if err = cb(codeData); err != nil {
-			err = mtproto.ErrPhoneCodeInvalid
 			return
 		}
 	}
