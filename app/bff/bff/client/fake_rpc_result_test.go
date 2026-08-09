@@ -29,7 +29,7 @@ func TestStubAnswersEncode(t *testing.T) {
 	for _, request := range stubRequests() {
 		name := typeName(request)
 		t.Run(name, func(t *testing.T) {
-			answer, err := proxy.TryReturnFakeRpcResult(context.Background(), request)
+			answer, err := proxy.TryReturnFakeRpcResult(context.Background(), nil, request)
 			if err != nil {
 				t.Fatalf("no stub answer, the client would get an error and retry in a loop: %v", err)
 			}
@@ -172,7 +172,7 @@ func TestStubAnswersHaveTheRightType(t *testing.T) {
 				t.Skipf("%s is not in the proto registry, nothing to compare against", name)
 			}
 
-			answer, err := proxy.TryReturnFakeRpcResult(context.Background(), request)
+			answer, err := proxy.TryReturnFakeRpcResult(context.Background(), nil, request)
 			if err != nil {
 				t.Fatalf("no stub answer: %v", err)
 			}

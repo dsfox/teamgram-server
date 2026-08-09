@@ -73,19 +73,23 @@ func init() {
 }
 
 // platformOf answers which language pack the caller needs. The request field is
-// authoritative when the client fills it in; when it does not, the connection
-// already told us who it is.
-func platformOf(ctx context.Context, langPack string) string {
+// authoritative when the client fills it in; when it does not - and the Android
+// client never does - the connection already told us who it is.
+//
+// The metadata is passed in rather than read from the context: these answers are
+// produced before any gRPC call is made, so the context carries no incoming
+// metadata to read.
+func platformOf(md *metadata.RpcMetadata, langPack string) string {
 	if langPack != "" {
 		return langPack
 	}
-	if md := metadata.RpcMetadataFromIncoming(ctx); md != nil {
+	if md != nil {
 		return md.GetClient()
 	}
 	return ""
 }
 
-func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtproto.TLObject) (mtproto.TLObject, error) {
+func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, md *metadata.RpcMetadata, object mtproto.TLObject) (mtproto.TLObject, error) {
 	rt := reflect.TypeOf(object)
 	if rt.Kind() == reflect.Ptr {
 		rt = rt.Elem()
@@ -101,10 +105,10 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 	// client "android".
 	case "TLLangpackGetDifference":
 		in := object.(*mtproto.TLLangpackGetDifference)
-		return langpack.Difference(in.GetLangCode(), platformOf(ctx, in.GetLangPack())), nil
+		return langpack.Difference(in.GetLangCode(), platformOf(md, in.GetLangPack())), nil
 	case "TLLangpackGetLangPack":
 		in := object.(*mtproto.TLLangpackGetLangPack)
-		return langpack.Difference(in.GetLangCode(), platformOf(ctx, in.GetLangPack())), nil
+		return langpack.Difference(in.GetLangCode(), platformOf(md, in.GetLangPack())), nil
 	case "TLMessagesGetEmojiGameInfo":
 		// There is no dice game here; saying so plainly beats an error the
 		// client retries against.
@@ -129,7 +133,7 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 	case "TLLangpackGetStrings":
 		in := object.(*mtproto.TLLangpackGetStrings)
 		return &mtproto.Vector_LangPackString{
-			Datas: langpack.Strings(in.GetLangCode(), platformOf(ctx, in.GetLangPack()), in.GetKeys()),
+			Datas: langpack.Strings(in.GetLangCode(), platformOf(md, in.GetLangPack()), in.GetKeys()),
 		}, nil
 
 	// webpage
