@@ -59,12 +59,29 @@ for service_path in $SERVICES; do
   echo "done"
 done
 
-# The alert utility lives outside app/, so it is built separately. It is what
-# turns a finding in the health check into a notification on the owner's phone.
-printf '%-14s ' "alert"
-(cd "$PWD/cmd/alert" && eval go build -ldflags=\"$LDFLAGS\" -o "$INSTALL/bin/alert" .)
-echo "done"
+# The tools live outside app/, so they are built separately: alert turns a
+# finding in the health check into a notification on the owner's phone, and
+# invite mints the code somebody types to get in.
+for tool in alert invite; do
+  printf '%-14s ' "$tool"
+  (cd "$PWD/cmd/$tool" && eval go build -ldflags=\"$LDFLAGS\" -o "$INSTALL/bin/$tool" .)
+  echo "done"
+done
 
 echo
 echo "built in $(( $(date +%s) - started ))s, total $(du -sh "$INSTALL/bin" | cut -f1)"
+
+# Everything shipped has to be a Linux binary. This directory is also where a
+# stray local `go build` lands, and rsync ships whatever it finds: invite went
+# to the server as a Mach-O and died there with "exec format error", while the
+# build here had never been asked to build it at all.
+foreign=$(find "$INSTALL/bin" -type f -perm -u+x -exec sh -c \
+  'file -b "$1" | grep -q "^ELF 64-bit LSB.*x86-64" || echo "$1"' _ {} \; \
+  | grep -vE '\.(sh|json|key|yaml)$' || true)
+if [ -n "$foreign" ]; then
+  echo "not Linux x86-64, and the server cannot run these:"
+  echo "$foreign"
+  exit 1
+fi
+
 file "$INSTALL/bin/bff" | cut -c1-80

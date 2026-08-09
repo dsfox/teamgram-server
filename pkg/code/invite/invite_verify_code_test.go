@@ -4,6 +4,8 @@ import (
 	"context"
 	"strconv"
 	"testing"
+
+	"github.com/teamgram/teamgram-server/pkg/code/attempt"
 )
 
 // The hole this closes, stated as a test: entering 12345 for somebody else's
@@ -11,9 +13,11 @@ import (
 // live server before it was fixed, and the number in the log was a real account.
 func TestTheConstantNoLongerOpensAnything(t *testing.T) {
 	v, _ := newTestVerifier()
-	realCode := "48210"
 
-	if err := v.VerifySmsCode(context.Background(), "hash-1", "12345", realCode); err == nil {
+	if err := v.VerifySmsCode(context.Background(), attempt.Attempt{
+		CodeHash: "hash-1", Code: "12345", Generated: "48210",
+		PhoneNumber: "+79990012345", PhoneRegistered: true,
+	}); err == nil {
 		t.Fatal("12345 was accepted; that is the hole, not a feature")
 	}
 }
@@ -21,7 +25,10 @@ func TestTheConstantNoLongerOpensAnything(t *testing.T) {
 func TestTheGeneratedCodeIsWhatWorks(t *testing.T) {
 	v, _ := newTestVerifier()
 
-	if err := v.VerifySmsCode(context.Background(), "hash-2", "48210", "48210"); err != nil {
+	if err := v.VerifySmsCode(context.Background(), attempt.Attempt{
+		CodeHash: "hash-2", Code: "48210", Generated: "48210",
+		PhoneNumber: "+79990012345", PhoneRegistered: true,
+	}); err != nil {
 		t.Fatalf("the code the server generated was refused: %v", err)
 	}
 }
@@ -34,13 +41,17 @@ func TestGuessingRunsOut(t *testing.T) {
 	ctx := context.Background()
 
 	for i := 0; i < maxAttempts; i++ {
-		if err := v.VerifySmsCode(ctx, "hash-3", "00000", "48210"); err == nil {
+		if err := v.VerifySmsCode(ctx, attempt.Attempt{
+			CodeHash: "hash-3", Code: "00000", Generated: "48210",
+		}); err == nil {
 			t.Fatal("a wrong code was accepted")
 		}
 	}
 
 	// The right code, one try too late.
-	if err := v.VerifySmsCode(ctx, "hash-3", "48210", "48210"); err == nil {
+	if err := v.VerifySmsCode(ctx, attempt.Attempt{
+		CodeHash: "hash-3", Code: "48210", Generated: "48210",
+	}); err == nil {
 		t.Fatal("after three wrong guesses the code still worked")
 	}
 }
@@ -50,31 +61,85 @@ func TestGuessingRunsOut(t *testing.T) {
 func TestAnInvitationWorksOnce(t *testing.T) {
 	v, store := newTestVerifier()
 	ctx := context.Background()
-	store.data[InvitationKey("70314")] = "for Natalya"
+	store.data[InvitationKey("70314")] = Encode(Invitation{Note: "for Natalya"})
 
-	if err := v.VerifySmsCode(ctx, "hash-4", "70314", ""); err != nil {
+	if err := v.VerifySmsCode(ctx, attempt.Attempt{
+		CodeHash: "hash-4", Code: "70314", PhoneNumber: "+79995550001",
+	}); err != nil {
 		t.Fatalf("a minted invitation was refused: %v", err)
 	}
-	if err := v.VerifySmsCode(ctx, "hash-5", "70314", ""); err == nil {
+	if err := v.VerifySmsCode(ctx, attempt.Attempt{
+		CodeHash: "hash-5", Code: "70314", PhoneNumber: "+79995550002",
+	}); err == nil {
 		t.Fatal("the same invitation was accepted twice")
+	}
+}
+
+// The second hole, found by measuring the first fix: an invitation was tied to
+// nobody, so anyone holding one could type a number that already had an account
+// and be let into it. Measured against the live server - a code minted for a
+// stranger opened an account that had just been created.
+func TestAnInvitationIsNotAKeyToSomebodyElsesAccount(t *testing.T) {
+	v, store := newTestVerifier()
+	store.data[InvitationKey("70314")] = Encode(Invitation{Note: "for somebody new"})
+
+	if err := v.VerifySmsCode(context.Background(), attempt.Attempt{
+		CodeHash: "hash-6", Code: "70314",
+		PhoneNumber: "+79990012345", PhoneRegistered: true,
+	}); err == nil {
+		t.Fatal("an unbound invitation opened an account that already existed")
+	}
+
+	// And it must still be there afterwards: refusing somebody must not burn
+	// the invitation, or knowing a code would be enough to cancel it.
+	if store.data[InvitationKey("70314")] == "" {
+		t.Fatal("a refused attempt spent the invitation")
+	}
+}
+
+// The way back in after a lost phone: the owner mints an invitation naming that
+// number. It opens that account and no other.
+func TestAnInvitationForANumberOpensThatNumber(t *testing.T) {
+	v, store := newTestVerifier()
+	ctx := context.Background()
+	store.data[InvitationKey("70314")] = Encode(Invitation{
+		Phone: "+7 999 001-23-45", Note: "Dmitry, new phone"})
+
+	// Somebody else's number, even one with no account: not this invitation.
+	if err := v.VerifySmsCode(ctx, attempt.Attempt{
+		CodeHash: "hash-7", Code: "70314", PhoneNumber: "+79995550001",
+	}); err == nil {
+		t.Fatal("an invitation minted for one number opened another")
+	}
+
+	// The number it names, spelled the way the client sends it.
+	if err := v.VerifySmsCode(ctx, attempt.Attempt{
+		CodeHash: "hash-8", Code: "70314",
+		PhoneNumber: "+79990012345", PhoneRegistered: true,
+	}); err != nil {
+		t.Fatalf("the owner could not get back into their own account: %v", err)
 	}
 }
 
 func TestAnInventedInvitationIsRefused(t *testing.T) {
 	v, _ := newTestVerifier()
 
-	if err := v.VerifySmsCode(context.Background(), "hash-6", "11111", ""); err == nil {
+	if err := v.VerifySmsCode(context.Background(), attempt.Attempt{
+		CodeHash: "hash-9", Code: "11111", PhoneNumber: "+79995550001",
+	}); err == nil {
 		t.Fatal("a code nobody minted was accepted")
 	}
 }
 
 // An empty code is not "no code entered yet", it is an attempt with nothing in
 // it, and the server must say so rather than compare it against an empty
-// extraData and let it through.
+// Generated and let it through.
 func TestAnEmptyCodeIsRefused(t *testing.T) {
 	v, _ := newTestVerifier()
 
-	if err := v.VerifySmsCode(context.Background(), "hash-7", "", ""); err == nil {
+	if err := v.VerifySmsCode(context.Background(), attempt.Attempt{
+		CodeHash: "hash-10", Code: "", PhoneNumber: "+79995550001",
+	}); err == nil {
 		t.Fatal("an empty code was accepted")
 	}
 }
@@ -82,12 +147,30 @@ func TestAnEmptyCodeIsRefused(t *testing.T) {
 // A store that is not answering must not become a way in.
 func TestAFailingStoreDoesNotOpenTheDoor(t *testing.T) {
 	v := &verifier{store: brokenStore{}}
+	ctx := context.Background()
 
-	if err := v.VerifySmsCode(context.Background(), "hash-8", "12345", "48210"); err == nil {
+	if err := v.VerifySmsCode(ctx, attempt.Attempt{
+		CodeHash: "hash-11", Code: "12345", Generated: "48210",
+	}); err == nil {
 		t.Fatal("a wrong code was accepted while the store was failing")
 	}
-	if err := v.VerifySmsCode(context.Background(), "hash-9", "48210", "48210"); err != nil {
+	if err := v.VerifySmsCode(ctx, attempt.Attempt{
+		CodeHash: "hash-12", Code: "48210", Generated: "48210",
+	}); err != nil {
 		t.Fatalf("the right code was refused while the store was failing: %v", err)
+	}
+}
+
+// Invitations written before they carried a number at all: a plain note. They
+// must read as unbound rather than as a code for a number spelled "for Natalya".
+func TestAnOldInvitationIsReadAsUnbound(t *testing.T) {
+	inv := Decode("for Natalya")
+
+	if inv.Phone != "" {
+		t.Errorf("a plain note became a phone binding: %q", inv.Phone)
+	}
+	if inv.Note != "for Natalya" {
+		t.Errorf("the note was lost: %q", inv.Note)
 	}
 }
 

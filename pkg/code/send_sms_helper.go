@@ -21,6 +21,7 @@ package code
 import (
 	"context"
 
+	"github.com/teamgram/teamgram-server/pkg/code/attempt"
 	"github.com/teamgram/teamgram-server/pkg/code/conf"
 	"github.com/teamgram/teamgram-server/pkg/code/invite"
 	"github.com/teamgram/teamgram-server/pkg/code/none"
@@ -30,7 +31,7 @@ import (
 
 type VerifyCodeInterface interface {
 	SendSmsVerifyCode(ctx context.Context, phoneNumber, code, codeHash string) (string, error)
-	VerifySmsCode(ctx context.Context, codeHash, code, extraData string) error
+	VerifySmsCode(ctx context.Context, a attempt.Attempt) error
 }
 
 // NewVerifyCode picks how a sign-in code is checked.

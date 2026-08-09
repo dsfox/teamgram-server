@@ -22,6 +22,7 @@ import (
 	"context"
 
 	"github.com/teamgram/proto/mtproto"
+	"github.com/teamgram/teamgram-server/pkg/code/attempt"
 	"github.com/teamgram/teamgram-server/pkg/code/conf"
 )
 
@@ -39,8 +40,8 @@ func (m *noneVerifyCode) SendSmsVerifyCode(ctx context.Context, phoneNumber, cod
 	return code, nil
 }
 
-func (m *noneVerifyCode) VerifySmsCode(ctx context.Context, codeHash, code, extraData string) error {
-	if code != "12345" {
+func (m *noneVerifyCode) VerifySmsCode(ctx context.Context, a attempt.Attempt) error {
+	if a.Code != "12345" {
 		return mtproto.ErrPhoneCodeInvalid
 	}
 	return nil

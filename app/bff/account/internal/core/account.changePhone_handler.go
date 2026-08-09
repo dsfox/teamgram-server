@@ -94,20 +94,23 @@ func (c *AccountCore) AccountChangePhone(in *mtproto.TLAccountChangePhone) (*mtp
 		return nil, mtproto.ErrPhoneNumberOccupied
 	}
 
-	codeData, err2 := c.svcCtx.AuthLogic.DoAuthChangePhone(c.ctx,
+	// Two things were wrong here and they hid each other: the code hash went in
+	// where the typed code belonged, so the check could never pass, and the
+	// result was thrown away, so it never had to. Anyone signed in could move
+	// their account onto any free number without a code at all.
+	_, err = c.svcCtx.AuthLogic.DoAuthChangePhone(c.ctx,
 		c.MD.PermAuthKeyId,
 		phoneNumber,
 		phoneCode,
 		phoneCodeHash,
 		func(codeData2 *model.PhoneCodeTransaction) error {
 			return c.svcCtx.AuthLogic.VerifyCodeInterface.VerifySmsCode(c.ctx,
-				codeData2.PhoneCodeHash,
-				phoneCodeHash,
-				codeData2.PhoneCodeExtraData)
+				codeData2.Attempt(phoneCode))
 		})
-
-	_ = codeData
-	_ = err2
+	if err != nil {
+		c.Logger.Errorf("account.changePhone - the code was not accepted: %v", err)
+		return nil, err
+	}
 
 	user, _ = c.svcCtx.Dao.UserClient.UserGetImmutableUser(c.ctx, &userpb.TLUserGetImmutableUser{
 		Id: c.MD.UserId,

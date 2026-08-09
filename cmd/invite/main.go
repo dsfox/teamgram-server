@@ -6,9 +6,14 @@
 // expires; nothing about it is tied to a number, so it is worth exactly as much
 // as the trouble of passing it along.
 //
-//	invite                       # a code, good for a day
-//	invite --hours 2 --note "Natalya, new phone"
-//	invite --list                # what is outstanding
+//	invite                             # for somebody new, good for a day
+//	invite --phone +79991234567        # for that number only - a lost phone
+//	invite --hours 2 --note "Natalya"
+//	invite --list                      # what is outstanding
+//
+// A code with no number opens only a phone that has no account yet, so handing
+// one out cannot cost somebody their account. Getting back into an account that
+// exists needs --phone: it names what the code may open, and nothing else.
 //
 // It runs inside the container, where the key-value store is reachable by name -
 // the same place the alert tool runs.
@@ -32,6 +37,7 @@ import (
 func main() {
 	hours := flag.Int("hours", 24, "how long the invitation is good for")
 	note := flag.String("note", "", "who it is for, for your own records")
+	phone := flag.String("phone", "", "the only number this code may open; empty means any number without an account")
 	list := flag.Bool("list", false, "show outstanding invitations")
 	flag.Parse()
 
@@ -51,19 +57,23 @@ func main() {
 		return
 	}
 
-	code, err := mint(ctx, store, *hours, *note)
+	code, err := mint(ctx, store, *hours, invite.Invitation{Phone: *phone, Note: *note})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
 	fmt.Println(code)
-	fmt.Fprintf(os.Stderr, "good for %d hour(s), works once\n", *hours)
+	if *phone != "" {
+		fmt.Fprintf(os.Stderr, "good for %d hour(s), works once, opens %s only\n", *hours, *phone)
+	} else {
+		fmt.Fprintf(os.Stderr, "good for %d hour(s), works once, for a number with no account\n", *hours)
+	}
 }
 
 // mint writes an invitation nobody has used yet. The code is five digits
 // because that is the size of the field both clients draw.
-func mint(ctx context.Context, store kv.Store, hours int, note string) (string, error) {
+func mint(ctx context.Context, store kv.Store, hours int, inv invite.Invitation) (string, error) {
 	for attempt := 0; attempt < 20; attempt++ {
 		code := fiveDigits()
 		key := invite.InvitationKey(code)
@@ -75,11 +85,10 @@ func mint(ctx context.Context, store kv.Store, hours int, note string) (string, 
 			continue
 		}
 
-		value := note
-		if value == "" {
-			value = "minted " + time.Now().Format(time.RFC3339)
+		if inv.Note == "" {
+			inv.Note = "minted " + time.Now().Format(time.RFC3339)
 		}
-		if err := store.SetexCtx(ctx, key, value, hours*3600); err != nil {
+		if err := store.SetexCtx(ctx, key, invite.Encode(inv), hours*3600); err != nil {
 			return "", fmt.Errorf("cannot write the invitation: %w", err)
 		}
 		return code, nil
@@ -99,7 +108,12 @@ func showOutstanding(ctx context.Context, store kv.Store) {
 		if err != nil || value == "" {
 			continue
 		}
-		fmt.Printf("%s  %s\n", code, value)
+		inv := invite.Decode(value)
+		who := inv.Phone
+		if who == "" {
+			who = "(anybody new)"
+		}
+		fmt.Printf("%s  %-16s %s\n", code, who, inv.Note)
 		found++
 	}
 	if found == 0 {

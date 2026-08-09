@@ -93,9 +93,7 @@ func (c *AuthorizationCore) AuthSignIn(in *mtproto.TLAuthSignIn) (*mtproto.Auth_
 		phoneCodeHash,
 		func(codeData2 *model.PhoneCodeTransaction) error {
 			return c.svcCtx.AuthLogic.VerifyCodeInterface.VerifySmsCode(c.ctx,
-				codeData2.PhoneCodeHash,
-				phoneCode,
-				codeData2.PhoneCodeExtraData)
+				codeData2.Attempt(phoneCode))
 		})
 
 	if err2 != nil {

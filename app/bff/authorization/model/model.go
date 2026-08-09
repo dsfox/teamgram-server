@@ -26,6 +26,7 @@ import (
 	"strconv"
 
 	"github.com/teamgram/proto/mtproto"
+	"github.com/teamgram/teamgram-server/pkg/code/attempt"
 
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -45,6 +46,20 @@ type PhoneCodeTransaction struct {
 	FlashCallPattern      string `json:"flash_call_pattern"`
 	NextCodeType          int    `json:"next_code_type"`
 	State                 int    `json:"state"`
+}
+
+// Attempt describes this try at the code, for whoever checks it. Assembled here
+// rather than at each call site because a verifier that is handed the wrong
+// field cannot tell: one place passed the code hash where the typed code
+// belonged, and the mistake was invisible until somebody read the line.
+func (m *PhoneCodeTransaction) Attempt(phoneCode string) attempt.Attempt {
+	return attempt.Attempt{
+		CodeHash:        m.PhoneCodeHash,
+		Code:            phoneCode,
+		Generated:       m.PhoneCodeExtraData,
+		PhoneNumber:     m.PhoneNumber,
+		PhoneRegistered: m.PhoneNumberRegistered,
+	}
 }
 
 // ToAuthSentCode

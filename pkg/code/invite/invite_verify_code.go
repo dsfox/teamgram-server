@@ -13,15 +13,24 @@
 //   - an invitation minted by the owner, for a phone with no session at all - a
 //     new person, or a familiar one on a new device.
 //
+// An invitation is bound to what it may open. One minted for a number opens
+// that number and no other; one minted for nobody in particular opens only a
+// number that has no account yet. Without that rule any invitation was a key to
+// every account whose number somebody knew - measured the same way the first
+// hole was, and closed the same day.
+//
 // There is no SMS. Nobody gets in because they know a number.
 package invite
 
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/json"
 	"strconv"
+	"strings"
 
 	"github.com/teamgram/proto/mtproto"
+	"github.com/teamgram/teamgram-server/pkg/code/attempt"
 	"github.com/teamgram/teamgram-server/pkg/code/conf"
 
 	"github.com/zeromicro/go-zero/core/logx"
@@ -51,6 +60,18 @@ type Store interface {
 	DelCtx(ctx context.Context, keys ...string) (int, error)
 }
 
+// Invitation is what an invitation code stands for: who it is for, and what it
+// is allowed to open.
+type Invitation struct {
+	// Phone, when set, is the only number this invitation opens. Empty means
+	// the invitation is for somebody new, and then it opens only a number that
+	// has no account.
+	Phone string `json:"phone,omitempty"`
+
+	// Note is for the person who minted it, and is never checked.
+	Note string `json:"note,omitempty"`
+}
+
 type verifier struct {
 	store Store
 }
@@ -65,6 +86,40 @@ func InvitationKey(code string) string {
 	return invitationPrefix + code
 }
 
+// Digits reduces a phone number to what can be compared. The client sends one
+// spelling and the person minting an invitation types another; "+7 999 12-34"
+// and "79991234" are the same number and must not fail to match over a plus.
+func Digits(phone string) string {
+	var out strings.Builder
+	for _, r := range phone {
+		if r >= '0' && r <= '9' {
+			out.WriteRune(r)
+		}
+	}
+	return out.String()
+}
+
+// Encode turns an invitation into what is stored under its code.
+func Encode(inv Invitation) string {
+	body, err := json.Marshal(inv)
+	if err != nil {
+		// The struct is two strings; this cannot fail, and if it ever did, the
+		// note is the part worth losing.
+		return `{"phone":"` + inv.Phone + `"}`
+	}
+	return string(body)
+}
+
+// Decode reads a stored invitation. Anything unparseable is treated as a note
+// with no binding, which is what the first invitations written by hand were.
+func Decode(value string) Invitation {
+	var inv Invitation
+	if err := json.Unmarshal([]byte(value), &inv); err != nil {
+		return Invitation{Note: value}
+	}
+	return inv
+}
+
 // SendSmsVerifyCode sends nothing: there is no SMS in this service. The code
 // still travels to whoever already has a session, as a service message; this
 // hands it back so the caller can store it.
@@ -73,26 +128,25 @@ func (v *verifier) SendSmsVerifyCode(_ context.Context, _, code, _ string) (stri
 }
 
 // VerifySmsCode decides whether this attempt gets in.
-//
-// extraData is the code the server generated for this attempt. Comparing
-// against it - rather than against a constant - is the whole point.
-func (v *verifier) VerifySmsCode(ctx context.Context, codeHash, code, extraData string) error {
-	if code == "" {
+func (v *verifier) VerifySmsCode(ctx context.Context, a attempt.Attempt) error {
+	if a.Code == "" {
 		return mtproto.ErrPhoneCodeEmpty
 	}
 
-	if v.spent(ctx, codeHash) {
+	if v.spent(ctx, a.CodeHash) {
 		logx.WithContext(ctx).Infof("sign-in refused: too many attempts on one code")
 		return mtproto.ErrPhoneCodeInvalid
 	}
 
-	// Constant time, because the answer is a secret and how long it takes to
-	// give should not hint at how much of it was right.
-	if extraData != "" && subtle.ConstantTimeCompare([]byte(code), []byte(extraData)) == 1 {
+	// The code the server generated reached a session of this very account, so
+	// having it is proof enough. Constant time, because the answer is a secret
+	// and how long it takes to give should not hint at how much of it was right.
+	if a.Generated != "" &&
+		subtle.ConstantTimeCompare([]byte(a.Code), []byte(a.Generated)) == 1 {
 		return nil
 	}
 
-	if v.useInvitation(ctx, code) {
+	if v.useInvitation(ctx, a) {
 		logx.WithContext(ctx).Infof("sign-in: invitation accepted")
 		return nil
 	}
@@ -126,25 +180,50 @@ func (v *verifier) spent(ctx context.Context, codeHash string) bool {
 	return used > maxAttempts
 }
 
-// useInvitation spends an invitation if the code is one, and reports whether it
-// did. An invitation works once: the deletion is what proves this attempt got
-// it, so two people racing the same code cannot both be let in.
-func (v *verifier) useInvitation(ctx context.Context, code string) bool {
+// useInvitation spends an invitation if the code is one this attempt may use,
+// and reports whether it did.
+func (v *verifier) useInvitation(ctx context.Context, a attempt.Attempt) bool {
 	if v.store == nil {
 		return false
 	}
 
-	// No existence check first: a missing key comes back as an empty string with
-	// no error, so asking proves nothing. The deletion is the proof - it returns
-	// 1 only for the attempt that actually took the invitation, which is also
-	// what stops two people racing the same code from both getting in.
-	deleted, err := v.store.DelCtx(ctx, InvitationKey(code))
+	key := InvitationKey(a.Code)
+	value, err := v.store.GetCtx(ctx, key)
+	if err != nil {
+		logx.WithContext(ctx).Errorf("sign-in: cannot read the invitation: %v", err)
+		return false
+	}
+	if value == "" {
+		return false
+	}
+
+	if !allows(Decode(value), a) {
+		// Left where it is: refusing must not burn somebody else's invitation,
+		// or knowing a code would be enough to cancel it.
+		logx.WithContext(ctx).Infof("sign-in refused: this invitation is not for this number")
+		return false
+	}
+
+	// The deletion is the proof. Reading said the invitation was there; only
+	// the delete says this attempt is the one that took it, which is what stops
+	// two people racing the same code from both getting in.
+	deleted, err := v.store.DelCtx(ctx, key)
 	if err != nil {
 		logx.WithContext(ctx).Errorf("sign-in: cannot spend the invitation: %v", err)
 		return false
 	}
 
 	return deleted == 1
+}
+
+// allows is the rule an invitation is worth stating on its own: an invitation
+// naming a number opens that number, and one naming nobody opens only a number
+// that has no account behind it yet.
+func allows(inv Invitation, a attempt.Attempt) bool {
+	if inv.Phone != "" {
+		return Digits(inv.Phone) == Digits(a.PhoneNumber)
+	}
+	return !a.PhoneRegistered
 }
 
 // Attempts reports how many tries a code has had, for the tool that mints
