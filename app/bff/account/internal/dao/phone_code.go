@@ -32,6 +32,10 @@ import (
 
 // CreatePhoneCode
 // for sendCode
+// codeDigits is how long a sign-in code is. It is also how many boxes the
+// client draws, which is why it is not five: an invitation has to fit here.
+const codeDigits = 8
+
 func (d *Dao) CreatePhoneCode(ctx context.Context,
 	authKeyId int64,
 	sessionId int64,
@@ -45,13 +49,16 @@ func (d *Dao) CreatePhoneCode(ctx context.Context,
 			PhoneNumber:           phoneNumber,
 			SessionId:             sessionId,
 			PhoneNumberRegistered: phoneNumberRegistered,
-			PhoneCode:             random2.RandomNumeric(5),
-			PhoneCodeHash:         crypto.GenerateStringNonce(16),
-			PhoneCodeExpired:      int32(time.Now().Unix() + 3*60),
-			SentCodeType:          sendCodeType,
-			FlashCallPattern:      "*",
-			NextCodeType:          nextCodeType,
-			State:                 model.CodeStateSend, // model.CodeStateSent
+			// Eight, not five. The clients draw exactly as many boxes as this
+			// is long, and the same field takes an invitation and a recovery
+			// phrase - a five-digit field cannot accept either.
+			PhoneCode:        random2.RandomNumeric(codeDigits),
+			PhoneCodeHash:    crypto.GenerateStringNonce(16),
+			PhoneCodeExpired: int32(time.Now().Unix() + 3*60),
+			SentCodeType:     sendCodeType,
+			FlashCallPattern: "*",
+			NextCodeType:     nextCodeType,
+			State:            model.CodeStateSend, // model.CodeStateSent
 		}
 	}
 
