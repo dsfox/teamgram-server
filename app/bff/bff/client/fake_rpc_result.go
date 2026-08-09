@@ -13,6 +13,7 @@ import (
 
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/proto/mtproto/crypto"
+	"github.com/teamgram/proto/mtproto/rpc/metadata"
 	"github.com/teamgram/teamgram-server/pkg/langpack"
 
 	"github.com/zeromicro/go-zero/core/logx"
@@ -71,6 +72,19 @@ func init() {
 	}).To_SecurePasswordKdfAlgo()
 }
 
+// platformOf answers which language pack the caller needs. The request field is
+// authoritative when the client fills it in; when it does not, the connection
+// already told us who it is.
+func platformOf(ctx context.Context, langPack string) string {
+	if langPack != "" {
+		return langPack
+	}
+	if md := metadata.RpcMetadataFromIncoming(ctx); md != nil {
+		return md.GetClient()
+	}
+	return ""
+}
+
 func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtproto.TLObject) (mtproto.TLObject, error) {
 	rt := reflect.TypeOf(object)
 	if rt.Kind() == reflect.Ptr {
@@ -79,12 +93,18 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 
 	switch rt.Name() {
 	// langpack
+	// The platform decides which file answers: the same language is a different
+	// set of keys on iOS and on Android. lang_pack is where the client is meant
+	// to say which it is, and the Android client leaves it empty - so the answer
+	// came from the iOS file, eleven thousand strings of keys it had never heard
+	// of. What it does say, in every request, is who it is: the metadata carries
+	// client "android".
 	case "TLLangpackGetDifference":
 		in := object.(*mtproto.TLLangpackGetDifference)
-		return langpack.Difference(in.GetLangCode()), nil
+		return langpack.Difference(in.GetLangCode(), platformOf(ctx, in.GetLangPack())), nil
 	case "TLLangpackGetLangPack":
 		in := object.(*mtproto.TLLangpackGetLangPack)
-		return langpack.Difference(in.GetLangCode()), nil
+		return langpack.Difference(in.GetLangCode(), platformOf(ctx, in.GetLangPack())), nil
 	case "TLMessagesGetEmojiGameInfo":
 		// There is no dice game here; saying so plainly beats an error the
 		// client retries against.
@@ -109,7 +129,7 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 	case "TLLangpackGetStrings":
 		in := object.(*mtproto.TLLangpackGetStrings)
 		return &mtproto.Vector_LangPackString{
-			Datas: langpack.Strings(in.GetLangCode(), in.GetKeys()),
+			Datas: langpack.Strings(in.GetLangCode(), platformOf(ctx, in.GetLangPack()), in.GetKeys()),
 		}, nil
 
 	// webpage
@@ -545,13 +565,13 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, object mtpr
 		// for, finds nothing in it, and stops asking.
 		return mtproto.MakeTLMessagesStickerSet(&mtproto.Messages_StickerSet{
 			Set: mtproto.MakeTLStickerSet(&mtproto.StickerSet{
-				Id:        0,
+				Id:         0,
 				AccessHash: 0,
-				Title:     "",
-				ShortName: "",
-				Count:     0,
-				Hash:      0,
-				Thumbs:    []*mtproto.PhotoSize{},
+				Title:      "",
+				ShortName:  "",
+				Count:      0,
+				Hash:       0,
+				Thumbs:     []*mtproto.PhotoSize{},
 			}).To_StickerSet(),
 			Packs:     []*mtproto.StickerPack{},
 			Keywords:  []*mtproto.StickerKeyword{},

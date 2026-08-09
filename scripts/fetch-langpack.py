@@ -1,5 +1,13 @@
 """A ONE-OFF language pack import. It is not a permanent dependency.
 
+    python3 server/scripts/fetch-langpack.py ru ios
+    python3 server/scripts/fetch-langpack.py ru android
+
+The platform matters: the two clients name the same sentence differently, and a
+pack fetched for one is a pack of keys the other has never heard of. Serving the
+iOS pack to Android is how "choosing Russian does nothing" happened - eleven
+thousand strings arrived and not one of them matched.
+
 Used once so that eleven thousand strings did not have to be translated from
 scratch. The result lives in server/teamgramd/langpack/<code>.json and from then
 on is our own resource: new and changed strings are translated by us and the
@@ -35,12 +43,12 @@ def rebrand(text: str) -> str:
     return BRAND.sub(APP_NAME, text)
 
 
-async def main(lang_code: str):
+async def main(lang_code: str, platform: str):
     client = TelegramClient("langpack_fetch", SOURCE_API_ID, SOURCE_API_HASH)
     client.session.set_dc(*SOURCE_DC)
     await client.connect()
     try:
-        result = await client(GetLangPackRequest(lang_pack="ios", lang_code=lang_code))
+        result = await client(GetLangPackRequest(lang_pack=platform, lang_code=lang_code))
     finally:
         await client.disconnect()
 
@@ -63,15 +71,21 @@ async def main(lang_code: str):
             strings[item.key] = rebrand(item.value)
 
     TARGET_DIR.mkdir(parents=True, exist_ok=True)
-    target = TARGET_DIR / f"{lang_code}.json"
+    # The iOS pack keeps the plain name it has always had; anything else is
+    # suffixed, so the two live side by side.
+    name = lang_code if platform == "ios" else f"{lang_code}.{platform}"
+    target = TARGET_DIR / f"{name}.json"
     target.write_text(json.dumps(
         {"version": result.version, "strings": strings, "plurals": plurals},
         ensure_ascii=False, indent=1, sort_keys=True,
     ), encoding="utf-8")
 
-    print(f"[translation] {lang_code}: {len(strings)} strings, {len(plurals)} pluralised")
+    print(f"[translation] {lang_code}/{platform}: {len(strings)} strings, {len(plurals)} pluralised")
     print(f"[translation] saved: {target}")
 
 
 if __name__ == "__main__":
-    asyncio.run(main(sys.argv[1] if len(sys.argv) > 1 else "ru"))
+    asyncio.run(main(
+        sys.argv[1] if len(sys.argv) > 1 else "ru",
+        sys.argv[2] if len(sys.argv) > 2 else "ios",
+    ))

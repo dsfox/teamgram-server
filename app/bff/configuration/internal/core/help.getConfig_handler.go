@@ -20,12 +20,16 @@ package core
 
 import (
 	"os"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/teamgram/proto/mtproto"
 
 	"github.com/zeromicro/go-zero/core/jsonx"
+	"github.com/zeromicro/go-zero/core/logx"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 const (
@@ -38,19 +42,27 @@ const (
 	// SUPPORT_USER_ID = 2
 )
 
-var config mtproto.TLConfig
+var (
+	config     mtproto.TLConfig
+	configOnce sync.Once
+)
 
-func init() {
+// The file is read on first use rather than at import. It used to panic in
+// init(), which meant the package could not be imported anywhere the file was
+// not sitting in the working directory - a test in this package could not run
+// at all, and the rule below is exactly the kind of thing that wants one.
+//
+// A missing config is still fatal for the server, and says so; it simply says it
+// when somebody asks for the config rather than when the binary loads.
+func loadConfig() {
 	configData, err := os.ReadFile(configFile)
 	if err != nil {
-		panic(err)
+		logx.Errorf("config not read (%s): the client will be given an empty one: %v", configFile, err)
 		return
 	}
 
-	err = jsonx.Unmarshal(configData, &config)
-	if err != nil {
-		panic(err)
-		return
+	if err = jsonx.Unmarshal(configData, &config); err != nil {
+		logx.Errorf("config is corrupt (%s): %v", configFile, err)
 	}
 }
 
@@ -59,10 +71,34 @@ func init() {
 func (c *ConfigurationCore) HelpGetConfig(in *mtproto.TLHelpGetConfig) (*mtproto.Config, error) {
 	_ = in
 
+	configOnce.Do(loadConfig)
+
 	rValue, _ := proto.Clone(&config).(*mtproto.TLConfig)
 	now := int32(time.Now().Unix())
 	rValue.SetDate(now)
 	rValue.SetExpires(now + expiresTimeout)
+	rValue.SetSuggestedLangCode(wrapperspb.String(suggestedLanguage(c.MD.GetLangCode())))
 
 	return rValue.To_Config(), nil
+}
+
+// We offer two languages, and this decides which one a phone is offered before
+// anybody chooses. Russian where it is what people read, English everywhere
+// else. The decision lives here rather than in each client so that both make it
+// the same way - and because the file this config comes from suggested
+// "classic-zh-cn", inherited from upstream, to everyone who asked.
+//
+// The client reports the language its system is set to; that is the only signal
+// we have, and it is the right one - a phone set to Russian is not ambiguous.
+func suggestedLanguage(clientLangCode string) string {
+	code := strings.ToLower(clientLangCode)
+	if i := strings.IndexAny(code, "-_"); i > 0 {
+		code = code[:i]
+	}
+	switch code {
+	case "ru", "uk", "kk", "be":
+		return "ru"
+	default:
+		return "en"
+	}
 }

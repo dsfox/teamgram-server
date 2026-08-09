@@ -41,34 +41,65 @@ var (
 // Dir is where translation files live; set at startup, next to the binary by default.
 var Dir = "../langpack"
 
+// Platforms name the same sentence differently: the iOS pack calls it
+// Common.Cancel and the Android one calls it Cancel. Serving one to the other is
+// not a partial translation, it is none at all - eleven thousand strings arrive
+// and the client recognises no key in them, so the interface stays English and
+// looks as though choosing a language did nothing.
+//
+// The file for iOS keeps its plain name because it was there first;
+// anything else is <code>.<platform>.json.
+func packPath(langCode, platform string) string {
+	if platform == "" || platform == "ios" {
+		return filepath.Join(Dir, langCode+".json")
+	}
+	return filepath.Join(Dir, langCode+"."+platform+".json")
+}
+
+// platforms we carry a pack for; anything else is served the iOS one, which is
+// what the older clients asked for by not asking.
+var platforms = []string{"ios", "android"}
+
 func load() {
 	packs = make(map[string]*pack)
 	for _, language := range Available {
 		if language.Code == "en" {
 			continue // English is built into the client
 		}
-		path := filepath.Join(Dir, language.Code+".json")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			logx.Errorf("translation not read (%s): %v", path, err)
-			continue
+		for _, platform := range platforms {
+			path := packPath(language.Code, platform)
+			data, err := os.ReadFile(path)
+			if err != nil {
+				logx.Errorf("translation not read (%s): %v", path, err)
+				continue
+			}
+			parsed := new(pack)
+			if err = json.Unmarshal(data, parsed); err != nil {
+				logx.Errorf("translation is corrupt (%s): %v", path, err)
+				continue
+			}
+			packs[key(language.Code, platform)] = parsed
+			logx.Infof("translation loaded: %s/%s, %d strings",
+				language.Code, platform, len(parsed.Strings)+len(parsed.Plurals))
 		}
-		parsed := new(pack)
-		if err = json.Unmarshal(data, parsed); err != nil {
-			logx.Errorf("translation is corrupt (%s): %v", path, err)
-			continue
-		}
-		packs[language.Code] = parsed
-		logx.Infof("translation loaded: %s, %d strings", language.Code, len(parsed.Strings)+len(parsed.Plurals))
 	}
+}
+
+// key is how a pack is looked up: language and platform together, because the
+// same language differs between them.
+func key(langCode, platform string) string {
+	if platform != "android" {
+		platform = "ios"
+	}
+	return langCode + "/" + platform
 }
 
 // Difference returns the whole language pack: ours are small, and handing over
 // everything at once is cheaper than keeping a version history.
-func Difference(langCode string) *mtproto.LangPackDifference {
+func Difference(langCode, platform string) *mtproto.LangPackDifference {
 	loadOnce.Do(load)
 
-	loaded, ok := packs[langCode]
+	loaded, ok := packs[key(langCode, platform)]
 	if !ok {
 		return mtproto.MakeTLLangPackDifference(&mtproto.LangPackDifference{
 			LangCode: langCode,
@@ -104,11 +135,11 @@ func Difference(langCode string) *mtproto.LangPackDifference {
 }
 
 // Strings returns only the requested keys.
-func Strings(langCode string, keys []string) []*mtproto.LangPackString {
+func Strings(langCode, platform string, keys []string) []*mtproto.LangPackString {
 	loadOnce.Do(load)
 
 	list := make([]*mtproto.LangPackString, 0, len(keys))
-	loaded, ok := packs[langCode]
+	loaded, ok := packs[key(langCode, platform)]
 	if !ok {
 		return list
 	}
@@ -143,8 +174,14 @@ func Strings(langCode string, keys []string) []*mtproto.LangPackString {
 
 // Loaded reports whether a translation exists for the language — that is what
 // puts it into the picker: offering a language without strings is pointless.
+// A language is offered when we can serve it to somebody: a pack for either
+// platform is enough to put it in the picker.
 func Loaded(langCode string) bool {
 	loadOnce.Do(load)
-	_, ok := packs[langCode]
-	return ok
+	for _, platform := range platforms {
+		if _, ok := packs[key(langCode, platform)]; ok {
+			return true
+		}
+	}
+	return false
 }
