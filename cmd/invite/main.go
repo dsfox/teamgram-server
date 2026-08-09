@@ -42,7 +42,8 @@ import (
 func main() {
 	hours := flag.Int("hours", 24, "how long the invitation is good for")
 	note := flag.String("note", "", "who it is for, for your own records")
-	phone := flag.String("phone", "", "the only number this code may open; empty means any number without an account")
+	phone := flag.String("phone", "", "the only number this invitation may open")
+	anyone := flag.Bool("anyone", false, "mint an invitation for a number you do not know yet")
 	list := flag.Bool("list", false, "show outstanding invitations")
 	recovery := flag.Bool("recovery", false, "mint this number's recovery phrase instead of an invitation")
 	force := flag.Bool("force", false, "with --recovery: replace a phrase that already exists")
@@ -67,6 +68,19 @@ func main() {
 	if *recovery {
 		mintRecovery(ctx, store, *phone, *force)
 		return
+	}
+
+	if *phone == "" && !*anyone {
+		fmt.Fprintln(os.Stderr,
+			"which number is this for? --phone +79991234567\n"+
+				"Nothing here can prove a number belongs to the person typing it, so an\n"+
+				"invitation naming one is what makes it mean anything. For somebody whose\n"+
+				"number you do not know yet: --anyone.")
+		os.Exit(1)
+	}
+	if *phone != "" && *anyone {
+		fmt.Fprintln(os.Stderr, "--phone and --anyone say opposite things; pick one")
+		os.Exit(1)
 	}
 
 	code, err := mint(ctx, store, *hours, invite.Invitation{Phone: *phone, Note: *note})
