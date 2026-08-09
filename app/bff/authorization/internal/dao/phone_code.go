@@ -32,9 +32,11 @@ import (
 
 // CreatePhoneCode
 // for sendCode
-// codeDigits is how long a sign-in code is. It is also how many boxes the
-// client draws, which is why it is not five: an invitation has to fit here.
-const codeDigits = 8
+// codeDigits is how long a sign-in code is, and how many boxes the client
+// draws. Six: eight only just fitted across a phone screen, and the secret that
+// has to survive guessing is the recovery phrase, which is words and is typed
+// somewhere else entirely.
+const codeDigits = 6
 
 func (d *Dao) CreatePhoneCode(ctx context.Context,
 	authKeyId int64,

@@ -23,8 +23,11 @@ import (
 
 // recoveryDigits is the length of a sign-in code - an invitation, or the code
 // the server delivers to a session. Not the recovery phrase, which is words.
-// Eight because the clients draw exactly as many boxes as the server declares.
-const recoveryDigits = 8
+// Six, because that is how many boxes the client draws: eight only just fitted
+// across a phone screen. An invitation lives hours and works once, and the
+// number it is aimed at stops answering after ten wrong tries in an hour, so
+// six digits is a door nobody walks through by guessing.
+const recoveryDigits = 6
 
 const recoveryPrefix = "recovery:"
 
