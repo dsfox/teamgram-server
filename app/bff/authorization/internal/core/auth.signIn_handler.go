@@ -92,8 +92,9 @@ func (c *AuthorizationCore) AuthSignIn(in *mtproto.TLAuthSignIn) (*mtproto.Auth_
 		phoneCode,
 		phoneCodeHash,
 		func(codeData2 *model.PhoneCodeTransaction) error {
-			return c.svcCtx.AuthLogic.VerifyCodeInterface.VerifySmsCode(c.ctx,
-				codeData2.Attempt(phoneCode))
+			a := codeData2.Attempt(phoneCode)
+			a.ClientAddr = c.MD.ClientAddr
+			return c.svcCtx.AuthLogic.VerifyCodeInterface.VerifySmsCode(c.ctx, a)
 		})
 
 	if err2 != nil {
@@ -209,7 +210,7 @@ func (c *AuthorizationCore) AuthSignIn(in *mtproto.TLAuthSignIn) (*mtproto.Auth_
 	// spending their recovery code, this is where the next one reaches them;
 	// if they never had one - an account from before this existed - this is
 	// where they finally do.
-	c.ensureRecoveryCode(c.ctx, user.Id(), phoneNumber)
+	c.ensureRecoveryPhrase(c.ctx, user.Id(), phoneNumber)
 
 	return mtproto.MakeTLAuthAuthorization(&mtproto.Auth_Authorization{
 		SetupPasswordRequired: false,

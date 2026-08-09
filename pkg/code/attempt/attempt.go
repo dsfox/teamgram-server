@@ -29,4 +29,10 @@ type Attempt struct {
 	// invitation that names no number must not open one that does: otherwise
 	// any invitation is a key to every account whose number is known.
 	PhoneRegistered bool
+
+	// ClientAddr is where the attempt came from. Counting failures per number
+	// stops somebody working on one account; counting them per address is what
+	// notices somebody spraying many. Empty when unknown, and then the address
+	// simply does not count against anything.
+	ClientAddr string
 }

@@ -105,8 +105,9 @@ func (c *AccountCore) AccountChangePhone(in *mtproto.TLAccountChangePhone) (*mtp
 		phoneCode,
 		phoneCodeHash,
 		func(codeData2 *model.PhoneCodeTransaction) error {
-			return c.svcCtx.AuthLogic.VerifyCodeInterface.VerifySmsCode(c.ctx,
-				codeData2.Attempt(phoneCode))
+			a := codeData2.Attempt(phoneCode)
+			a.ClientAddr = c.MD.ClientAddr
+			return c.svcCtx.AuthLogic.VerifyCodeInterface.VerifySmsCode(c.ctx, a)
 		})
 	if err != nil {
 		c.Logger.Errorf("account.changePhone - the code was not accepted: %v", err)
@@ -135,7 +136,7 @@ func (c *AccountCore) AccountChangePhone(in *mtproto.TLAccountChangePhone) (*mtp
 	// The way back has to follow the account onto the new number, or the person
 	// keeps a code that opens a number they no longer have.
 	if store := c.svcCtx.Dao.Store(); store != nil {
-		invite.MoveRecoveryCode(c.ctx, store, user.User.Phone, phoneNumber)
+		invite.MoveRecoveryPhrase(c.ctx, store, user.User.Phone, phoneNumber)
 	}
 
 	user.User.Phone = phoneNumber

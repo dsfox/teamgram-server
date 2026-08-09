@@ -10,12 +10,12 @@
 //	invite --phone +79991234567        # for that number only - a lost phone
 //	invite --hours 2 --note "Natalya"
 //	invite --list                      # what is outstanding
-//	invite --recovery --phone +7999...  # a recovery code for an account
+//	invite --recovery --phone +7999...  # a recovery phrase for an account
 //
-// The recovery code is normally handed to a person by the server itself, at
+// The recovery phrase is normally handed to a person by the server itself, at
 // registration, in their service chat. --recovery is for the accounts that
 // predate that, and for somebody who has lost both the phone and the paper. It
-// refuses to overwrite a code that exists, because that paper is somebody's
+// refuses to overwrite a phrase that exists, because that paper is somebody's
 // only way back; --force says you know.
 //
 // A code with no number opens only a phone that has no account yet, so handing
@@ -44,8 +44,8 @@ func main() {
 	note := flag.String("note", "", "who it is for, for your own records")
 	phone := flag.String("phone", "", "the only number this code may open; empty means any number without an account")
 	list := flag.Bool("list", false, "show outstanding invitations")
-	recovery := flag.Bool("recovery", false, "mint this number's recovery code instead of an invitation")
-	force := flag.Bool("force", false, "with --recovery: replace a code that already exists")
+	recovery := flag.Bool("recovery", false, "mint this number's recovery phrase instead of an invitation")
+	force := flag.Bool("force", false, "with --recovery: replace a phrase that already exists")
 	flag.Parse()
 
 	store := kv.NewStore(kv.KvConf{{
@@ -88,26 +88,26 @@ func main() {
 // happen at any time.
 func mintRecovery(ctx context.Context, store kv.Store, phone string, force bool) {
 	if phone == "" {
-		fmt.Fprintln(os.Stderr, "--recovery needs --phone: a recovery code belongs to one account")
+		fmt.Fprintln(os.Stderr, "--recovery needs --phone: a recovery phrase belongs to one account")
 		os.Exit(1)
 	}
 
-	if !force && invite.HasRecoveryCode(ctx, store, phone) {
+	if !force && invite.HasRecoveryPhrase(ctx, store, phone) {
 		fmt.Fprintf(os.Stderr,
-			"%s already has a recovery code and somebody has it written down.\n"+
+			"%s already has a recovery phrase and somebody has it written down.\n"+
 				"Minting another makes that paper worthless. --force if you mean it.\n", phone)
 		os.Exit(1)
 	}
 
-	code, err := invite.MintRecoveryCode(ctx, store, phone, false)
+	phrase, err := invite.MintRecoveryPhrase(ctx, store, phone, false)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	fmt.Println(code)
+	fmt.Println(phrase)
 	fmt.Fprintf(os.Stderr,
-		"the recovery code for %s. Works once, never expires, and cannot be read\n"+
+		"the recovery phrase for %s. Works once, never expires, and cannot be read\n"+
 			"back - hand it over now or mint another. The server replaces it with\n"+
 			"one of its own the next time this account signs in, so that nobody is\n"+
 			"left holding a code that was never passed along.\n", phone)

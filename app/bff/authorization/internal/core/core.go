@@ -130,16 +130,18 @@ This code can be used to log in to your %s account. We never ask it for anything
 
 If you didn't request this code by trying to log in on another device, simply ignore this message.`
 
-	// The recovery code is the answer to the question this service could not
+	// The recovery phrase is the answer to the question this service could not
 	// answer at all: a phone is lost, there is nowhere to send a code, and there
 	// is no SMS. So it is handed over in advance and kept by the person. It is
 	// said plainly here that nobody can look it up afterwards, because that is
 	// true and because a person who does not know it will not write it down.
-	recoveryMessageTpl = `Recovery code: %s
+	recoveryMessageTpl = `Recovery phrase:
 
-Write it down and keep it away from your phone. If you lose the phone, this is what gets you back into your %s account: enter it instead of the login code.
+%s
 
-It works once. Nobody can look it up for you afterwards, not even us - we only keep enough to check it. After you use it, a new one arrives here.`
+Write it down on paper and keep it away from your phone. If you lose the phone, these six words are what get you back into your %s account.
+
+It works once. Nobody can look it up for you afterwards, not even us - we only keep enough to check it. After you use it, a new phrase arrives here.`
 )
 
 // boldRanges marks the given words bold, wherever they ended up. The offsets
@@ -201,22 +203,25 @@ func (c *AuthorizationCore) pushServiceMessage(ctx context.Context, userId int64
 	})
 }
 
-// pushRecoveryCode hands somebody the way back into their own account.
-func (c *AuthorizationCore) pushRecoveryCode(ctx context.Context, userId int64, code string) {
+// pushRecoveryPhrase hands somebody the way back into their own account.
+func (c *AuthorizationCore) pushRecoveryPhrase(ctx context.Context, userId int64, phrase string) {
 	c.pushServiceMessage(ctx,
 		userId,
-		fmt.Sprintf(recoveryMessageTpl, code, env2.MyAppName),
-		"Recovery code:", "Write it down", "once")
+		fmt.Sprintf(recoveryMessageTpl, phrase, env2.MyAppName),
+		// "It works once" rather than "once": the phrase is six ordinary
+		// words and one of them may well contain those four letters, which
+		// would put the emphasis inside somebody's recovery phrase.
+		"Recovery phrase:", phrase, "Write it down on paper", "It works once")
 }
 
-// ensureRecoveryCode gives this account a way back if it has none, and says
+// ensureRecoveryPhrase gives this account a way back if it has none, and says
 // nothing if it already has one - the old one is written down somewhere and
 // replacing it silently would turn that paper into a worthless one.
 //
 // Failing here must not fail the sign-in that called it: somebody with no
 // recovery code can still be let back in by an invitation, and being unable to
 // mint one is a thing to shout about in the log, not to lock people out over.
-func (c *AuthorizationCore) ensureRecoveryCode(ctx context.Context, userId int64, phoneNumber string) {
+func (c *AuthorizationCore) ensureRecoveryPhrase(ctx context.Context, userId int64, phoneNumber string) {
 	store := c.svcCtx.Dao.Store()
 	if store == nil {
 		c.Logger.Errorf("recovery: no store, so %d has no way back", userId)
@@ -226,18 +231,18 @@ func (c *AuthorizationCore) ensureRecoveryCode(ctx context.Context, userId int64
 	// Delivered, not merely existing: a code minted by hand for somebody who
 	// could not sign in may never have reached them, and an account whose way
 	// back nobody knows must not look covered.
-	if invite.HasDeliveredRecoveryCode(ctx, store, phoneNumber) {
+	if invite.HasDeliveredRecoveryPhrase(ctx, store, phoneNumber) {
 		return
 	}
 
-	code, err := invite.MintRecoveryCode(ctx, store, phoneNumber, true)
+	phrase, err := invite.MintRecoveryPhrase(ctx, store, phoneNumber, true)
 	if err != nil {
-		c.Logger.Errorf("recovery: cannot mint a code for %d: %v", userId, err)
+		c.Logger.Errorf("recovery: cannot mint a phrase for %d: %v", userId, err)
 		return
 	}
 
-	c.Logger.Infof("recovery: a code was minted for %d", userId)
-	c.pushRecoveryCode(ctx, userId, code)
+	c.Logger.Infof("recovery: a phrase was minted for %d", userId)
+	c.pushRecoveryPhrase(ctx, userId, phrase)
 }
 
 func (c *AuthorizationCore) pushSignInMessage(ctx context.Context, signInUserId int64, code string) {

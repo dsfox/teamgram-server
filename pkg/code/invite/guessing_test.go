@@ -2,6 +2,7 @@ package invite
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -75,7 +76,7 @@ func TestOneNumbersGuessesDoNotLockAnother(t *testing.T) {
 		})
 	}
 
-	code, _ := MintRecoveryCode(ctx, store, "+79995550001", true)
+	code, _ := MintRecoveryPhrase(ctx, store, "+79995550001", true)
 	if err := v.VerifySmsCode(ctx, attempt.Attempt{
 		CodeHash: "hash-other", Code: code,
 		PhoneNumber: "+79995550001", PhoneRegistered: true,
@@ -98,7 +99,7 @@ func TestGettingInForgivesTheMisses(t *testing.T) {
 		})
 	}
 
-	code, _ := MintRecoveryCode(ctx, store, phone, true)
+	code, _ := MintRecoveryPhrase(ctx, store, phone, true)
 	if err := v.VerifySmsCode(ctx, attempt.Attempt{
 		CodeHash: "hash-right", Code: code, PhoneNumber: phone, PhoneRegistered: true,
 	}); err != nil {
@@ -110,17 +111,72 @@ func TestGettingInForgivesTheMisses(t *testing.T) {
 	}
 }
 
-// Ten wrong codes an hour against a hundred million of them is the whole
-// argument, so it is worth failing loudly if either number moves.
+// Ten wrong tries an hour against every phrase there is, so it is worth failing
+// loudly if either number moves. The digits this replaced left a hundred million
+// possibilities and about six hundred years; six words leave rather more.
 func TestGuessingTakesLongerThanAnybodyHas(t *testing.T) {
-	const space = 100_000_000 // eight digits
+	space := 1.0
+	for i := 0; i < phraseWords; i++ {
+		space *= float64(len(wordlist()))
+	}
 
-	yearsToHalf := float64(space) / 2 / float64(maxFailuresPerPhone) *
+	yearsToHalf := space / 2 / float64(maxFailuresPerPhone) *
 		float64(failureWindow) / 3600 / 24 / 365
 
-	if yearsToHalf < 100 {
-		t.Fatalf("half the codes fall in %.0f years at %d tries per %d seconds, "+
+	if yearsToHalf < 1e6 {
+		t.Fatalf("half the phrases fall in %.3g years at %d tries per %d seconds, "+
 			"which is not long enough", yearsToHalf, maxFailuresPerPhone, failureWindow)
+	}
+}
+
+// Somebody working through many numbers from one place trips nothing per
+// number and everything per address.
+func TestSprayingManyNumbersFromOnePlaceRunsOut(t *testing.T) {
+	v, _ := newTestVerifier()
+	ctx := context.Background()
+	const addr = "203.0.113.9"
+
+	accepted := 0
+	for i := 0; i < maxFailuresPerAddr*2; i++ {
+		// A different number every time, so the per-number count never bites.
+		err := v.VerifySmsCode(ctx, attempt.Attempt{
+			CodeHash:    "hash-" + strconv.Itoa(i),
+			Code:        "wrong wrong wrong wrong wrong wrong",
+			PhoneNumber: "+7999" + strconv.Itoa(1000000+i),
+			ClientAddr:  addr, PhoneRegistered: true,
+		})
+		if isWait(err) {
+			break
+		}
+		accepted++
+	}
+
+	if accepted > maxFailuresPerAddr {
+		t.Fatalf("%d numbers were tried from one address before it stopped, "+
+			"expected at most %d", accepted, maxFailuresPerAddr)
+	}
+}
+
+// And somebody guessing from one place must not shut out a person coming from
+// somewhere else - an address is not a person, and whole regions share one.
+func TestOneAddressGuessingDoesNotLockOutAnother(t *testing.T) {
+	v, store := newTestVerifier()
+	ctx := context.Background()
+
+	for i := 0; i < maxFailuresPerAddr*2; i++ {
+		_ = v.VerifySmsCode(ctx, attempt.Attempt{
+			CodeHash: "hash-" + strconv.Itoa(i), Code: "wrong phrase entirely here now",
+			PhoneNumber: "+7999" + strconv.Itoa(1000000+i),
+			ClientAddr:  "203.0.113.9", PhoneRegistered: true,
+		})
+	}
+
+	phrase, _ := MintRecoveryPhrase(ctx, store, "+79995550001", true)
+	if err := v.VerifySmsCode(ctx, attempt.Attempt{
+		CodeHash: "hash-elsewhere", Code: phrase,
+		PhoneNumber: "+79995550001", ClientAddr: "198.51.100.4", PhoneRegistered: true,
+	}); err != nil {
+		t.Fatalf("somebody at another address was refused: %v", err)
 	}
 }
 

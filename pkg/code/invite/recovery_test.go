@@ -15,7 +15,7 @@ func TestALostPhoneGetsBackInWithTheRecoveryCode(t *testing.T) {
 	ctx := context.Background()
 	const phone = "+79990012345"
 
-	code, err := MintRecoveryCode(ctx, store, phone, true)
+	code, err := MintRecoveryPhrase(ctx, store, phone, true)
 	if err != nil {
 		t.Fatalf("no code was minted: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestARecoveryCodeWorksOnce(t *testing.T) {
 	ctx := context.Background()
 	const phone = "+79990012345"
 
-	code, _ := MintRecoveryCode(ctx, store, phone, true)
+	code, _ := MintRecoveryPhrase(ctx, store, phone, true)
 	_ = v.VerifySmsCode(ctx, attempt.Attempt{
 		CodeHash: "hash-1", Code: code, PhoneNumber: phone, PhoneRegistered: true})
 
@@ -51,7 +51,7 @@ func TestARecoveryCodeOpensOnlyItsOwnAccount(t *testing.T) {
 	v, store := newTestVerifier()
 	ctx := context.Background()
 
-	code, _ := MintRecoveryCode(ctx, store, "+79990012345", true)
+	code, _ := MintRecoveryPhrase(ctx, store, "+79990012345", true)
 
 	if err := v.VerifySmsCode(ctx, attempt.Attempt{
 		CodeHash: "hash-1", Code: code,
@@ -68,15 +68,15 @@ func TestTheStoreDoesNotHoldTheCode(t *testing.T) {
 	store := &mapStore{data: map[string]string{}}
 	ctx := context.Background()
 
-	code, _ := MintRecoveryCode(ctx, store, "+79990012345", true)
+	code, _ := MintRecoveryPhrase(ctx, store, "+79990012345", true)
 
 	for key, value := range store.data {
 		if strings.Contains(value, code) {
-			t.Fatalf("the code is readable in the store under %q", key)
+			t.Fatalf("the phrase is readable in the store under %q", key)
 		}
 	}
-	if len(code) != recoveryDigits {
-		t.Errorf("the code is %d digits, expected %d", len(code), recoveryDigits)
+	if got := len(strings.Fields(code)); got != phraseWords {
+		t.Errorf("the phrase is %d words, expected %d", got, phraseWords)
 	}
 }
 
@@ -87,15 +87,15 @@ func TestAnAccountIsNotGivenASecondCode(t *testing.T) {
 	ctx := context.Background()
 	const phone = "+79990012345"
 
-	if HasRecoveryCode(ctx, store, phone) {
+	if HasRecoveryPhrase(ctx, store, phone) {
 		t.Fatal("an account with no code was said to have one")
 	}
 
-	if _, err := MintRecoveryCode(ctx, store, phone, true); err != nil {
+	if _, err := MintRecoveryPhrase(ctx, store, phone, true); err != nil {
 		t.Fatal(err)
 	}
 
-	if !HasRecoveryCode(ctx, store, phone) {
+	if !HasRecoveryPhrase(ctx, store, phone) {
 		t.Fatal("a minted code was not noticed, so a second one would replace it")
 	}
 }
@@ -106,10 +106,10 @@ func TestTheCodeFollowsAChangedNumber(t *testing.T) {
 	ctx := context.Background()
 	const from, to = "+79990012345", "+79995550001"
 
-	code, _ := MintRecoveryCode(ctx, store, from, true)
-	MoveRecoveryCode(ctx, store, from, to)
+	code, _ := MintRecoveryPhrase(ctx, store, from, true)
+	MoveRecoveryPhrase(ctx, store, from, to)
 
-	if HasRecoveryCode(ctx, store, from) {
+	if HasRecoveryPhrase(ctx, store, from) {
 		t.Error("the code stayed on the number the account left")
 	}
 	if err := v.VerifySmsCode(ctx, attempt.Attempt{
@@ -139,14 +139,14 @@ func TestAHandMintedCodeDoesNotCountAsDelivered(t *testing.T) {
 	ctx := context.Background()
 	const phone = "+79990012345"
 
-	if _, err := MintRecoveryCode(ctx, store, phone, false); err != nil {
+	if _, err := MintRecoveryPhrase(ctx, store, phone, false); err != nil {
 		t.Fatal(err)
 	}
 
-	if !HasRecoveryCode(ctx, store, phone) {
+	if !HasRecoveryPhrase(ctx, store, phone) {
 		t.Error("a code was minted and the store says there is none")
 	}
-	if HasDeliveredRecoveryCode(ctx, store, phone) {
+	if HasDeliveredRecoveryPhrase(ctx, store, phone) {
 		t.Fatal("a code nobody was told about counted as delivered, so the " +
 			"server will never hand one over")
 	}
@@ -158,7 +158,7 @@ func TestAHandMintedCodeStillWorks(t *testing.T) {
 	ctx := context.Background()
 	const phone = "+79990012345"
 
-	code, _ := MintRecoveryCode(ctx, store, phone, false)
+	code, _ := MintRecoveryPhrase(ctx, store, phone, false)
 
 	if err := v.VerifySmsCode(ctx, attempt.Attempt{
 		CodeHash: "hash-1", Code: code, PhoneNumber: phone, PhoneRegistered: true,
