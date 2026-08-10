@@ -35,6 +35,7 @@ import (
 	files_helper "github.com/teamgram/teamgram-server/app/bff/files"
 	messages_helper "github.com/teamgram/teamgram-server/app/bff/messages"
 	miscellaneous_helper "github.com/teamgram/teamgram-server/app/bff/miscellaneous"
+	mls_helper "github.com/teamgram/teamgram-server/app/bff/mls"
 	notification_helper "github.com/teamgram/teamgram-server/app/bff/notification"
 	nsfw_helper "github.com/teamgram/teamgram-server/app/bff/nsfw"
 	passkeyhelper "github.com/teamgram/teamgram-server/app/bff/passkey"
@@ -88,6 +89,16 @@ func (s *Server) Initialize() error {
 			grpcServer,
 			configuration_helper.New(configuration_helper.Config{
 				RpcServerConf: c.RpcServerConf,
+			}))
+
+		// mls_helper: the directory of key packages for end-to-end encryption.
+		// It shares the database this process already opens, and talks to
+		// nothing else.
+		mtproto.RegisterRPCMlsServer(
+			grpcServer,
+			mls_helper.New(mls_helper.Config{
+				RpcServerConf: c.RpcServerConf,
+				Mysql:         c.Mysql,
 			}))
 
 		// qrcode_helper

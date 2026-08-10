@@ -52,6 +52,10 @@ BFFProxyClients:
     #"/mtproto.RPCReports": "bff.bff"
     "/mtproto.RPCConfiguration": "bff.bff"
     "/mtproto.RPCQrCode": "bff.bff"
+    # The directory of MLS key packages. Without this line the method has a
+    # route and no client, and the request falls through to the stub layer,
+    # which refuses it with a licence message that explains nothing.
+    "/mtproto.RPCMls": "bff.bff"
     "/mtproto.RPCMiscellaneous": "bff.bff"
     "/mtproto.RPCAuthorization": "bff.bff"
     #"/mtproto.RPCGdpr": "bff.bff"
