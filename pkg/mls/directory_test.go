@@ -257,3 +257,41 @@ func (m *mapStore) Devices(_ context.Context, userId int64) ([]int64, error) {
 	}
 	return devices, nil
 }
+
+// Publishing nothing is how a device asks how many it has left, and a device
+// that is full has to be able to ask.
+//
+// The client used to publish thirty every few minutes whatever the answer, so a
+// phone nobody was starting conversations with reached the bound within the
+// hour and was refused from then on - an error line on the server every few
+// minutes, and the health check firing about it daily. It now asks first and
+// makes packages only when the answer says to, which only works if asking is
+// free: an empty publish must store nothing, refuse nothing, and still count.
+func TestAskingHowManyAreLeftIsNotPublishing(t *testing.T) {
+	d, _ := newTestDirectory()
+	ctx := context.Background()
+
+	packages := make([][]byte, MaxPerDevice)
+	for i := range packages {
+		packages[i] = []byte{byte(i / 256), byte(i % 256), 0xCC}
+	}
+	if _, err := d.Publish(ctx, 7, 100, packages, nil, 1); err != nil {
+		t.Fatal(err)
+	}
+
+	added, err := d.Publish(ctx, 7, 100, nil, nil, 2)
+	if err != nil {
+		t.Fatalf("a full device cannot ask how many it has: %v", err)
+	}
+	if added != 0 {
+		t.Errorf("asking stored %d packages", added)
+	}
+
+	count, refill, err := d.Available(ctx, 7, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != MaxPerDevice || refill {
+		t.Errorf("a full device was told %d, refill=%v", count, refill)
+	}
+}
