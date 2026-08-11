@@ -75,3 +75,19 @@ func (s *Service) MlsConfirmWelcomes(ctx context.Context, request *mtproto.TLMls
 	}
 	return r, err
 }
+
+// MlsSetRecoverySecret registers the way back into an account.
+//
+// mls.setRecoverySecret secret:string = mls.Ok;
+func (s *Service) MlsSetRecoverySecret(ctx context.Context, request *mtproto.TLMlsSetRecoverySecret) (*mtproto.Mls_Ok, error) {
+	c := core.New(ctx, s.svcCtx)
+	// The secret itself is not logged. It is not the phrase, but it is what a
+	// sign-in is checked against, and a log is a place things get copied out of.
+	c.Logger.Debugf("mls.setRecoverySecret - metadata: {%s}", c.MD)
+
+	r, err := c.MlsSetRecoverySecret(request)
+	if err != nil {
+		return nil, err
+	}
+	return r, err
+}

@@ -115,6 +115,11 @@ type Notify struct {
 	Body    string
 	Badge   int
 	Sandbox bool
+	// Who the message is from, as the client expects to read it: a decimal
+	// string under `from_id`. Without it a tap has nowhere to go - the app opens
+	// whatever it opens by default, which is not the conversation somebody was
+	// told about.
+	FromId string
 }
 
 // Send delivers the notification. It returns ErrTokenGone when the token should
@@ -126,6 +131,9 @@ func (s *Sender) Send(ctx context.Context, deviceToken string, n Notify) error {
 		Sound("default")
 	if n.Badge >= 0 {
 		p = p.Badge(n.Badge)
+	}
+	if n.FromId != "" {
+		p = p.Custom("from_id", n.FromId)
 	}
 
 	client := s.production

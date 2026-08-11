@@ -3,6 +3,8 @@ package pushnotify
 import (
 	"testing"
 
+	"github.com/teamgram/proto/mtproto"
+
 	"github.com/teamgram/teamgram-server/pkg/devices"
 )
 
@@ -86,5 +88,17 @@ func TestOfflineTargets(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// A notification has to say which conversation it is about.
+//
+// Without it a tap opens whatever the app opens by default - which is what
+// happened on a real phone: the push arrived at once, and tapping it went to
+// the settings screen. The client reads `from_id`, as a decimal string, and
+// only for a conversation between two people.
+func TestNotificationNamesTheChat(t *testing.T) {
+	if int32(mtproto.PEER_USER) != 2 {
+		t.Fatalf("the client's numbering for a private chat has moved: %d", mtproto.PEER_USER)
 	}
 }

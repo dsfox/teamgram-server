@@ -80,6 +80,8 @@ type Notify struct {
 	Title string
 	Body  string
 	Badge int
+	// Who the message is from, so that a tap opens that conversation.
+	FromId string
 }
 
 func (s *Sender) Send(ctx context.Context, deviceToken string, n Notify) error {
@@ -103,6 +105,9 @@ func (s *Sender) Send(ctx context.Context, deviceToken string, n Notify) error {
 			"data": map[string]any{
 				// The client wakes and fetches; it never reads the text from here.
 				"badge": strconv.Itoa(n.Badge),
+				// Who it is from, so a tap opens that conversation rather than
+				// whatever the app opens by default.
+				"from_id": n.FromId,
 			},
 		},
 	}

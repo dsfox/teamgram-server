@@ -10,9 +10,11 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
+	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/pkg/apns"
 	"github.com/teamgram/teamgram-server/pkg/devices"
 	"github.com/teamgram/teamgram-server/pkg/fcm"
@@ -148,8 +150,15 @@ func (n *Notifier) notify(ctx context.Context, userId int64, peerType int32, pee
 	}
 
 	badge := n.unreadCount(ctx, userId)
+	// Who it is from, in the shape the client reads: a decimal string under
+	// `from_id`. Only for a conversation between two people - a group has its
+	// own key on the other side, and getting that wrong opens the wrong chat.
+	fromId := ""
+	if peerType == int32(mtproto.PEER_USER) {
+		fromId = strconv.FormatInt(peerId, 10)
+	}
 	for _, d := range targets {
-		n.send(ctx, d, badge)
+		n.send(ctx, d, badge, fromId)
 	}
 }
 
@@ -173,7 +182,7 @@ func offlineTargets(list []devices.DeviceDO, onlineAuthKeyIds []int64) []devices
 	return targets
 }
 
-func (n *Notifier) send(ctx context.Context, d devices.DeviceDO, badge int) {
+func (n *Notifier) send(ctx context.Context, d devices.DeviceDO, badge int, fromId string) {
 	var err error
 
 	switch {
@@ -183,12 +192,14 @@ func (n *Notifier) send(ctx context.Context, d devices.DeviceDO, badge int) {
 			Body:    n.body,
 			Badge:   badge,
 			Sandbox: d.AppSandbox,
+			FromId:  fromId,
 		})
 	case d.IsFCM() && n.fcm != nil:
 		err = n.fcm.Send(ctx, d.Token, fcm.Notify{
-			Title: n.title,
-			Body:  n.body,
-			Badge: badge,
+			Title:  n.title,
+			Body:   n.body,
+			Badge:  badge,
+			FromId: fromId,
 		})
 	default:
 		// A device of a kind we cannot reach, or whose platform is switched off.

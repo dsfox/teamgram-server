@@ -157,45 +157,6 @@ func boldRanges(message string, words ...string) []*mtproto.MessageEntity {
 }
 
 // pushServiceMessage delivers text from the service account to one person.
-func (c *AuthorizationCore) pushServiceMessage(ctx context.Context, userId int64, text string, bold ...string) {
-	// Delivered at once, not after a pause. The client asks for its dialog list
-	// once, right after signing in, and then lives on its local copy: a chat
-	// that does not exist yet at that moment never appears at all - not after a
-	// relaunch, not after a force quit - while its unread count still reaches
-	// the badge. Two seconds of delay cost a chat that is invisible forever.
-	//
-	// The context is detached because the request that started this returns
-	// immediately and would cancel the delivery with it.
-	ctx = contextx.ValueOnlyFrom(ctx)
-	threading.GoSafe(func() {
-		message := mtproto.MakeTLMessage(&mtproto.Message{
-			Out:      true,
-			Date:     int32(time.Now().Unix()),
-			FromId:   mtproto.MakePeerUser(777000),
-			PeerId:   mtproto.MakeTLPeerUser(&mtproto.Peer{UserId: userId}).To_Peer(),
-			Message:  text,
-			Entities: boldRanges(text, bold...),
-		}).To_Message()
-
-		c.svcCtx.Dao.MsgClient.MsgPushUserMessage(
-			ctx,
-			&msgpb.TLMsgPushUserMessage{
-				UserId:    777000,
-				AuthKeyId: 0,
-				PeerType:  mtproto.PEER_USER,
-				PeerId:    userId,
-				PushType:  1,
-				Message: msgpb.MakeTLOutboxMessage(&msgpb.OutboxMessage{
-					NoWebpage:    false,
-					Background:   false,
-					RandomId:     rand.Int63(),
-					Message:      message,
-					ScheduleDate: nil,
-				}).To_OutboxMessage(),
-			})
-	})
-}
-
 func (c *AuthorizationCore) ensureRecoveryPhrase(ctx context.Context, userId int64, phoneNumber string) {
 	store := c.svcCtx.Dao.Store()
 	if store == nil {
