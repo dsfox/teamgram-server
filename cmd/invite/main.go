@@ -148,6 +148,11 @@ func mint(ctx context.Context, store kv.Store, hours int, inv invite.Invitation)
 		if err := store.SetexCtx(ctx, key, invite.Encode(inv), hours*3600); err != nil {
 			return "", fmt.Errorf("cannot write the invitation: %w", err)
 		}
+
+		// Noted, so that --list can find it: the store cannot walk its own keys.
+		if err := invite.RememberOutstanding(ctx, store, code); err != nil {
+			fmt.Fprintf(os.Stderr, "the invitation was minted but not listed: %v\n", err)
+		}
 		return code, nil
 	}
 
@@ -155,25 +160,19 @@ func mint(ctx context.Context, store kv.Store, hours int, inv invite.Invitation)
 }
 
 func showOutstanding(ctx context.Context, store kv.Store) {
-	// The store has no listing of its own here, so this walks the space the
-	// codes live in. Five digits is a hundred thousand keys, which is nothing to
-	// ask about one at a time only when somebody wants the list.
-	found := 0
-	for n := 0; n < 100000; n++ {
-		code := fmt.Sprintf("%05d", n)
-		value, err := store.GetCtx(ctx, invite.InvitationKey(code))
-		if err != nil || value == "" {
-			continue
-		}
-		inv := invite.Decode(value)
-		who := inv.Phone
+	// Asked of the list the minting keeps, because the store cannot walk its own
+	// keys. What used to be here walked every five-digit code while codes were
+	// six digits, so it always answered "no invitations outstanding" - including
+	// one second after minting one.
+	live := invite.Outstanding(ctx, store)
+	for _, item := range live {
+		who := item.Invitation.Phone
 		if who == "" {
 			who = "(anybody new)"
 		}
-		fmt.Printf("%s  %-16s %s\n", code, who, inv.Note)
-		found++
+		fmt.Printf("%s  %-16s %s\n", item.Code, who, item.Invitation.Note)
 	}
-	if found == 0 {
+	if len(live) == 0 {
 		fmt.Println("no invitations outstanding")
 	}
 }
