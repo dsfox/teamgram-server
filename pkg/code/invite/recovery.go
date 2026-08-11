@@ -99,24 +99,41 @@ func MintRecoveryPhrase(ctx context.Context, store Store, phone string, delivere
 	if err != nil {
 		return "", err
 	}
+	return phrase, RecordRecoverySecret(ctx, store, phone, phrase, delivered)
+}
 
-	hashed, err := bcrypt.GenerateFromPassword([]byte(phrase), bcrypt.DefaultCost)
+// RecordRecoverySecret stores what a phone hands over in place of its recovery
+// phrase: a one-way derivation of the words, which is enough to recognise
+// somebody typing them and nothing else.
+//
+// The words themselves are made on the device and never travel. They used to be
+// made here and delivered as a message, which left every one of them sitting in
+// the message table in plain text - a phrase signs in without a code, so that
+// was a copy of every key in one place. It also made the encrypted history
+// backup pointless, since its key comes from the same words.
+func RecordRecoverySecret(ctx context.Context, store Store, phone, secret string, delivered bool) error {
+	secret = NormalizePhrase(secret)
+	if secret == "" {
+		return fmt.Errorf("an empty recovery secret is not one")
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(secret), bcrypt.DefaultCost)
 	if err != nil {
-		return "", fmt.Errorf("cannot hash the recovery phrase: %w", err)
+		return fmt.Errorf("cannot hash the recovery secret: %w", err)
 	}
 
 	body, err := json.Marshal(storedRecovery{Hash: string(hashed), Delivered: delivered})
 	if err != nil {
-		return "", fmt.Errorf("cannot record the recovery code: %w", err)
+		return fmt.Errorf("cannot record the recovery secret: %w", err)
 	}
 
 	// No expiry: it is worth nothing until the phone is lost, and that can
 	// happen at any time.
 	if err = store.SetCtx(ctx, recoveryKey(phone), string(body)); err != nil {
-		return "", fmt.Errorf("cannot store the recovery phrase: %w", err)
+		return fmt.Errorf("cannot store the recovery secret: %w", err)
 	}
 
-	return phrase, nil
+	return nil
 }
 
 // MoveRecoveryPhrase follows an account onto a new number, so that changing the

@@ -99,6 +99,11 @@ func (s *Server) Initialize() error {
 			mls_helper.New(mls_helper.Config{
 				RpcServerConf: c.RpcServerConf,
 				Mysql:         c.Mysql,
+				// For registering the way back into an account: the store is
+				// where a recovery secret lives, and the user directory is the
+				// only thing that can say which number is asking.
+				KV:         c.KV,
+				UserClient: c.BizServiceClient,
 			}))
 
 		// qrcode_helper
