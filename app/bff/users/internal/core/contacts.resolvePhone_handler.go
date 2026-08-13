@@ -29,13 +29,22 @@ func (c *UsersCore) ContactsResolvePhone(in *mtproto.TLContactsResolvePhone) (*m
 	id, err := c.svcCtx.Dao.UserClient.UserGetUserIdByPhone(c.ctx, &userpb.TLUserGetUserIdByPhone{
 		Phone: in.GetPhone(),
 	})
-	if err != nil {
-		c.Logger.Errorf("contacts.resolvePhone - error: %v", err)
-		return nil, err
+	if err != nil || id.GetV() == 0 {
+		// Nobody here by that number, which is an ordinary answer and not a
+		// fault of ours. It reached the client as INTERNAL_SERVER_ERROR, and on
+		// screen that is a person who has an account being offered "Invite to
+		// 2bytes" - the only way anybody finds anybody here is by number.
+		c.Logger.Infof("contacts.resolvePhone - nobody on %s", in.GetPhone())
+		return nil, mtproto.ErrPhoneNotOccupied
 	}
 
+	// Everybody may be found by their number unless they have said otherwise,
+	// which is what Telegram defaults to and what this service needs: an
+	// invitation-only messenger where knowing the number is how people find
+	// each other. It defaulted to refusing, and since no account here has ever
+	// set a privacy rule, that refused everybody - nobody could add anybody.
 	var (
-		allow = false
+		allow = true
 	)
 
 	contactList, err := c.svcCtx.Dao.UserClient.UserGetMutableUsersV2(c.ctx, &userpb.TLUserGetMutableUsersV2{
@@ -53,9 +62,12 @@ func (c *UsersCore) ContactsResolvePhone(in *mtproto.TLContactsResolvePhone) (*m
 	resolved, _ := contactList.GetImmutableUser(id.GetV())
 
 	if me == nil || resolved == nil {
-		err = mtproto.ErrInternalServerError
-		c.Logger.Errorf("users.getFullUser - error: %v", err)
-		return nil, err
+		// The number belongs to somebody, but the pair could not be read. Said
+		// as "nobody there" rather than as a server fault: the client shows the
+		// first as "invite them" and the second as a red error, and the person
+		// looking at it can act on the first.
+		c.Logger.Errorf("contacts.resolvePhone - %s is user %d, but the pair could not be read", in.GetPhone(), id.GetV())
+		return nil, mtproto.ErrPhoneNotOccupied
 	}
 
 	rules, _ := c.svcCtx.Dao.UserClient.UserGetPrivacy(c.ctx, &userpb.TLUserGetPrivacy{
