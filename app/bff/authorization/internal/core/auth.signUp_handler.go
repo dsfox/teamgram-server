@@ -105,6 +105,28 @@ func (c *AuthorizationCore) AuthSignUp(in *mtproto.TLAuthSignUp) (*mtproto.Auth_
 	//    Please wait for a few days before signing up again.</string>
 	//
 
+	// Asked again for an account this session already has: answer with it.
+	//
+	// The transport resends a request it thinks went unanswered, and the client
+	// resends when somebody presses the button twice. The first call registers
+	// the person, binds this key to them and - correctly - forgets the code,
+	// which the second call then cannot find. It answered PHONE_CODE_EXPIRED,
+	// and on screen that is "Code expired, please start over" over an account
+	// that exists, is bound and is signed in. Two people hit it within an hour
+	// of each other, one of them on the first step of a checklist.
+	//
+	// Registering is not repeatable, but saying who was registered is.
+	if already := c.alreadySignedUp(phoneNumber); already != nil {
+		c.Logger.Infof("auth.signUp - this session is already %d, answering with it", already.Id())
+		return mtproto.MakeTLAuthAuthorization(&mtproto.Auth_Authorization{
+			SetupPasswordRequired: false,
+			OtherwiseReloginDays:  nil,
+			TmpSessions:           nil,
+			FutureAuthToken:       nil,
+			User:                  already.ToSelfUser(),
+		}).To_Auth_Authorization(), nil
+	}
+
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	var (
 		codeData *model.PhoneCodeTransaction
@@ -226,4 +248,30 @@ func (c *AuthorizationCore) onContactSignUp(ctx context.Context, authKeyId, user
 	c.svcCtx.Dao.UserClient.UserDeleteImportersByPhone(ctx, &userpb.TLUserDeleteImportersByPhone{
 		Phone: phone,
 	})
+}
+
+// alreadySignedUp is the account this session already belongs to, when the
+// number being registered is that account's own. Nil when the session belongs
+// to nobody, which is the ordinary case for a registration.
+//
+// It exists because registering is not repeatable and being told who was
+// registered is. The transport resends; people press twice. Only a match on the
+// phone number counts: a session belonging to somebody else being handed a
+// different number is not a repeat, it is a mistake, and it must go down the
+// path that refuses it.
+func (c *AuthorizationCore) alreadySignedUp(phoneNumber string) *mtproto.ImmutableUser {
+	if c.MD == nil || c.MD.UserId == 0 {
+		return nil
+	}
+
+	user, err := c.svcCtx.Dao.UserClient.UserGetImmutableUserByPhone(c.ctx, &userpb.TLUserGetImmutableUserByPhone{
+		Phone: phoneNumber,
+	})
+	if err != nil || user == nil {
+		return nil
+	}
+	if user.Id() != c.MD.UserId {
+		return nil
+	}
+	return user
 }
