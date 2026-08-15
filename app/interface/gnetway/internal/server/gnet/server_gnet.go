@@ -53,12 +53,19 @@ func (s *Server) asyncRunIfError(connId int64, msgId int64, execb func() error, 
 	}
 }
 
+// The failing half of asyncRun answers nobody: no reply is triggered, and the
+// connection is left open with a client waiting on it. Say so. Issue #68 hid
+// here for days - a handshake refused once in every few hundred connections by
+// a length check whose error came back into this silence, so the log showed a
+// request arriving and nothing at all after it.
 func (s *Server) asyncRun(connId int64, execb func() error, retcb func(c gnet.Conn)) {
 	if err := s.pool.Submit(func() {
 		if err := execb(); err == nil {
 			s.eng.Trigger(connId, func(c gnet.Conn) {
 				retcb(c)
 			})
+		} else {
+			logx.Errorf("asyncRun - nothing will be sent, connId: %d, err: %v", connId, err)
 		}
 	}); err != nil {
 		logx.Errorf("asyncRun - pool.Submit error: %v, connId: %d", err, connId)
