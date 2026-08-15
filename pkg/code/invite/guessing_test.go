@@ -87,6 +87,12 @@ func TestOneNumbersGuessesDoNotLockAnother(t *testing.T) {
 
 // Getting in clears the count, or a person who mistypes a few times and then
 // gets it right carries those failures into their next sign-in.
+//
+// Nine misses now owe time before the tenth attempt is looked at, right or
+// wrong - that is the whole of what makes guessing expensive, and it is what
+// the site promises. So the wait is served here first. It used to be that the
+// right code was taken at once however many had come before it, which is a
+// door that costs nothing to knock on.
 func TestGettingInForgivesTheMisses(t *testing.T) {
 	v, store := newTestVerifier()
 	ctx := context.Background()
@@ -98,6 +104,10 @@ func TestGettingInForgivesTheMisses(t *testing.T) {
 			PhoneNumber: phone, PhoneRegistered: true,
 		})
 	}
+
+	// Served. A test cannot sit out half a minute, and what is being checked
+	// here is the forgiving, not the waiting - that is TestTheWaitDoubles.
+	_, _ = store.DelCtx(ctx, waitKey(phone))
 
 	code, _ := MintRecoveryPhrase(ctx, store, phone, true)
 	if err := v.VerifySmsCode(ctx, attempt.Attempt{

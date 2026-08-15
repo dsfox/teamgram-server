@@ -3,6 +3,7 @@ package invite
 import (
 	"context"
 	"strconv"
+	"time"
 
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/pkg/code/attempt"
@@ -42,10 +43,73 @@ const (
 	addrWindow         = 15 * 60
 )
 
+// And between those two, a wait that doubles. Ten wrong codes in an hour is a
+// ceiling, not a cost: a machine can spend nine of them in under a second and
+// come back next hour, for ever. Doubling makes the tenth guess cost more than
+// the first nine together, and it costs a person who mistyped their phrase
+// twice about two seconds - which is the difference the phrase needs, because
+// six words are 2^66 and the only way to make that number matter is to charge
+// for every attempt at it.
+const (
+	// Nobody is charged for the first few. A person mistypes six words they
+	// copied off paper - twice, if the paper is old - and making them wait for
+	// their own account is a punishment aimed at the wrong person. A machine
+	// does not stop at three, which is the whole difference between them.
+	freeMisses  = 3
+	firstWait   = 1
+	longestWait = 20 * 60
+)
+
 const (
 	failuresPrefix     = "signin_failures:"
 	addrFailuresPrefix = "signin_failures_addr:"
+	waitPrefix         = "signin_wait:"
 )
+
+func waitKey(phone string) string {
+	return waitPrefix + Digits(phone)
+}
+
+// waiting reports how many seconds this number still owes, if any. The value is
+// the moment it may try again, so a clock that survives a restart of the store
+// is the whole mechanism - a counter that resets when the server falls over is
+// an invitation to make it fall over.
+func (v *verifier) waiting(ctx context.Context, phone string) int {
+	if v.store == nil || phone == "" {
+		return 0
+	}
+	value, err := v.store.GetCtx(ctx, waitKey(phone))
+	if err != nil {
+		logx.WithContext(ctx).Errorf("sign-in: cannot read the wait: %v", err)
+		return 0
+	}
+	until, _ := strconv.ParseInt(value, 10, 64)
+	if left := until - time.Now().Unix(); left > 0 {
+		return int(left)
+	}
+	return 0
+}
+
+// charge makes the next attempt wait, twice as long as the last one did.
+func (v *verifier) charge(ctx context.Context, phone string, failures int) {
+	if v.store == nil || phone == "" || failures < 1 {
+		return
+	}
+	if failures <= freeMisses {
+		return
+	}
+	seconds := firstWait
+	for i := freeMisses + 1; i < failures && seconds < longestWait; i++ {
+		seconds *= 2
+	}
+	if seconds > longestWait {
+		seconds = longestWait
+	}
+	until := strconv.FormatInt(time.Now().Unix()+int64(seconds), 10)
+	if err := v.store.SetexCtx(ctx, waitKey(phone), until, seconds+1); err != nil {
+		logx.WithContext(ctx).Errorf("sign-in: cannot charge for the guess: %v", err)
+	}
+}
 
 func failuresKey(phone string) string {
 	return failuresPrefix + Digits(phone)
@@ -61,6 +125,11 @@ func addrFailuresKey(addr string) string {
 func (v *verifier) guessedAtTooOften(ctx context.Context, a attempt.Attempt) (bool, int) {
 	if v.store == nil {
 		return false, 0
+	}
+
+	if seconds := v.waiting(ctx, a.PhoneNumber); seconds > 0 {
+		logx.WithContext(ctx).Infof("sign-in refused: this number owes %ds", seconds)
+		return true, seconds
 	}
 
 	if v.failures(ctx, failuresKey(a.PhoneNumber), a.PhoneNumber != "") >= maxFailuresPerPhone {
@@ -103,7 +172,9 @@ func (v *verifier) recordFailure(ctx context.Context, a attempt.Attempt) {
 	}
 
 	if a.PhoneNumber != "" {
-		if n := v.countFailure(ctx, failuresKey(a.PhoneNumber), failureWindow); n >= maxFailuresPerPhone {
+		n := v.countFailure(ctx, failuresKey(a.PhoneNumber), failureWindow)
+		v.charge(ctx, a.PhoneNumber, n)
+		if n >= maxFailuresPerPhone {
 			logx.WithContext(ctx).Errorf(
 				"sign-in: %d wrong codes for one number, it waits an hour now", n)
 		}
@@ -141,7 +212,7 @@ func (v *verifier) forgetFailures(ctx context.Context, phone string) {
 	if v.store == nil || phone == "" {
 		return
 	}
-	if _, err := v.store.DelCtx(ctx, failuresKey(phone)); err != nil {
+	if _, err := v.store.DelCtx(ctx, failuresKey(phone), waitKey(phone)); err != nil {
 		logx.WithContext(ctx).Errorf("sign-in: cannot clear the failure count: %v", err)
 	}
 }
