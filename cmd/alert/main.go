@@ -83,7 +83,7 @@ func main() {
 			continue
 		}
 		err := sender.Send(ctx, device.Token, apns.Notify{
-			Title: "2bytes: server problem",
+			Title: "ice9: server problem",
 			Body:  text,
 			// A server alert must not touch the unread badge of a chat app
 			Badge:   -1,

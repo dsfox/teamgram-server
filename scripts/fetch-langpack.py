@@ -33,7 +33,7 @@ SOURCE_DC = (2, "149.154.167.50", 443)
 SOURCE_API_ID = 8
 SOURCE_API_HASH = "7245de8e747a0d6fbe11f7cc14fcc0bb"
 
-APP_NAME = "2bytes"
+APP_NAME = "ice9"
 # Replace the app name but leave links and addresses such as telegram.org alone.
 # Compounds like TelegramTips are ours too: a word boundary on the left, none on the right.
 BRAND = re.compile(r"\bTelegram(?!\.(?:org|me|dog))")

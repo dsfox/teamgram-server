@@ -33,7 +33,7 @@ func (c *UsersCore) ContactsResolvePhone(in *mtproto.TLContactsResolvePhone) (*m
 		// Nobody here by that number, which is an ordinary answer and not a
 		// fault of ours. It reached the client as INTERNAL_SERVER_ERROR, and on
 		// screen that is a person who has an account being offered "Invite to
-		// 2bytes" - the only way anybody finds anybody here is by number.
+		// ice9" - the only way anybody finds anybody here is by number.
 		c.Logger.Infof("contacts.resolvePhone - nobody on %s", in.GetPhone())
 		return nil, mtproto.ErrPhoneNotOccupied
 	}

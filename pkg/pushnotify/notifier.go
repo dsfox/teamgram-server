@@ -44,7 +44,7 @@ func New(db *sqlx.DB) *Notifier {
 	n := &Notifier{
 		registry: devices.NewRegistry(db),
 		db:       db,
-		title:    envOr("APNS_TITLE", "2bytes"),
+		title:    envOr("APNS_TITLE", "ice9"),
 		// The message text never reaches the notification and cannot: showing it
 		// in the banner would mean handing the text to Apple, or to Google. This
 		// is only a hint that something arrived.

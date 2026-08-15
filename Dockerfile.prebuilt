@@ -5,7 +5,7 @@
 # minute instead of tens of minutes on the server. All the server has to do is
 # place them into an image next to ffmpeg.
 #
-# Build: docker build -f Dockerfile.prebuilt -t 2bytes-server .
+# Build: docker build -f Dockerfile.prebuilt -t ice9-server .
 FROM ubuntu:latest
 # ffmpeg is mandatory: it produces the first video frame used as a thumbnail.
 # Without a thumbnail the client does not show the video in a chat — verified in

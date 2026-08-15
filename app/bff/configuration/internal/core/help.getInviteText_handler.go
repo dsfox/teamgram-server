@@ -29,6 +29,6 @@ func (c *ConfigurationCore) HelpGetInviteText(in *mtproto.TLHelpGetInviteText) (
 	// enterprise about it, and refusing left the client retrying at every visit
 	// to the contact list.
 	return mtproto.MakeTLHelpInviteText(&mtproto.Help_InviteText{
-		Message: "Let's use 2bytes to chat.",
+		Message: "Let's use ice9 to chat.",
 	}).To_Help_InviteText(), nil
 }
