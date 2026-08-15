@@ -203,7 +203,7 @@ func (s *Server) onHandshake(c gnet.Conn, mmsg []byte) (interface{}, error) {
 
 	_, obj, err := parseFromIncomingMessage(mmsg[8:])
 	if err != nil {
-		// logx.Errorf("conn(%s) error: %v", c, err)
+		logx.Errorf("conn(%s) error: %v", c, err)
 		return nil, err
 	}
 
@@ -248,24 +248,33 @@ func (s *Server) onHandshake(c gnet.Conn, mmsg []byte) (interface{}, error) {
 			Payload: payload,
 		}, nil
 	case *mtproto.TLReq_DHParams:
+		// Every refusal below used to be silent, and silence here is the worst
+		// answer there is: the second step of a handshake is dropped, nothing
+		// is written back, the connection is left open, and the phone waits out
+		// its timeout on "Connecting" with no trace anywhere of why. One was
+		// caught by watching a hung test - the server logged that it had
+		// received req_DH_params at 18:06:05 and then said nothing at all until
+		// the client gave up 69 seconds later.
 		if ctx == nil {
-			// logx.Errorf("conn(%s), ctx is nil", c)
+			logx.Errorf("conn(%s) handshake refused: no context for this connection", c)
 			return nil, fmt.Errorf("unknown error")
 		}
 
 		if state := ctx.getHandshakeStateCtx(request.Nonce); state != nil {
 			_, err = s.onReqDHParams(c, state, obj.(*mtproto.TLReq_DHParams))
 			if err != nil {
-				// log.Errorf("onHandshake error: {%v} - {peer: %s, ctx: %s, mmsg: %s}", err, conn, ctx, mmsg)
-				// conn.Close()
+				logx.Errorf("conn(%s) handshake refused at req_DH_params: %v", c, err)
 				return nil, err
 			}
 			// state.State = STATE_DH_params_res
 			// rData = SerializeToBuffer(mtproto.GenerateMessageId(), resServerDHParam)
 		} else {
-			// log.Errorf("onHandshake error: {invalid nonce} - {peer: %s, ctx: %s, mmsg: %s}", conn, ctx, mmsg)
-			// return nil, conn.Close()
-			// logx.Errorf("conn(%s), state is nil", c)
+			// The nonce names which handshake this belongs to, and there is no
+			// state under it. Said with the nonce in it, because the next
+			// question is always whether the client sent a different one or the
+			// server lost what it had.
+			logx.Errorf("conn(%s) handshake refused: no state for nonce %s",
+				c, hex.EncodeToString(request.Nonce))
 			err = fmt.Errorf("state error")
 			return nil, err
 		}
@@ -316,7 +325,7 @@ func (s *Server) onReqPq(c gnet.Conn, request *mtproto.TLReqPq) (*mtproto.ResPQ,
 	// 检查数据是否合法
 	if request.GetNonce() == nil || len(request.GetNonce()) != 16 {
 		err := fmt.Errorf("onReqPq - invalid nonce: %v", request)
-		// logx.Errorf("conn(%s) error: %v", c, err)
+		logx.Errorf("conn(%s) error: %v", c, err)
 		return nil, err
 	}
 
@@ -345,7 +354,7 @@ func (s *Server) onReqPqMulti(c gnet.Conn, request *mtproto.TLReqPqMulti) (*mtpr
 	// 检查数据是否合法
 	if request.GetNonce() == nil || len(request.GetNonce()) != 16 {
 		err := fmt.Errorf("onReqPqMulti - invalid nonce: %v", request)
-		// logx.Errorf("conn(%s) error: %v", c, err)
+		logx.Errorf("conn(%s) error: %v", c, err)
 		return nil, err
 	}
 
@@ -385,7 +394,7 @@ func (s *Server) onReqDHParams(c gnet.Conn, ctx *HandshakeStateCtx, request *mtp
 		err = fmt.Errorf("onReq_DHParams - Invalid Nonce, req: %s, back: %s",
 			hex2.HexDump(request.Nonce),
 			hex2.HexDump(ctx.Nonce))
-		// logx.Errorf("conn(%s) error: %v", c, err)
+		logx.Errorf("conn(%s) error: %v", c, err)
 		return nil, err
 	}
 
@@ -394,28 +403,28 @@ func (s *Server) onReqDHParams(c gnet.Conn, ctx *HandshakeStateCtx, request *mtp
 		err = fmt.Errorf("onReq_DHParams - Wrong ServerNonce, req: %s, back: %s",
 			hex2.HexDump(request.ServerNonce),
 			hex2.HexDump(ctx.ServerNonce))
-		// logx.Errorf("conn(%s) error: %v", c, err)
+		logx.Errorf("conn(%s) error: %v", c, err)
 		return nil, err
 	}
 
 	// check P
 	if !bytes.Equal([]byte(request.P), p) {
 		err = fmt.Errorf("onReq_DHParams - Invalid p valuee")
-		// logx.Errorf("conn(%s) error: %v", c, err)
+		logx.Errorf("conn(%s) error: %v", c, err)
 		return nil, err
 	}
 
 	// check Q
 	if !bytes.Equal([]byte(request.Q), q) {
 		err = fmt.Errorf("onReq_DHParams - Invalid q value")
-		// logx.Errorf("conn(%s) error: %v", c, err)
+		logx.Errorf("conn(%s) error: %v", c, err)
 		return nil, err
 	}
 
 	rsa := s.handshake.getKey(request.PublicKeyFingerprint)
 	if rsa == nil {
 		err = fmt.Errorf("onReq_DHParams - Invalid PublicKeyFingerprint value")
-		// logx.Errorf("conn(%s) error: %v", c, err)
+		logx.Errorf("conn(%s) error: %v", c, err)
 		return nil, err
 	}
 
@@ -694,14 +703,14 @@ func (s *Server) onSetClientDHParams(c gnet.Conn, ctx *HandshakeStateCtx, reques
 	// Nonce
 	if !bytes.Equal(request.Nonce, ctx.Nonce) {
 		err := fmt.Errorf("onSetClientDHParams - Wrong Nonce")
-		// logx.Errorf("conn(%s) error: %v", c, err)
+		logx.Errorf("conn(%s) error: %v", c, err)
 		return nil, err
 	}
 
 	// ServerNonce
 	if !bytes.Equal(request.ServerNonce, ctx.ServerNonce) {
 		err := fmt.Errorf("onSetClientDHParams - Wrong ServerNonce")
-		// logx.Errorf("conn(%s) error: %v", c, err)
+		logx.Errorf("conn(%s) error: %v", c, err)
 		return nil, err
 	}
 
@@ -728,7 +737,7 @@ func (s *Server) onSetClientDHParams(c gnet.Conn, ctx *HandshakeStateCtx, reques
 	decryptedData, err := d.Decrypt(bEncryptedData)
 	if err != nil {
 		err := fmt.Errorf("onSetClientDHParams - AES256IGECryptor descrypt error")
-		// logx.Errorf("conn(%s) error: %v", c, err)
+		logx.Errorf("conn(%s) error: %v", c, err)
 		return nil, err
 	}
 	logx.WithDuration(timex.Since(since)).Infof("decryptedData, err := d.Decrypt(bEncryptedData): %s", c)
@@ -749,14 +758,14 @@ func (s *Server) onSetClientDHParams(c gnet.Conn, ctx *HandshakeStateCtx, reques
 	//
 	if !bytes.Equal(clientDHInnerData.GetNonce(), ctx.Nonce) {
 		err := fmt.Errorf("onSetClientDHParams - Wrong client_DHInnerData's Nonce")
-		// logx.Errorf("conn(%s) error: %v", c, err)
+		logx.Errorf("conn(%s) error: %v", c, err)
 		return nil, err
 	}
 
 	// ServerNonce
 	if !bytes.Equal(clientDHInnerData.GetServerNonce(), ctx.ServerNonce) {
 		err := fmt.Errorf("onSetClientDHParams - Wrong client_DHInnerData's ServerNonce")
-		// logx.Errorf("conn(%s) error: %v", c, err)
+		logx.Errorf("conn(%s) error: %v", c, err)
 		return nil, err
 	}
 
