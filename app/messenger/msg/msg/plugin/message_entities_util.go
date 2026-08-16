@@ -17,6 +17,25 @@ import (
 	"mvdan.cc/xurls/v2"
 )
 
+// markedAlready reports whether a mention already starts at this offset.
+//
+// Only mentions, and only the offset: two marks of different kinds over one
+// word are ordinary - bold over a mention is a thing people write - and it is
+// the second mention over the first that has no meaning.
+func markedAlready(entities mtproto.MessageEntitySlice, offset int32) bool {
+	for _, entity := range entities {
+		if entity.Offset != offset {
+			continue
+		}
+		switch entity.PredicateName {
+		case mtproto.Predicate_messageEntityMention,
+			mtproto.Predicate_messageEntityMentionName:
+			return true
+		}
+	}
+	return false
+}
+
 func RemakeMessage(ctx context.Context, plugin MsgPlugin, message *mtproto.Message, fromId int64, noWebpage bool, hasBot func() bool) *mtproto.Message {
 	var (
 		entities mtproto.MessageEntitySlice
@@ -129,7 +148,15 @@ func RemakeMessage(ctx context.Context, plugin MsgPlugin, message *mtproto.Messa
 			//		}
 			//	}
 			//}
-			entities = append(entities, mention2)
+			// The client may have marked this mention itself, and most do. Its
+			// own entity is already in the list above, so adding ours beside it
+			// stores the mention twice - two marks over the same word, and the
+			// second one a byte longer or shorter whenever the two count the
+			// "@" differently. Found by the scenario that sends an @mention and
+			// reads back what arrived.
+			if !markedAlready(entities, mention2.Offset) {
+				entities = append(entities, mention2)
+			}
 		}
 	}
 
