@@ -10,6 +10,9 @@
 package core
 
 import (
+	"errors"
+
+	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/app/service/biz/dialog/dialog"
 )
 
@@ -18,7 +21,13 @@ import (
 func (c *DialogCore) DialogGetDialogById(in *dialog.TLDialogGetDialogById) (*dialog.DialogExt, error) {
 	dlgExt, err := c.svcCtx.Dao.GetDialog(c.ctx, in.GetUserId(), in.GetPeerType(), in.GetPeerId())
 	if err != nil {
-		c.Logger.Errorf("dialog.getDialogById - error: %v", err)
+		// The dao already told the two cases apart: a dialog that does not
+		// exist yet comes back as PEER_ID_INVALID and is an ordinary answer.
+		if errors.Is(err, mtproto.ErrPeerIdInvalid) {
+			c.Logger.Infof("dialog.getDialogById - no dialog yet: %v", err)
+		} else {
+			c.Logger.Errorf("dialog.getDialogById - error: %v", err)
+		}
 		return nil, err
 	}
 

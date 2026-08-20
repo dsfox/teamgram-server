@@ -119,10 +119,14 @@ func (d *Dao) GetDialogByPeerDialogId(ctx context.Context, userId, peerDialogId 
 		})
 
 	if err != nil {
-		logx.WithContext(ctx).Errorf("dialog.getDialogById - error: %v", err)
 		if errors.Is(err, sqlc.ErrNotFound) {
-			err = mtproto.ErrPeerIdInvalid
+			// A dialog that does not exist yet is an ordinary answer about
+			// a chat nobody has opened, not a failure. At error level this
+			// line fed the alarm that reads error level, daily.
+			logx.WithContext(ctx).Infof("dialog.getDialogById - no dialog yet for user %d, peer %d", userId, peerDialogId)
+			return nil, mtproto.ErrPeerIdInvalid
 		}
+		logx.WithContext(ctx).Errorf("dialog.getDialogById - error: %v", err)
 		return nil, err
 	}
 
