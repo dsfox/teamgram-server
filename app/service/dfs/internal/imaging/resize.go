@@ -21,7 +21,6 @@ package imaging
 import (
 	"bytes"
 	"image"
-	"strings"
 
 	"github.com/teamgram/marmota/pkg/bytes2"
 	"github.com/teamgram/proto/mtproto"
@@ -59,27 +58,6 @@ func makeResizeInfo(img image.Image) resizeInfo {
 			size:    h,
 		}
 	}
-}
-
-func getImageFormat(extName string) (int, error) {
-	formats := map[string]imaging.Format{
-		".jpg":  JPEG,
-		".jpeg": JPEG,
-		".png":  PNG,
-		".tif":  TIFF,
-		".tiff": TIFF,
-		".bmp":  BMP,
-		".gif":  GIF,
-		// ".webp": WEBP,
-	}
-
-	ext := strings.ToLower(extName)
-	f, ok := formats[ext]
-	if !ok {
-		return -1, imaging.ErrUnsupportedFormat
-	}
-
-	return int(f), nil
 }
 
 func ReSizeImage(rb []byte, extName string, isABC bool, cb func(szType string, localId int, w, h int32, b []byte) error) (err error) {
