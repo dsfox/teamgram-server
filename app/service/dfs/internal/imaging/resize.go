@@ -97,10 +97,6 @@ func ReSizeImage(rb []byte, extName string, isABC bool, cb func(szType string, l
 }
 
 func ReSizeImageByImage(img image.Image, extName string, isABC bool, cb func(szType string, localId int, w, h int32, b []byte) error) (err error) {
-	var (
-		f int
-	)
-
 	if isABC {
 		if img.Bounds().Dx() >= mtproto.PhotoSZDSize && img.Bounds().Dy() >= mtproto.PhotoSZDSize {
 			if img.Bounds().Dx() != img.Bounds().Dy() {
@@ -129,6 +125,26 @@ func ReSizeImageByImage(img image.Image, extName string, isABC bool, cb func(szT
 		szList = mtproto.ReSizeInfoPhotoList
 	}
 
+	// A photo size is a JPEG whatever arrived. The encoder used to follow the
+	// uploaded file's name: a PNG made PNG previews - 32 bits with an alpha
+	// channel, and the resampler's ringing drove the 90-pixel size heavier
+	// than the whole picture, so a client picking "the photo" by weight
+	// showed a thumbnail. A file with no name made no sizes at all. And 95
+	// was paying full price for the ringing; a preview does not need it.
+	type made struct {
+		szType  string
+		localId int
+		w, h    int32
+		dst     *image.NRGBA
+		data    []byte
+	}
+	encode := func(dst *image.NRGBA, quality int) ([]byte, error) {
+		o := bytes2.NewBuffer(make([]byte, 0, 512*1024))
+		encErr := imaging.Encode(o, dst, imaging.JPEG, imaging.JPEGQuality(quality))
+		return o.Bytes(), encErr
+	}
+
+	var sizes []made
 	for _, sz := range szList {
 		rsz = sz.Size
 		if rsz >= imgSz.size {
@@ -136,7 +152,6 @@ func ReSizeImageByImage(img image.Image, extName string, isABC bool, cb func(szT
 			willBreak = true
 		}
 
-		// TODO(@benqi): FIXME
 		var dst *image.NRGBA
 		if imgSz.isWidth {
 			dst = imaging.Resize(img, rsz, 0, imaging.Lanczos)
@@ -144,31 +159,43 @@ func ReSizeImageByImage(img image.Image, extName string, isABC bool, cb func(szT
 			dst = imaging.Resize(img, 0, rsz, imaging.Lanczos)
 		}
 
-		f, err = getImageFormat(extName)
+		var data []byte
+		data, err = encode(dst, 87)
 		if err != nil {
 			logx.Error(err.Error())
 			return
 		}
-
-		o := bytes2.NewBuffer(make([]byte, 0, 512*1024))
-		if f == int(imaging.JPEG) {
-			// err = imaging.Encode(o, dst, imaging.JPEG, imaging.JPEGQuality(95))
-			err = imaging.Encode(o, dst, imaging.JPEG)
-		} else {
-			err = imaging.Encode(o, dst, imaging.Format(f))
-		}
-
-		if err != nil {
-			logx.Error(err.Error())
-			return
-		}
-		err = cb(sz.Type, sz.LocalId, int32(dst.Bounds().Dx()), int32(dst.Bounds().Dy()), o.Bytes())
-		if err != nil {
-			return
-		}
+		sizes = append(sizes, made{sz.Type, sz.LocalId, int32(dst.Bounds().Dx()), int32(dst.Bounds().Dy()), dst, data})
 
 		if willBreak {
 			break
+		}
+	}
+
+	// A preview never outweighs a larger size of the same photo. One quality
+	// for every class does not guarantee that on its own: the largest class
+	// is often the picture untouched while the one below it went through the
+	// resampler, whose ringing is exactly what an encoder pays for. So the
+	// classes are walked from the largest down, and any that outweighs its
+	// larger neighbour is re-encoded a step rougher until it fits under it -
+	// it is a preview, and a preview that cannot be smaller than the picture
+	// has no reason to exist at full polish.
+	for i := len(sizes) - 2; i >= 0; i-- {
+		for quality := 82; len(sizes[i].data) > len(sizes[i+1].data) && quality >= 40; quality -= 7 {
+			var data []byte
+			data, err = encode(sizes[i].dst, quality)
+			if err != nil {
+				logx.Error(err.Error())
+				return
+			}
+			sizes[i].data = data
+		}
+	}
+
+	for _, sz := range sizes {
+		err = cb(sz.szType, sz.localId, sz.w, sz.h, sz.data)
+		if err != nil {
+			return
 		}
 	}
 
