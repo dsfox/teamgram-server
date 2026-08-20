@@ -161,10 +161,20 @@ func (c *MessagesCore) MessagesSendMessage(in *mtproto.TLMessagesSendMessage) (*
 				outMessage.ReplyTo.QuoteOffset = replyTo.GetQuoteOffset()
 			}
 
-			// disable replyToPeerId
-			// TODO enable replyToPeerId
+			// A reply can point into another chat, and the header has a place
+			// for it. It used to be dropped here whole: the message went
+			// through and arrived with no reply at all, while the sender's
+			// own copy showed the quote they meant - the worst shape of
+			// failure, the one that looks like it worked.
 			if replyTo.ReplyToPeerId != nil {
-				outMessage.ReplyTo = nil
+				rPeer := mtproto.FromInputPeer2(c.MD.UserId, replyTo.ReplyToPeerId)
+				switch rPeer.PeerType {
+				case mtproto.PEER_USER, mtproto.PEER_CHAT, mtproto.PEER_CHANNEL:
+					outMessage.ReplyTo.ReplyToPeerId = rPeer.ToPeer()
+				default:
+					// A peer of no known shape is not a reply anywhere.
+					outMessage.ReplyTo = nil
+				}
 			}
 
 		case mtproto.Predicate_inputReplyToStory:

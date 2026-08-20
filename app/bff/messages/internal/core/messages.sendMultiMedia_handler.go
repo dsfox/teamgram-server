@@ -170,6 +170,17 @@ func (c *MessagesCore) MessagesSendMultiMedia(in *mtproto.TLMessagesSendMultiMed
 					outMessage.ReplyTo.QuoteEntities = in.GetReplyTo().GetQuoteEntities()
 					outMessage.ReplyTo.QuoteOffset = in.GetReplyTo().GetQuoteOffset()
 				}
+				// A reply can point into another chat. This handler used to
+				// ignore the field, which dropped the reply without a word.
+				if in.GetReplyTo().GetReplyToPeerId() != nil {
+					rPeer := mtproto.FromInputPeer2(c.MD.UserId, in.GetReplyTo().GetReplyToPeerId())
+					switch rPeer.PeerType {
+					case mtproto.PEER_USER, mtproto.PEER_CHAT, mtproto.PEER_CHANNEL:
+						outMessage.ReplyTo.ReplyToPeerId = rPeer.ToPeer()
+					default:
+						outMessage.ReplyTo = nil
+					}
+				}
 			case mtproto.Predicate_inputReplyToStory:
 				// TODO:
 			}
