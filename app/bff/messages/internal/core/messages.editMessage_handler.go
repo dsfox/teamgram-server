@@ -111,7 +111,13 @@ func (c *MessagesCore) MessagesEditMessage(in *mtproto.TLMessagesEditMessage) (*
 			return nil, err
 		}
 		outMessage.Message = in.Message.Value
-		outMessage.Entities = nil
+		// The marks that came with the edit are the marks of the new text -
+		// they were copied above. Wiping them here threw the bold away
+		// whenever a word was corrected; only an edit that brings no marks
+		// means a text without any.
+		if in.Entities == nil {
+			outMessage.Entities = nil
+		}
 		//outMessage, _ = c.fixMessageEntities(c.MD.UserId, peer, in.NoWebpage, outMessage, func() bool {
 		//	hasBot := c.MD.IsBot
 		//	if !hasBot {
