@@ -44,10 +44,16 @@ func (dao *MessagesDAO) SelectByPhotoVideoMediaTypeWithCB(ctx context.Context, u
 		query  = "select user_id, user_message_box_id, dialog_id1, dialog_id2, dialog_message_id, sender_user_id, peer_type, peer_id, random_id, message_filter_type, message_data, message, mentioned, media_unread, pinned, has_reaction, reaction, reaction_date, reaction_unread, saved_peer_type, saved_peer_id, date2, ttl_period from " + dao.CalcTableName(userId) + " where user_id = ? and (dialog_id1 = ? and dialog_id2 = ?) and message_filter_type in (0, 7, 8) and user_message_box_id < ? and deleted = 0 order by user_message_box_id desc limit ?"
 		values []dataobject.MessagesDO
 	)
-	err = dao.db.QueryRowsPartial(ctx, &values, query, userId, dialogId1, dialogId2, messageFilterType, userMessageBoxId, limit)
+	// The photo-and-video set is written into the query itself - the
+	// message_filter_type in (0, 7, 8) above - so the filter argument has no
+	// placeholder to land in. Binding it anyway made every call fail with
+	// "arguments not matching sql", and the shared-media tab this feeds came
+	// back empty for as long as nobody read the error it logged.
+	_ = messageFilterType
+	err = dao.db.QueryRowsPartial(ctx, &values, query, userId, dialogId1, dialogId2, userMessageBoxId, limit)
 
 	if err != nil {
-		logx.WithContext(ctx).Errorf("queryx in SelectByMediaType(_), error: %v", err)
+		logx.WithContext(ctx).Errorf("queryx in SelectByPhotoVideoMediaType(_), error: %v", err)
 		return
 	}
 
