@@ -19,6 +19,8 @@
 package core
 
 import (
+	"strings"
+
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/app/messenger/sync/sync"
 	userpb "github.com/teamgram/teamgram-server/app/service/biz/user/user"
@@ -53,6 +55,17 @@ func (c *UserChannelProfilesCore) AccountUpdateProfile(in *mtproto.TLAccountUpda
 				me.SetAbout(in.GetAbout().GetValue())
 			}
 		}
+	}
+
+	// A name cannot be edited away to nothing. Signing up already refuses an
+	// empty first name, but this path did not, so an account could be left
+	// nameless afterwards - and a person with no name is shown to everyone
+	// searching for them as a deleted account, because that is what nameless
+	// means in a client built for a service that demands one.
+	if in.GetFirstName() != nil && strings.TrimSpace(in.GetFirstName().GetValue()) == "" {
+		err = mtproto.ErrFirstnameInvalid
+		c.Logger.Errorf("account.updateProfile - error: %v", err)
+		return nil, err
 	}
 
 	if in.GetFirstName().GetValue() != me.FirstName() ||
