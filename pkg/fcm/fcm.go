@@ -15,7 +15,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -82,34 +81,68 @@ type Notify struct {
 	Badge int
 	// Who the message is from, so that a tap opens that conversation.
 	FromId string
+	// The device's push key, hex, as it registered it. With one the app is
+	// woken and draws the notification itself; without one Firebase draws a
+	// bare banner and the app never runs (#94).
+	Secret string
+}
+
+// compose builds the message Google is asked to deliver.
+//
+// With the device's key it is data only, which is what makes the app itself
+// run: Firebase hands a data-only message straight to the app, and draws
+// nothing of its own. The app then wakes its connection, fetches the message
+// and shows a notification with the sender's real name - and, in an encrypted
+// conversation, text that only that device could have read.
+//
+// Without a key there is nothing the app could open, so the old banner is sent
+// instead: "New message", drawn by Firebase, better than silence.
+func (s *Sender) compose(deviceToken string, n Notify) (map[string]any, error) {
+	if n.Secret == "" {
+		return map[string]any{
+			"message": map[string]any{
+				"token": deviceToken,
+				"notification": map[string]any{
+					"title": n.Title,
+					"body":  n.Body,
+				},
+				"android": map[string]any{
+					"priority": "high",
+					"notification": map[string]any{
+						"notification_count": n.Badge,
+						"sound":              "default",
+					},
+				},
+			},
+		}, nil
+	}
+
+	// No loc_key the client knows: it is not being told what to draw, only that
+	// something arrived. Everything it shows afterwards it fetches itself.
+	envelope, err := Envelope(n.Secret, map[string]any{
+		"badge":   n.Badge,
+		"custom":  map[string]any{"from_id": n.FromId},
+		"loc_key": "",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]any{
+		"message": map[string]any{
+			"token": deviceToken,
+			// High priority is what buys the app a moment of network while the
+			// phone is dozing; without it a data-only message can wait hours.
+			"android": map[string]any{"priority": "high"},
+			"data":    map[string]any{"p": envelope},
+		},
+	}, nil
 }
 
 func (s *Sender) Send(ctx context.Context, deviceToken string, n Notify) error {
-	// The badge is Android's "notification count", and it is a string here where
-	// Apple takes a number - one of several small differences that make a shared
-	// payload type not worth it.
-	message := map[string]any{
-		"message": map[string]any{
-			"token": deviceToken,
-			"notification": map[string]any{
-				"title": n.Title,
-				"body":  n.Body,
-			},
-			"android": map[string]any{
-				"priority": "high",
-				"notification": map[string]any{
-					"notification_count": n.Badge,
-					"sound":              "default",
-				},
-			},
-			"data": map[string]any{
-				// The client wakes and fetches; it never reads the text from here.
-				"badge": strconv.Itoa(n.Badge),
-				// Who it is from, so a tap opens that conversation rather than
-				// whatever the app opens by default.
-				"from_id": n.FromId,
-			},
-		},
+	message, err := s.compose(deviceToken, n)
+	if err != nil {
+		return err
 	}
 
 	body, err := json.Marshal(message)

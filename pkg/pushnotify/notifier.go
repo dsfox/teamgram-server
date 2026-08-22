@@ -195,11 +195,15 @@ func (n *Notifier) send(ctx context.Context, d devices.DeviceDO, badge int, from
 			FromId:  fromId,
 		})
 	case d.IsFCM() && n.fcm != nil:
+		// The secret is the key the device registered; without it the app
+		// cannot open the envelope and the push is wasted, so an old row with
+		// none falls back to the banner Firebase draws.
 		err = n.fcm.Send(ctx, d.Token, fcm.Notify{
 			Title:  n.title,
 			Body:   n.body,
 			Badge:  badge,
 			FromId: fromId,
+			Secret: d.Secret,
 		})
 	default:
 		// A device of a kind we cannot reach, or whose platform is switched off.
