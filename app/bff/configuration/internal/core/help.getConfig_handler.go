@@ -19,7 +19,9 @@
 package core
 
 import (
+	"net"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -34,6 +36,9 @@ import (
 
 const (
 	configFile = "./config.json"
+	// What ICE9_ADDRESS means when it names a host and no port. The clients
+	// dial this one; see clients' seed lists and deploy/production.
+	defaultPort = "10443"
 	// date = 1509066502,    2017/10/27 09:08:22
 	// expires = 1509070295, 2017/10/27 10:11:35
 	expiresTimeout = 3600 // 超时时间设置为3600秒
@@ -64,6 +69,44 @@ func loadConfig() {
 	if err = jsonx.Unmarshal(configData, &config); err != nil {
 		logx.Errorf("config is corrupt (%s): %v", configFile, err)
 	}
+
+	adoptAddressFromEnvironment()
+}
+
+// The address this server answers on, which is not ours to know at build time.
+//
+// dc_options is the list a client keeps and dials from then on: whatever stands
+// here replaces what the phone was seeded with. So a server put up by somebody
+// else must say its own address, or its people would be handed ours and quietly
+// end up on our machine. ICE9_ADDRESS is how install.sh says it, and our own
+// deploy says it the same way rather than editing config.json.
+//
+// Empty means "use the file", which is what the local stand does.
+func adoptAddressFromEnvironment() {
+	address := strings.TrimSpace(os.Getenv("ICE9_ADDRESS"))
+	if address == "" {
+		return
+	}
+
+	host, portText, err := net.SplitHostPort(address)
+	if err != nil {
+		host, portText = address, defaultPort
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil || port <= 0 || port > 65535 {
+		logx.Errorf("ICE9_ADDRESS (%s) names no usable port: keeping %s", address, configFile)
+		return
+	}
+
+	config.SetDcOptions([]*mtproto.DcOption{
+		mtproto.MakeTLDcOption(&mtproto.DcOption{
+			Id:        config.GetThisDc(),
+			IpAddress: host,
+			Port:      int32(port),
+			Static:    true,
+		}).To_DcOption(),
+	})
+	logx.Infof("help.getConfig will hand out %s:%d, from ICE9_ADDRESS", host, port)
 }
 
 // HelpGetConfig
