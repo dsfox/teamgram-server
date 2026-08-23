@@ -23,6 +23,7 @@ import (
 	"github.com/teamgram/marmota/pkg/stores/kv"
 	"github.com/teamgram/marmota/pkg/stores/sqlc"
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
+	"github.com/teamgram/teamgram-server/pkg/nocache"
 	"github.com/teamgram/teamgram-server/pkg/queue"
 	"github.com/teamgram/teamgram-server/app/messenger/msg/internal/dao"
 	"github.com/teamgram/teamgram-server/app/messenger/msg/msg/internal/config"
@@ -49,7 +50,7 @@ func NewServiceContext(c config.Config, plugin plugin.MsgPlugin) *ServiceContext
 		MsgPlugin: plugin,
 		Dao: &dao.Dao{
 			Mysql:              dao.NewMysqlDao(db, c.MessageSharding),
-			CachedConn:         sqlc.NewConn(db, c.Cache),
+			CachedConn:         sqlc.NewConnWithCache(db, nocache.New()),
 			IDGenClient2:       idgen_client.NewIDGenClient2(rpcx.GetCachedRpcClient(c.IdgenClient)),
 			UserClient:         user_client.NewUserClient(rpcx.GetCachedRpcClient(c.UserClient)),
 			InboxClient:        queue.NewInboxClient(c.InboxClient),
