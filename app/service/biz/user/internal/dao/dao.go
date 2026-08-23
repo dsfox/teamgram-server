@@ -24,7 +24,6 @@ import (
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/teamgram-server/app/service/biz/user/internal/config"
 	media_client "github.com/teamgram/teamgram-server/app/service/media/client"
-	"github.com/teamgram/teamgram-server/pkg/nocache"
 )
 
 // Dao dao.
@@ -39,7 +38,7 @@ func New(c config.Config) *Dao {
 	db := sqlx.NewMySQL(&c.Mysql)
 	return &Dao{
 		Mysql:       newMysqlDao(db),
-		CachedConn:  sqlc.NewConnWithCache(db, nocache.New()),
+		CachedConn:  sqlc.NewConn(db, c.Cache),
 		MediaClient: media_client.NewMediaClient(rpcx.GetCachedRpcClient(c.MediaClient)),
 	}
 }

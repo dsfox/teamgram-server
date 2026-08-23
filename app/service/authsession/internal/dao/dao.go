@@ -15,7 +15,6 @@ import (
 	"github.com/teamgram/marmota/pkg/stores/sqlc"
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/teamgram-server/app/service/authsession/internal/config"
-	"github.com/teamgram/teamgram-server/pkg/nocache"
 
 	"github.com/oschwald/geoip2-golang"
 	"github.com/zeromicro/go-zero/core/stores/kv"
@@ -46,7 +45,7 @@ func New(c config.Config) *Dao {
 
 	return &Dao{
 		Mysql:      newMysqlDao(db),
-		CachedConn: sqlc.NewConnWithCache(db, nocache.New()),
+		CachedConn: sqlc.NewConn(db, c.Cache),
 		kv:         kv.NewStore(c.KV),
 		MMDB:       MMDB,
 	}

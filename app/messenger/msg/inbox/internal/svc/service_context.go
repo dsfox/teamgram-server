@@ -13,7 +13,6 @@ import (
 	"github.com/teamgram/marmota/pkg/net/rpcx"
 	"github.com/teamgram/marmota/pkg/stores/sqlc"
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
-	"github.com/teamgram/teamgram-server/pkg/nocache"
 	"github.com/teamgram/teamgram-server/app/messenger/msg/inbox/internal/config"
 	"github.com/teamgram/teamgram-server/pkg/queue"
 	"github.com/teamgram/teamgram-server/app/messenger/msg/internal/dao"
@@ -34,7 +33,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 
 	dao := &dao.Dao{
 		Mysql:        dao.NewMysqlDao(db, c.MessageSharding),
-		CachedConn:   sqlc.NewConnWithCache(db, nocache.New()),
+		CachedConn:   sqlc.NewConn(db, c.Cache),
 		IDGenClient2: idgen_client.NewIDGenClient2(rpcx.GetCachedRpcClient(c.IdgenClient)),
 		UserClient:   user_client.NewUserClient(rpcx.GetCachedRpcClient(c.UserClient)),
 		ChatClient:   chat_client.NewChatClient(rpcx.GetCachedRpcClient(c.ChatClient)),
