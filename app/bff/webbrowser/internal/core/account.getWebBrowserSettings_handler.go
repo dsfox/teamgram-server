@@ -24,8 +24,19 @@ import (
 // AccountGetWebBrowserSettings
 // account.getWebBrowserSettings#56655768 hash:long = account.WebBrowserSettings;
 func (c *WebBrowserCore) AccountGetWebBrowserSettings(in *mtproto.TLAccountGetWebBrowserSettings) (*mtproto.Account_WebBrowserSettings, error) {
-	// TODO: not impl
-	c.Logger.Errorf("account.getWebBrowserSettings blocked, License key from https://teamgram.net required to unlock enterprise features.")
+	// Nothing is stored, and the honest answer to "which domains open outside
+	// the app" is "none" rather than an error. It used to be an error, and the
+	// clients from 12.9 on ask this at startup: the answer they got was
+	// ERR_ENTERPRISE_IS_BLOCKED, which they back off from and retry, with the
+	// rest of their service queue waiting behind it. Found while carrying the
+	// clients forward - see ice9 #57.
+	c.Logger.Infof("account.getWebBrowserSettings: nothing is stored, answering with no exceptions")
 
-	return nil, mtproto.ErrEnterpriseIsBlocked
+	return mtproto.MakeTLAccountWebBrowserSettings(&mtproto.Account_WebBrowserSettings{
+		OpenExternalBrowser: false,
+		DisplayCloseButton:  true,
+		ExternalExceptions:  []*mtproto.WebDomainException{},
+		InappExceptions:     []*mtproto.WebDomainException{},
+		Hash:                0,
+	}).To_Account_WebBrowserSettings(), nil
 }
