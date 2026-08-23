@@ -526,6 +526,27 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, md *metadat
 			Users:          []*mtproto.User{},
 		}).To_Help_PremiumPromo(), nil
 
+	// Three the carried clients ask for at startup, each of which was answered
+	// with an error the client backs off from and retries behind. None of them
+	// exists here: there are no communities, no composing tones and no
+	// passkeys, and "none" is the true answer rather than a refusal. See #57.
+	case "TLCommunitiesGetJoinedCommunities":
+		return mtproto.MakeTLMessagesChats(&mtproto.Messages_Chats{
+			Chats: []*mtproto.Chat{},
+		}).To_Messages_Chats(), nil
+
+	case "TLAicomposeGetTones":
+		return mtproto.MakeTLAicomposeTones(&mtproto.Aicompose_Tones{
+			Hash:  0,
+			Tones: []*mtproto.AiComposeTone{},
+			Users: []*mtproto.User{},
+		}).To_Aicompose_Tones(), nil
+
+	case "TLAccountGetPasskeys":
+		return mtproto.MakeTLAccountPasskeys(&mtproto.Account_Passkeys{
+			Passkeys: []*mtproto.Passkey{},
+		}).To_Account_Passkeys(), nil
+
 	case "TLChannelsGetChannelRecommendations":
 		// The client asks for these right after opening a chat and retries hard
 		// on an error: 35 attempts in three hours from a single phone.

@@ -72,6 +72,9 @@ func stubRequests() []mtproto.TLObject {
 		&mtproto.TLAccountGetSavedRingtones{},
 		&mtproto.TLAccountGetConnectedBots{},
 		&mtproto.TLAccountGetWebBrowserSettings{},
+		&mtproto.TLCommunitiesGetJoinedCommunities{},
+		&mtproto.TLAicomposeGetTones{},
+		&mtproto.TLAccountGetPasskeys{},
 		// English, because it needs no translation file: the others are read
 		// from disk at runtime and a unit test has no such directory, so asking
 		// for one here would test the environment rather than the stub.
