@@ -352,6 +352,20 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, md *metadat
 			Users:          []*mtproto.User{},
 		}).To_Account_WebAuthorizations(), nil
 
+	// Which domains open outside the app. Nothing is stored, so the answer is
+	// none in either direction - which is true. Clients from 12.9 on ask at
+	// startup, and the refusal they used to get is what the health check counts
+	// as a rejected method: the client backs off and the rest of its service
+	// queue waits behind it. See ice9 #57.
+	case "TLAccountGetWebBrowserSettings":
+		return mtproto.MakeTLAccountWebBrowserSettings(&mtproto.Account_WebBrowserSettings{
+			OpenExternalBrowser: false,
+			DisplayCloseButton:  true,
+			ExternalExceptions:  []*mtproto.WebDomainException{},
+			InappExceptions:     []*mtproto.WebDomainException{},
+			Hash:                0,
+		}).To_Account_WebBrowserSettings(), nil
+
 	// Decorations the client asks for at every start: reaction sets, emoji lists,
 	// the star balance. We have none of it, but an error is not an acceptable
 	// answer — the client retries the failed call in a loop and never finishes
