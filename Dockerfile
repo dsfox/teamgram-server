@@ -27,7 +27,7 @@ RUN ./build.sh
 # its own: whoever follows install.sh has no repository to rewrite from. Our own
 # deploy goes on mounting its copy over this one, so nothing there changes.
 # After the build, so that a config edit does not rebuild the whole server.
-COPY deploy/etc/rewrite-configs.py /tmp/rewrite-configs.py
+COPY server/deploy/etc/rewrite-configs.py /tmp/rewrite-configs.py
 RUN python3 /tmp/rewrite-configs.py teamgramd/etc2 /tmp/etc2 \
  && rm -rf teamgramd/etc2 \
  && mv /tmp/etc2 teamgramd/etc2
@@ -47,8 +47,8 @@ COPY --from=builder /app/teamgramd/ /app/
 # the whole delivery. install.sh copies these two out and mounts them into
 # MySQL exactly as our own compose does; without them a stranger would need the
 # repository, and the repository is not theirs to clone.
-COPY deploy/mysql-init/ /app/deploy/mysql-init/
-COPY deploy/sql-patches/ /app/deploy/sql-patches/
-COPY deploy/check-mtproto.py /app/deploy/check-mtproto.py
+COPY server/deploy/mysql-init/ /app/deploy/mysql-init/
+COPY server/deploy/sql-patches/ /app/deploy/sql-patches/
+COPY server/deploy/check-mtproto.py /app/deploy/check-mtproto.py
 RUN chmod +x /app/docker/entrypoint.sh /app/deploy/mysql-init/*.sh
 ENTRYPOINT /app/docker/entrypoint.sh
