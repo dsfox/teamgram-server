@@ -115,6 +115,30 @@ func resetForTest() {
 // We keep no history, so any client that is behind gets the whole pack. That is
 // honest and cheap; what is not allowed is handing it over to a client that
 // asked whether anything had changed.
+// Version is what help.getConfig has to advertise: the version of the pack this
+// client would be given.
+//
+// It matters more than it looks. A client only asks for a newer pack when the
+// config says there is one - it compares the version it holds against the one
+// help.getConfig names, and asks for nothing if that is not larger. So a config
+// naming any number unrelated to the packs means a phone that already has a pack
+// never learns of a new one, for ever. Ours named a constant inherited from
+// upstream, 262834, while the packs were in the sixty millions: every phone
+// updated once, on the launch that fetched its first pack, and never again.
+// Fresh installs hid it, because a phone with no pack at all asks regardless.
+//
+// Zero for a language we carry no pack for, English included, which is also what
+// such a client holds - so it asks for nothing, correctly.
+func Version(langCode, platform string) int32 {
+	loadOnce.Do(load)
+
+	loaded, ok := packs[key(langCode, platform)]
+	if !ok {
+		return 0
+	}
+	return loaded.Version
+}
+
 func Difference(langCode, platform string, fromVersion int32) *mtproto.LangPackDifference {
 	loadOnce.Do(load)
 

@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/teamgram/proto/mtproto"
+	"github.com/teamgram/teamgram-server/pkg/langpack"
 
 	"github.com/zeromicro/go-zero/core/jsonx"
 	"github.com/zeromicro/go-zero/core/logx"
@@ -122,7 +123,24 @@ func (c *ConfigurationCore) HelpGetConfig(in *mtproto.TLHelpGetConfig) (*mtproto
 	rValue.SetExpires(now + expiresTimeout)
 	rValue.SetSuggestedLangCode(wrapperspb.String(suggestedLanguage(c.MD.GetLangCode())))
 
+	// The version of the pack this client would be given, rather than the number
+	// the file inherited from upstream. A client asks for a newer pack only when
+	// this is larger than the version it holds, so a constant here means a phone
+	// that already has a pack never learns of a new one - which is what ours did:
+	// every string we changed reached fresh installs and nobody else.
+	rValue.SetLangPackVersion(wrapperspb.Int32(langpack.Version(languageOf(c.MD.GetLangCode()), c.MD.GetClient())))
+
 	return rValue.To_Config(), nil
+}
+
+// languageOf reduces what the client reports - "ru-RU", "ru_ru" - to the code a
+// pack is filed under.
+func languageOf(clientLangCode string) string {
+	code := strings.ToLower(clientLangCode)
+	if i := strings.IndexAny(code, "-_"); i > 0 {
+		code = code[:i]
+	}
+	return code
 }
 
 // We offer two languages, and this decides which one a phone is offered before
