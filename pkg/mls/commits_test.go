@@ -20,7 +20,7 @@ func TestTwoCommitsFromOneEpochAndOnlyOneIsTaken(t *testing.T) {
 	ctx := context.Background()
 	group := []byte("conversation")
 
-	posted, err := Accept(ctx, groups, commits, group, 4, 1, []int64{9}, []byte("alice adds dave"), 1)
+	posted, err := Accept(ctx, groups, commits, group, 4, 1, 500, []int64{9}, []byte("alice adds dave"), 1)
 	if err != nil {
 		t.Fatalf("the first commit should have been taken: %v", err)
 	}
@@ -28,7 +28,7 @@ func TestTwoCommitsFromOneEpochAndOnlyOneIsTaken(t *testing.T) {
 		t.Fatalf("left %d copies for one device", posted)
 	}
 
-	_, err = Accept(ctx, groups, commits, group, 4, 2, []int64{9}, []byte("bob adds erin"), 1)
+	_, err = Accept(ctx, groups, commits, group, 4, 2, 500, []int64{9}, []byte("bob adds erin"), 1)
 	if !errors.Is(err, ErrBehind) {
 		t.Fatalf("the second commit from epoch 4 was answered with %v", err)
 	}
@@ -53,8 +53,8 @@ func TestTheLoserSucceedsFromTheNewEpoch(t *testing.T) {
 	ctx := context.Background()
 	group := []byte("conversation")
 
-	_, _ = Accept(ctx, groups, commits, group, 4, 1, []int64{9}, []byte("winner"), 1)
-	if _, err := Accept(ctx, groups, commits, group, 5, 2, []int64{9}, []byte("rebuilt"), 1); err != nil {
+	_, _ = Accept(ctx, groups, commits, group, 4, 1, 500, []int64{9}, []byte("winner"), 1)
+	if _, err := Accept(ctx, groups, commits, group, 5, 2, 500, []int64{9}, []byte("rebuilt"), 1); err != nil {
 		t.Fatalf("the rebuilt commit was refused: %v", err)
 	}
 
@@ -72,7 +72,7 @@ func TestTheFirstCommitOfAGroupIsTaken(t *testing.T) {
 	commits := &mapCommits{devices: map[int64][]int64{9: {100}}}
 
 	if _, err := Accept(context.Background(), groups, commits,
-		[]byte("new"), 1, 1, []int64{9}, []byte("first"), 1); err != nil {
+		[]byte("new"), 1, 1, 500, []int64{9}, []byte("first"), 1); err != nil {
 		t.Fatalf("the first commit of a group was refused: %v", err)
 	}
 }
@@ -87,7 +87,7 @@ func TestACommitReachesEveryDeviceOfEveryMember(t *testing.T) {
 	}}
 
 	posted, err := Accept(context.Background(), groups, commits,
-		[]byte("g"), 1, 1, []int64{9, 8}, []byte("c"), 1)
+		[]byte("g"), 1, 1, 500, []int64{9, 8}, []byte("c"), 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestACommitIsKeptUntilTheDeviceSaysItApplied(t *testing.T) {
 	commits := &mapCommits{devices: map[int64][]int64{9: {100}}}
 	ctx := context.Background()
 
-	_, _ = Accept(ctx, groups, commits, []byte("g"), 1, 1, []int64{9}, []byte("c"), 1)
+	_, _ = Accept(ctx, groups, commits, []byte("g"), 1, 1, 500, []int64{9}, []byte("c"), 1)
 	waiting, _ := WaitingCommits(ctx, commits, 9, 100)
 	if len(waiting) != 1 {
 		t.Fatalf("%d waiting", len(waiting))
@@ -122,6 +122,40 @@ func TestACommitIsKeptUntilTheDeviceSaysItApplied(t *testing.T) {
 	after, _ := WaitingCommits(ctx, commits, 9, 100)
 	if len(after) != 0 {
 		t.Fatalf("%d waiting after it was applied", len(after))
+	}
+}
+
+// The phone that made the commit is skipped, and only that phone.
+//
+// It has already applied its own change, and MLS refuses to process a commit it
+// authored. But the same person's other devices are separate leaves in the
+// group and need it exactly as much as anybody else's - skip the whole author
+// and their second phone sits an epoch behind for ever, reading nothing, in a
+// group everybody else is talking in.
+func TestTheAuthorsOtherDevicesStillGetTheCommit(t *testing.T) {
+	groups := &mapGroups{}
+	commits := &mapCommits{devices: map[int64][]int64{
+		7: {500, 600}, // the author, on two phones
+		9: {100},
+	}}
+	ctx := context.Background()
+
+	posted, err := Accept(ctx, groups, commits, []byte("g"), 1, 7, 500,
+		[]int64{7, 9}, []byte("c"), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if posted != 2 {
+		t.Fatalf("left %d copies; the author's second phone and the other member", posted)
+	}
+
+	mine, _ := WaitingCommits(ctx, commits, 7, 500)
+	if len(mine) != 0 {
+		t.Errorf("the phone that made the commit was handed its own back")
+	}
+	other, _ := WaitingCommits(ctx, commits, 7, 600)
+	if len(other) != 1 {
+		t.Errorf("the author's other phone got %d commits, not one", len(other))
 	}
 }
 

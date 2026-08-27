@@ -26,6 +26,7 @@ func (c *MlsCore) MlsSendCommit(in *mtproto.TLMlsSendCommit) (*mtproto.Mls_Commi
 		in.GetGroupId(),
 		in.GetEpoch(),
 		c.MD.UserId,
+		c.MD.PermAuthKeyId,
 		in.GetMembers(),
 		in.GetCommit(),
 		int32(time.Now().Unix()))

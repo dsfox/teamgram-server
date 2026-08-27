@@ -64,6 +64,12 @@ type Commit struct {
 // A group nobody has told us about yet is accepted at whatever epoch the caller
 // names. That is the first commit after the conversation was created, and there
 // is nothing to disagree with it.
+// The device that made the commit is skipped, and only that one. It has
+// already applied its own change and MLS refuses to process a commit it
+// authored - but the same person's other phones are separate leaves and need it
+// exactly as much as anybody else's do. Skipping the whole author leaves their
+// second phone an epoch behind for ever, reading nothing, in a group everybody
+// else is talking in.
 func Accept(
 	ctx context.Context,
 	groups GroupStore,
@@ -71,6 +77,7 @@ func Accept(
 	groupId []byte,
 	epoch int64,
 	fromId int64,
+	fromAuthKeyId int64,
 	members []int64,
 	commit []byte,
 	now int32,
@@ -104,6 +111,9 @@ func Accept(
 			return posted, fmt.Errorf("cannot list the devices: %w", err)
 		}
 		for _, authKeyId := range devices {
+			if userId == fromId && authKeyId == fromAuthKeyId {
+				continue
+			}
 			waiting, err := commits.Waiting(ctx, userId, authKeyId)
 			if err != nil {
 				return posted, fmt.Errorf("cannot count what is waiting: %w", err)
