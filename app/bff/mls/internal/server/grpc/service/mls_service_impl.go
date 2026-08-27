@@ -91,3 +91,42 @@ func (s *Service) MlsSetRecoverySecret(ctx context.Context, request *mtproto.TLM
 	}
 	return r, err
 }
+
+// MlsSendCommit
+// mls.sendCommit group_id:bytes epoch:long members:Vector<long> commit:bytes = mls.CommitResult;
+func (s *Service) MlsSendCommit(ctx context.Context, request *mtproto.TLMlsSendCommit) (*mtproto.Mls_CommitResult, error) {
+	c := core.New(ctx, s.svcCtx)
+	c.Logger.Debugf("mls.sendCommit - metadata: {%s}, epoch: %d", c.MD, request.GetEpoch())
+
+	r, err := c.MlsSendCommit(request)
+	if err != nil {
+		return nil, err
+	}
+	return r, err
+}
+
+// MlsGetCommits
+// mls.getCommits = mls.Commits;
+func (s *Service) MlsGetCommits(ctx context.Context, request *mtproto.TLMlsGetCommits) (*mtproto.Mls_Commits, error) {
+	c := core.New(ctx, s.svcCtx)
+	c.Logger.Debugf("mls.getCommits - metadata: {%s}", c.MD)
+
+	r, err := c.MlsGetCommits(request)
+	if err != nil {
+		return nil, err
+	}
+	return r, err
+}
+
+// MlsConfirmCommits
+// mls.confirmCommits ids:Vector<long> = mls.Ok;
+func (s *Service) MlsConfirmCommits(ctx context.Context, request *mtproto.TLMlsConfirmCommits) (*mtproto.Mls_Ok, error) {
+	c := core.New(ctx, s.svcCtx)
+	c.Logger.Debugf("mls.confirmCommits - metadata: {%s}", c.MD)
+
+	r, err := c.MlsConfirmCommits(request)
+	if err != nil {
+		return nil, err
+	}
+	return r, err
+}

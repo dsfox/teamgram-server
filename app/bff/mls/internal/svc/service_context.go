@@ -13,6 +13,10 @@ type ServiceContext struct {
 	Config    config.Config
 	Directory *mls.Directory
 	Welcomes  *mls.MysqlWelcomes
+	// Where a group is in its history, and the commits waiting for the
+	// devices that have to apply them (#40).
+	Groups  *mls.MysqlGroups
+	Commits *mls.MysqlCommits
 	Store     kv.Store
 	UserClient user_client.UserClient
 }
@@ -23,6 +27,8 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		Config:     c,
 		Directory:  mls.New(mls.NewMysqlStore(db)),
 		Welcomes:   mls.NewMysqlWelcomes(db),
+		Groups:     mls.NewMysqlGroups(db),
+		Commits:    mls.NewMysqlCommits(db),
 		Store:      kv.NewStore(c.KV),
 		UserClient: user_client.NewUserClient(rpcx.GetCachedRpcClient(c.UserClient)),
 	}
