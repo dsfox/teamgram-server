@@ -64,12 +64,16 @@ type Commit struct {
 // A group nobody has told us about yet is accepted at whatever epoch the caller
 // names. That is the first commit after the conversation was created, and there
 // is nothing to disagree with it.
-// The device that made the commit is skipped, and only that one. It has
-// already applied its own change and MLS refuses to process a commit it
-// authored - but the same person's other phones are separate leaves and need it
-// exactly as much as anybody else's do. Skipping the whole author leaves their
-// second phone an epoch behind for ever, reading nothing, in a group everybody
-// else is talking in.
+//
+// Every device, including the one that made the commit. That looks wasteful and
+// is the opposite: a client leaves its own commit unapplied until it hears that
+// it won, and if that answer is lost - a dropped connection, a phone that
+// stopped - it has no other way to find out. Handed its own commit back, it
+// knows. MLS names that case (`StageCommitError::OwnCommit`) precisely because
+// delivery services echo, and the remedy is to apply what is already staged.
+//
+// So the answer to this call is a shortcut, not the truth. The truth is the
+// commit box, and a device that only ever read from there would still be right.
 func Accept(
 	ctx context.Context,
 	groups GroupStore,
@@ -77,7 +81,6 @@ func Accept(
 	groupId []byte,
 	epoch int64,
 	fromId int64,
-	fromAuthKeyId int64,
 	members []int64,
 	commit []byte,
 	now int32,
@@ -111,9 +114,6 @@ func Accept(
 			return posted, fmt.Errorf("cannot list the devices: %w", err)
 		}
 		for _, authKeyId := range devices {
-			if userId == fromId && authKeyId == fromAuthKeyId {
-				continue
-			}
 			waiting, err := commits.Waiting(ctx, userId, authKeyId)
 			if err != nil {
 				return posted, fmt.Errorf("cannot count what is waiting: %w", err)
