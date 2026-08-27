@@ -25,8 +25,9 @@ import (
 // AccountUpdateDeviceLocked
 // account.updateDeviceLocked#38df3532 period:int = Bool;
 func (c *NotificationCore) AccountUpdateDeviceLocked(in *mtproto.TLAccountUpdateDeviceLocked) (*mtproto.Bool, error) {
-	// TODO: not impl
-	c.Logger.Infof("account.updateDeviceLocked blocked, License key from https://teamgram.net required to unlock enterprise features.")
+	// Accepted and nothing to do. The client says its screen locked so the
+	// server can hold push notifications back; we do not hold any, so there
+	// is nothing to remember and true is the whole answer.
 
 	return mtproto.BoolTrue, nil
 }

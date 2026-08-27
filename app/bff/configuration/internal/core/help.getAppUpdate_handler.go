@@ -25,8 +25,8 @@ import (
 // HelpGetAppUpdate
 // help.getAppUpdate#522d5a7d source:string = help.AppUpdate;
 func (c *ConfigurationCore) HelpGetAppUpdate(in *mtproto.TLHelpGetAppUpdate) (*mtproto.Help_AppUpdate, error) {
-	// TODO: not impl
-	c.Logger.Infof("help.getAppUpdate blocked, License key from https://teamgram.net required to unlock enterprise features.")
+	// No update to offer here. Ours arrive through TestFlight and Firebase,
+	// not through the protocol, so "no update" is true every time.
 
 	rValue := mtproto.MakeTLHelpNoAppUpdate(nil).To_Help_AppUpdate()
 

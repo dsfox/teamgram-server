@@ -25,8 +25,9 @@ import (
 // ContactsGetTopPeers
 // contacts.getTopPeers#973478b6 flags:# correspondents:flags.0?true bots_pm:flags.1?true bots_inline:flags.2?true phone_calls:flags.3?true forward_users:flags.4?true forward_chats:flags.5?true groups:flags.10?true channels:flags.15?true offset:int limit:int hash:long = contacts.TopPeers;
 func (c *ContactsCore) ContactsGetTopPeers(in *mtproto.TLContactsGetTopPeers) (*mtproto.Contacts_TopPeers, error) {
-	// TODO: not impl
-	c.Logger.Infof("contacts.getTopPeers blocked, License key from https://teamgram.net required to unlock enterprise features.")
+	// Nobody is ranked. The list orders the share sheet by who you write to
+	// most, and we do not keep that - which is a privacy answer rather than a
+	// missing feature, so an empty list is the honest one.
 
 	topPeers := mtproto.MakeTLContactsTopPeers(&mtproto.Contacts_TopPeers{
 		Categories: []*mtproto.TopPeerCategoryPeers{},
