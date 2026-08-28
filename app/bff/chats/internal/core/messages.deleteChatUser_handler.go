@@ -58,46 +58,50 @@ func (c *ChatsCore) MessagesDeleteChatUser(in *mtproto.TLMessagesDeleteChatUser)
 		PeerId:   in.ChatId,
 	})
 
-	if c.MD.Client == "ios" || c.MD.Client == "android" {
-		chat.Walk(func(userId int64, participant *mtproto.ImmutableChatParticipant) error {
-			return nil
-		})
-		return mtproto.MakeEmptyUpdates(), nil
-	} else {
-		fromId := c.MD.UserId
-		if c.MD.IsAdmin {
-			fromId = chat.Creator()
-		}
-
-		replyUpdates, err := c.svcCtx.Dao.MsgClient.MsgSendMessageV2(
-			c.ctx,
-			&msgpb.TLMsgSendMessageV2{
-				UserId:    fromId,
-				AuthKeyId: c.MD.PermAuthKeyId,
-				PeerType:  mtproto.PEER_CHAT,
-				PeerId:    in.ChatId,
-				Message: []*msgpb.OutboxMessage{
-					msgpb.MakeTLOutboxMessage(&msgpb.OutboxMessage{
-						NoWebpage:    true,
-						Background:   false,
-						RandomId:     rand.Int63(),
-						Message:      chat.MakeMessageService(fromId, mtproto.MakeMessageActionChatDeleteUser(deleteUser.PeerId)),
-						ScheduleDate: nil,
-					}).To_OutboxMessage(),
-				},
-			})
-		if err != nil {
-			c.Logger.Errorf("messages.deleteChatUser - error: %v", err)
-			return nil, err
-		}
-
-		updateChatParticipants := mtproto.MakeTLUpdateChatParticipants(&mtproto.Update{
-			Participants_CHATPARTICIPANTS: chat.ToChatParticipants(0),
-		}).To_Update()
-		if deleteUser.PeerType == mtproto.PEER_USER {
-			replyUpdates.Updates = append(replyUpdates.Updates, updateChatParticipants)
-		}
-
-		return replyUpdates, nil
+	// Everybody is told, phones included. Upstream answered a phone with empty
+	// updates and left the message unsent, on the assumption that a mobile
+	// client asks for the participant list again by itself. Ours does not, and
+	// neither does anything else: adding somebody has always sent this message
+	// and removing them did not, so a group kept the person in its title and -
+	// worse - in its encrypted conversation, holding the keys of an epoch
+	// nobody rotated (#113, and #40 step 4.3).
+	//
+	// The other half of the asymmetry was that leaving is the same call: the
+	// person going is the person named, and the only device that knew was
+	// theirs.
+	fromId := c.MD.UserId
+	if c.MD.IsAdmin {
+		fromId = chat.Creator()
 	}
+
+	replyUpdates, err := c.svcCtx.Dao.MsgClient.MsgSendMessageV2(
+		c.ctx,
+		&msgpb.TLMsgSendMessageV2{
+			UserId:    fromId,
+			AuthKeyId: c.MD.PermAuthKeyId,
+			PeerType:  mtproto.PEER_CHAT,
+			PeerId:    in.ChatId,
+			Message: []*msgpb.OutboxMessage{
+				msgpb.MakeTLOutboxMessage(&msgpb.OutboxMessage{
+					NoWebpage:    true,
+					Background:   false,
+					RandomId:     rand.Int63(),
+					Message:      chat.MakeMessageService(fromId, mtproto.MakeMessageActionChatDeleteUser(deleteUser.PeerId)),
+					ScheduleDate: nil,
+				}).To_OutboxMessage(),
+			},
+		})
+	if err != nil {
+		c.Logger.Errorf("messages.deleteChatUser - error: %v", err)
+		return nil, err
+	}
+
+	updateChatParticipants := mtproto.MakeTLUpdateChatParticipants(&mtproto.Update{
+		Participants_CHATPARTICIPANTS: chat.ToChatParticipants(0),
+	}).To_Update()
+	if deleteUser.PeerType == mtproto.PEER_USER {
+		replyUpdates.Updates = append(replyUpdates.Updates, updateChatParticipants)
+	}
+
+	return replyUpdates, nil
 }
