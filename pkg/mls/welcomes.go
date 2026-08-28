@@ -23,8 +23,13 @@ type Welcome struct {
 	UserId    int64
 	AuthKeyId int64
 	FromId    int64
-	Bytes     []byte
-	Date      int32
+	// Which chat the invitation is for, as a dialog id. Without it a welcome
+	// says only who sent it, and the device joining files the conversation
+	// under that person - so a group is recorded as the conversation with
+	// whoever invited them (#115). Zero for one written before this existed.
+	PeerId int64
+	Bytes  []byte
+	Date   int32
 }
 
 // WelcomeStore is the part of storage this needs.
@@ -44,7 +49,7 @@ const MaxWaitingPerDevice = 500
 //
 // A person with no devices published yet gets nothing and no error: they have
 // simply not been seen by this yet, which is ordinary rather than broken.
-func (d *Directory) Post(ctx context.Context, welcomes WelcomeStore, toUserId, fromId int64, welcome []byte, now int32) (int, error) {
+func (d *Directory) Post(ctx context.Context, welcomes WelcomeStore, toUserId, fromId, peerId int64, welcome []byte, now int32) (int, error) {
 	if len(welcome) == 0 {
 		return 0, ErrEmptyPackage
 	}
@@ -69,6 +74,7 @@ func (d *Directory) Post(ctx context.Context, welcomes WelcomeStore, toUserId, f
 			UserId:    toUserId,
 			AuthKeyId: authKeyId,
 			FromId:    fromId,
+			PeerId:    peerId,
 			Bytes:     welcome,
 			Date:      now,
 		}); err != nil {

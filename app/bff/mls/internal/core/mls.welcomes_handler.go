@@ -21,6 +21,7 @@ func (c *MlsCore) MlsSendWelcome(in *mtproto.TLMlsSendWelcome) (*mtproto.Mls_Ok,
 		c.svcCtx.Welcomes,
 		in.GetUserId(),
 		c.MD.UserId,
+		in.GetPeerId(),
 		in.GetWelcome(),
 		int32(time.Now().Unix()))
 	if err != nil {
@@ -63,6 +64,7 @@ func (c *MlsCore) MlsGetWelcomes(in *mtproto.TLMlsGetWelcomes) (*mtproto.Mls_Wel
 		welcomes = append(welcomes, &mtproto.Mls_Welcome{
 			Id:      w.Id,
 			FromId:  w.FromId,
+			PeerId:  w.PeerId,
 			Welcome: w.Bytes,
 		})
 	}

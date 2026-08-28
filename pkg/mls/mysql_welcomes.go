@@ -25,14 +25,15 @@ type welcomeRow struct {
 	UserId    int64  `db:"user_id"`
 	AuthKeyId int64  `db:"auth_key_id"`
 	FromId    int64  `db:"from_id"`
+	PeerId    int64  `db:"peer_id"`
 	Welcome   []byte `db:"welcome"`
 	Date      int32  `db:"date"`
 }
 
 func (s *MysqlWelcomes) Put(ctx context.Context, w Welcome) error {
-	const query = "insert into mls_welcomes(user_id, auth_key_id, from_id, welcome, date) values (?, ?, ?, ?, ?)"
+	const query = "insert into mls_welcomes(user_id, auth_key_id, from_id, peer_id, welcome, date) values (?, ?, ?, ?, ?, ?)"
 
-	if _, err := s.db.Exec(ctx, query, w.UserId, w.AuthKeyId, w.FromId, w.Bytes, w.Date); err != nil {
+	if _, err := s.db.Exec(ctx, query, w.UserId, w.AuthKeyId, w.FromId, w.PeerId, w.Bytes, w.Date); err != nil {
 		logx.WithContext(ctx).Errorf("mls: cannot leave a welcome: %v", err)
 		return err
 	}
@@ -43,7 +44,7 @@ func (s *MysqlWelcomes) Waiting(ctx context.Context, userId, authKeyId int64) ([
 	var rows []welcomeRow
 
 	err := s.db.QueryRowsPartial(ctx, &rows,
-		"select id, user_id, auth_key_id, from_id, welcome, date from mls_welcomes "+
+		"select id, user_id, auth_key_id, from_id, peer_id, welcome, date from mls_welcomes "+
 			"where user_id = ? and auth_key_id = ? order by id",
 		userId, authKeyId)
 	if err != nil {
@@ -61,6 +62,7 @@ func (s *MysqlWelcomes) Waiting(ctx context.Context, userId, authKeyId int64) ([
 			UserId:    r.UserId,
 			AuthKeyId: r.AuthKeyId,
 			FromId:    r.FromId,
+			PeerId:    r.PeerId,
 			Bytes:     r.Welcome,
 			Date:      r.Date,
 		})

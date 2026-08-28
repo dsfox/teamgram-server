@@ -19,7 +19,7 @@ func TestAWelcomeReachesEveryDeviceOfThePerson(t *testing.T) {
 	_, _ = d.Publish(ctx, 7, 200, [][]byte{[]byte("laptop")}, nil, 1)
 	welcomes.devices = packages
 
-	posted, err := d.Post(ctx, welcomes, 7, 42, []byte("come in"), 1)
+	posted, err := d.Post(ctx, welcomes, 7, 42, -120057, []byte("come in"), 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestAWelcomeIsKeptUntilTheDeviceSaysItOpenedIt(t *testing.T) {
 	ctx := context.Background()
 	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone")}, nil, 1)
 	welcomes.devices = packages
-	_, _ = d.Post(ctx, welcomes, 7, 42, []byte("come in"), 1)
+	_, _ = d.Post(ctx, welcomes, 7, 42, -120057, []byte("come in"), 1)
 
 	first, _ := d.Waiting(ctx, welcomes, 7, 100)
 	again, _ := d.Waiting(ctx, welcomes, 7, 100)
@@ -74,7 +74,7 @@ func TestADeviceCannotConfirmSomebodyElsesWelcome(t *testing.T) {
 	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone")}, nil, 1)
 	_, _ = d.Publish(ctx, 9, 300, [][]byte{[]byte("other")}, nil, 1)
 	welcomes.devices = packages
-	_, _ = d.Post(ctx, welcomes, 7, 42, []byte("come in"), 1)
+	_, _ = d.Post(ctx, welcomes, 7, 42, -120057, []byte("come in"), 1)
 
 	waiting, _ := d.Waiting(ctx, welcomes, 7, 100)
 
@@ -94,7 +94,7 @@ func TestAPersonWithNoDevicesTakesNoWelcome(t *testing.T) {
 	d, _ := newTestDirectory()
 	welcomes := &mapWelcomes{}
 
-	posted, err := d.Post(context.Background(), welcomes, 999, 42, []byte("come in"), 1)
+	posted, err := d.Post(context.Background(), welcomes, 999, 42, -120057, []byte("come in"), 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestWelcomesCannotPileUpForever(t *testing.T) {
 
 	var err error
 	for i := 0; i <= MaxWaitingPerDevice; i++ {
-		if _, err = d.Post(ctx, welcomes, 7, 42, []byte("come in"), 1); err != nil {
+		if _, err = d.Post(ctx, welcomes, 7, 42, -120057, []byte("come in"), 1); err != nil {
 			break
 		}
 	}
@@ -128,7 +128,7 @@ func TestWelcomesCannotPileUpForever(t *testing.T) {
 func TestAnEmptyWelcomeIsRefused(t *testing.T) {
 	d, _ := newTestDirectory()
 
-	_, err := d.Post(context.Background(), &mapWelcomes{}, 7, 42, nil, 1)
+	_, err := d.Post(context.Background(), &mapWelcomes{}, 7, 42, -120057, nil, 1)
 	if !errors.Is(err, ErrEmptyPackage) {
 		t.Fatalf("an empty welcome gave %v", err)
 	}
@@ -182,4 +182,35 @@ func (m *mapWelcomes) Devices(ctx context.Context, userId int64) ([]int64, error
 		return nil, nil
 	}
 	return m.devices.Devices(ctx, userId)
+}
+
+// An invitation says which chat it is for, and says it back.
+//
+// Without that a welcome carries only who sent it, and the device joining files
+// the conversation under that person - so a group is recorded as the
+// conversation with whoever invited them, and a private message to that person
+// is written with the group's keys. On the stand it split a group in two: the
+// commit that let a second device in went to one member, because the code
+// believed a one-to-one conversation has one recipient (#115).
+func TestAnInvitationRemembersItsChat(t *testing.T) {
+	packages := &mapStore{}
+	welcomes := &mapWelcomes{devices: packages}
+	d := New(packages)
+	ctx := context.Background()
+
+	// A device is only known because it published, so there has to be one.
+	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone")}, nil, 1)
+
+	_, _ = d.Post(ctx, welcomes, 7, 42, -120057, []byte("come in"), 1)
+
+	waiting, err := welcomes.Waiting(ctx, 7, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(waiting) != 1 {
+		t.Fatalf("expected one invitation waiting, got %d", len(waiting))
+	}
+	if waiting[0].PeerId != -120057 {
+		t.Fatalf("the invitation forgot its chat: %d", waiting[0].PeerId)
+	}
 }
