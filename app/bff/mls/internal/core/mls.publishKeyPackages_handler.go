@@ -46,9 +46,23 @@ func (c *MlsCore) MlsPublishKeyPackages(in *mtproto.TLMlsPublishKeyPackages) (*m
 		return nil, mtproto.ErrInternalServerError
 	}
 
+	// And how many devices this account has published from, which is the only
+	// way a phone can tell that another phone of the same person has signed in
+	// since a conversation started: the comparison of members is about people,
+	// so a second device of somebody already in it is invisible to it (#41).
+	//
+	// Nothing new is learnt by saying so - the server hands these devices out to
+	// whoever starts a conversation with this person anyway.
+	devices, err := c.svcCtx.Directory.DeviceCount(c.ctx, c.MD.UserId)
+	if err != nil {
+		c.Logger.Errorf("mls.publishKeyPackages - cannot count devices: %v", err)
+		return nil, mtproto.ErrInternalServerError
+	}
+
 	return &mtproto.Mls_PublishResult{
 		Added:        int32(added),
 		Available:    int32(available),
 		ShouldRefill: shouldRefill,
+		Devices:      int32(devices),
 	}, nil
 }

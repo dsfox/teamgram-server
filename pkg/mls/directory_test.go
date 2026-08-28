@@ -258,6 +258,11 @@ func (m *mapStore) Devices(_ context.Context, userId int64) ([]int64, error) {
 	return devices, nil
 }
 
+func (m *mapStore) CountDevices(ctx context.Context, userId int64) (int, error) {
+	devices, err := m.Devices(ctx, userId)
+	return len(devices), err
+}
+
 // Publishing nothing is how a device asks how many it has left, and a device
 // that is full has to be able to ask.
 //
@@ -293,5 +298,40 @@ func TestAskingHowManyAreLeftIsNotPublishing(t *testing.T) {
 	}
 	if count != MaxPerDevice || refill {
 		t.Errorf("a full device was told %d, refill=%v", count, refill)
+	}
+}
+
+// A person's devices are counted, and counted the same way the list is made.
+//
+// The count is what tells a phone that another phone of the same person has
+// signed in (#41), and it went out wrong the first time: the list was taken and
+// measured, which answered zero for a person the database had a row for. So the
+// count has a test of its own rather than being assumed to agree with the list.
+func TestCountingDevicesAgreesWithListingThem(t *testing.T) {
+	directory, store := newTestDirectory()
+	ctx := context.Background()
+
+	if count, _ := directory.DeviceCount(ctx, 7); count != 0 {
+		t.Fatalf("a person with nothing published has %d devices", count)
+	}
+
+	for _, device := range []int64{100, 100, 200} {
+		if _, err := directory.Publish(ctx, 7, device,
+			[][]byte{[]byte("package-" + string(rune('a'+len(store.packages))))},
+			nil, 1); err != nil {
+			t.Fatalf("cannot publish: %v", err)
+		}
+	}
+
+	listed, err := store.Devices(ctx, 7)
+	if err != nil {
+		t.Fatalf("cannot list: %v", err)
+	}
+	count, err := directory.DeviceCount(ctx, 7)
+	if err != nil {
+		t.Fatalf("cannot count: %v", err)
+	}
+	if count != len(listed) || count != 2 {
+		t.Fatalf("counted %d devices, listed %d, expected 2", count, len(listed))
 	}
 }

@@ -31,6 +31,7 @@ import (
 	"github.com/teamgram/teamgram-server/app/service/authsession/authsession"
 	"github.com/teamgram/teamgram-server/app/service/authsession/internal/dal/dataobject"
 
+	"github.com/teamgram/teamgram-server/pkg/mls"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/mr"
 )
@@ -295,6 +296,13 @@ func (d *Dao) UnbindAuthUser(ctx context.Context, authKeyId int64, userId int64)
 			},
 			genAuthDataCacheKey(authKeyId))
 	}
+
+	// And the encryption this device published, which nothing else throws away.
+	// A phone counts the devices of its own account to know whether one of them
+	// has still to be let into a conversation, and a device that signed out and
+	// left its key packages behind is counted for ever - so leaves get added
+	// that nobody is behind (#41).
+	mls.ForgetDevice(ctx, d.DB, userId, authKeyId)
 
 	return err == nil
 }

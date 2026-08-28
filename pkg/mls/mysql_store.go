@@ -141,6 +141,29 @@ func (s *MysqlStore) CountAvailable(ctx context.Context, userId, authKeyId int64
 	return count, nil
 }
 
+// CountDevices is how many devices of this person have published anything.
+//
+// Counted in SQL rather than by taking the list and measuring it. The list is
+// read into a slice of plain integers, and asking for it here answered zero for
+// a person the same query answers one row for - so the count is asked as a
+// count, the way everything else in this file asks for one.
+func (s *MysqlStore) CountDevices(ctx context.Context, userId int64) (int, error) {
+	var count int
+
+	err := s.db.QueryRowPartial(ctx, &count,
+		"select count(distinct auth_key_id) from mls_key_packages where user_id = ?",
+		userId)
+	if err != nil {
+		if errors.Is(err, sqlx.ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
+			return 0, nil
+		}
+		logx.WithContext(ctx).Errorf("mls: cannot count devices: %v", err)
+		return 0, err
+	}
+	logx.WithContext(ctx).Infof("mls: %d has published from %d device(s)", userId, count)
+	return count, nil
+}
+
 func (s *MysqlStore) Devices(ctx context.Context, userId int64) ([]int64, error) {
 	var devices []int64
 

@@ -61,6 +61,7 @@ type Store interface {
 
 	// Devices lists the devices of a person that have published anything.
 	Devices(ctx context.Context, userId int64) ([]int64, error)
+	CountDevices(ctx context.Context, userId int64) (int, error)
 }
 
 // LowWaterMark is the count below which a device should publish more. It is
@@ -154,6 +155,19 @@ func (d *Directory) Available(ctx context.Context, userId, authKeyId int64) (cou
 		return 0, false, fmt.Errorf("cannot count what is published: %w", err)
 	}
 	return count, count < LowWaterMark, nil
+}
+
+// DeviceCount is how many devices of this person have published anything.
+//
+// Read from the same rows Claim walks, so it counts exactly the devices a
+// conversation would be started with - which is what makes it usable as "is
+// there a phone here that this conversation has never heard of".
+func (d *Directory) DeviceCount(ctx context.Context, userId int64) (int, error) {
+	count, err := d.store.CountDevices(ctx, userId)
+	if err != nil {
+		return 0, fmt.Errorf("cannot count the devices: %w", err)
+	}
+	return count, nil
 }
 
 // Claim takes one package for every device of a person - which is what starting
