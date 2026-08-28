@@ -110,7 +110,15 @@ func (c *ChatInvitesCore) MessagesHideChatJoinRequest(in *mtproto.TLMessagesHide
 						NoWebpage:    true,
 						Background:   false,
 						RandomId:     rand.Int63(),
-						Message:      mChat.MakeMessageService(c.MD.UserId, mtproto.MakeMessageActionChatJoinedByRequest()),
+						// From the person who joined, not the one who said yes.
+						// "X joined the group" is about X, and every reader of
+						// this message takes the joiner off its author: the
+						// interface to name them, and the encrypted conversation
+						// to know who to let in. Sent from the approver it read
+						// as the approver joining a group they were already in,
+						// so nobody was let in and the person sat in a chat
+						// where nothing appeared (#40, step 4.3).
+						Message:      mChat.MakeMessageService(userId.PeerId, mtproto.MakeMessageActionChatJoinedByRequest()),
 						ScheduleDate: nil,
 					}).To_OutboxMessage(),
 				},
