@@ -25,16 +25,22 @@ type GroupStore interface {
 	// Epoch is what the next commit must declare, and whether anything is
 	// known about this group at all.
 	Epoch(ctx context.Context, groupId []byte) (int64, bool, error)
-	// Advance moves the group from `from` to `from+1`, and says whether it
-	// was the one to do it. Two callers arriving with the same `from` must
-	// not both get true - that is the whole job, and it belongs in the
-	// storage because only the storage can be atomic about it.
-	Advance(ctx context.Context, groupId []byte, from int64) (bool, error)
+	// Take moves the group from `from` to `from+1` and leaves the commit for
+	// every device named, or does neither of those things.
+	//
+	// Two callers arriving with the same `from` must not both get true - that
+	// is the ordering job, and it belongs in the storage because only the
+	// storage can be atomic about it. Handing the commit over belongs here for
+	// the same reason and was not, once: the epoch moved first and the copies
+	// followed, so between them the group had gone somewhere the commit that
+	// leads there could not yet be fetched from. A delivery that failed halfway
+	// left the group ahead and some of its members behind for good - the exact
+	// shape of #116, and nothing on either side could undo it (#120).
+	Take(ctx context.Context, groupId []byte, from int64, deliveries []Commit) (bool, error)
 }
 
 // CommitStore keeps commits waiting for the devices that have to apply them.
 type CommitStore interface {
-	Put(ctx context.Context, c Commit) error
 	Waiting(ctx context.Context, userId, authKeyId int64) ([]Commit, error)
 	Confirm(ctx context.Context, userId, authKeyId int64, ids []int64) (int, error)
 	Devices(ctx context.Context, userId int64) ([]int64, error)
@@ -97,7 +103,40 @@ func Accept(
 		return 0, ErrBehind
 	}
 
-	moved, err := groups.Advance(ctx, groupId, epoch)
+	// Everybody who has to apply this, worked out before anything is written.
+	// Reading first and writing once is what makes the write a single step: a
+	// device that signs in between the two rounds misses this commit and is
+	// caught up by its welcome, which is the ordinary path and not a hole.
+	deliveries := make([]Commit, 0, len(members))
+	for _, userId := range members {
+		devices, err := commits.Devices(ctx, userId)
+		if err != nil {
+			return 0, fmt.Errorf("cannot list the devices: %w", err)
+		}
+		for _, authKeyId := range devices {
+			waiting, err := commits.Waiting(ctx, userId, authKeyId)
+			if err != nil {
+				return 0, fmt.Errorf("cannot count what is waiting: %w", err)
+			}
+			if len(waiting) >= MaxWaitingPerDevice {
+				return 0, ErrTooMany
+			}
+			deliveries = append(deliveries, Commit{
+				UserId:    userId,
+				AuthKeyId: authKeyId,
+				FromId:    fromId,
+				GroupId:   groupId,
+				Epoch:     epoch,
+				Bytes:     commit,
+				Date:      now,
+			})
+		}
+	}
+
+	// The epoch and the copies together. Either the group has moved and every
+	// device named can fetch what moved it, or nothing happened at all and the
+	// caller is told to catch up and try again.
+	moved, err := groups.Take(ctx, groupId, epoch, deliveries)
 	if err != nil {
 		return 0, fmt.Errorf("cannot move the epoch: %w", err)
 	}
@@ -107,36 +146,7 @@ func Accept(
 		return 0, ErrBehind
 	}
 
-	posted := 0
-	for _, userId := range members {
-		devices, err := commits.Devices(ctx, userId)
-		if err != nil {
-			return posted, fmt.Errorf("cannot list the devices: %w", err)
-		}
-		for _, authKeyId := range devices {
-			waiting, err := commits.Waiting(ctx, userId, authKeyId)
-			if err != nil {
-				return posted, fmt.Errorf("cannot count what is waiting: %w", err)
-			}
-			if len(waiting) >= MaxWaitingPerDevice {
-				return posted, ErrTooMany
-			}
-			if err = commits.Put(ctx, Commit{
-				UserId:    userId,
-				AuthKeyId: authKeyId,
-				FromId:    fromId,
-				GroupId:   groupId,
-				Epoch:     epoch,
-				Bytes:     commit,
-				Date:      now,
-			}); err != nil {
-				return posted, fmt.Errorf("cannot leave the commit: %w", err)
-			}
-			posted++
-		}
-	}
-
-	return posted, nil
+	return len(deliveries), nil
 }
 
 // WaitingCommits is what a device has not applied yet, oldest first.
