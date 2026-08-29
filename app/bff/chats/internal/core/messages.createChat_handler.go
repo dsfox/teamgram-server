@@ -58,6 +58,21 @@ func (c *ChatsCore) createChat(iUsers []*mtproto.InputUser, chatTitle string, tt
 		return nil, err
 	}
 
+	// Zero is how a client says "off", and it arrives as a value rather than as
+	// nothing at all - iOS fills the field in unconditionally and sends 0 when
+	// auto-deletion is not wanted. Taken as nothing here, once, so that neither
+	// the chat's setting nor the service message further down is built out of
+	// it.
+	//
+	// Left in, it greeted everybody who made a group with "all new messages
+	// will be deleted 0 seconds after being sent". Nothing was deleted - it is
+	// a sentence and not a behaviour - but it is the first thing a person reads
+	// in a group they have just made, and it reads as their messages being
+	// about to vanish (#114).
+	if ttlPeriod != nil && ttlPeriod.Value <= 0 {
+		ttlPeriod = nil
+	}
+
 	// check len(users)
 	chatUserIdList = []int64{c.MD.UserId}
 	for _, u := range iUsers {
