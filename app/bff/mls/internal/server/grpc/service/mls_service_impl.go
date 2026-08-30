@@ -37,6 +37,21 @@ func (s *Service) MlsClaimKeyPackages(ctx context.Context, request *mtproto.TLMl
 	return r, err
 }
 
+// MlsDevicesOf
+// mls.devicesOf users:Vector<long> = mls.DeviceCounts;
+func (s *Service) MlsDevicesOf(ctx context.Context, request *mtproto.TLMlsDevicesOf) (*mtproto.Mls_DeviceCounts, error) {
+	c := core.New(ctx, s.svcCtx)
+	c.Logger.Debugf("mls.devicesOf - metadata: {%s}, request: {%s}", c.MD, request)
+
+	r, err := c.MlsDevicesOf(request)
+	if err != nil {
+		return nil, err
+	}
+
+	c.Logger.Debugf("mls.devicesOf - reply: {%s}", r)
+	return r, err
+}
+
 // MlsSendWelcome
 // mls.sendWelcome user_id:long welcome:bytes = mls.Ok;
 func (s *Service) MlsSendWelcome(ctx context.Context, request *mtproto.TLMlsSendWelcome) (*mtproto.Mls_Ok, error) {
