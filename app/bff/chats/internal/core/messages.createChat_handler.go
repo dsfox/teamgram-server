@@ -45,11 +45,14 @@ func (c *ChatsCore) createChat(iUsers []*mtproto.InputUser, chatTitle string, tt
 		return nil, err
 	}
 
-	if len(iUsers) == 0 {
-		err := mtproto.ErrUsersTooFew
-		c.Logger.Errorf("messages.createChat - error: %v", err)
-		return nil, err
-	}
+	// Nobody else is allowed. A group of one is a group: in this fork people
+	// arrive by a link, and the client asks for no access to anybody's address
+	// book - so the first screen of making one is empty for most people, and
+	// refusing there is refusing the ordinary way to start.
+	//
+	// It was refused, and the refusal came back to the person as "you cannot
+	// create a group with these users because of their privacy settings", about
+	// people who had never been chosen.
 
 	// check user too much
 	if len(iUsers) > 200-1 {
@@ -145,11 +148,10 @@ func (c *ChatsCore) createChat(iUsers []*mtproto.InputUser, chatTitle string, tt
 		}
 	}
 
-	if len(userAddList) == 0 {
-		err := mtproto.ErrUsersTooFew
-		c.Logger.Errorf("messages.createChat - error: %v", err)
-		return nil, err
-	}
+	// And none of the chosen could be added, which is not a reason to refuse
+	// either: the group is made, and whoever could not be invited comes back in
+	// missingInvitees, which is what the client shows. Refusing here threw the
+	// whole thing away over somebody else's setting.
 
 	chat, err := c.svcCtx.Dao.ChatClient.Client().ChatCreateChat2(c.ctx, &chatpb.TLChatCreateChat2{
 		CreatorId:  c.MD.UserId,
