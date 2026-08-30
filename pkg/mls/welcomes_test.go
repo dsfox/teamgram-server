@@ -15,8 +15,8 @@ func TestAWelcomeReachesEveryDeviceOfThePerson(t *testing.T) {
 	ctx := context.Background()
 
 	// Two devices, known because they published key packages.
-	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone")}, nil, 1)
-	_, _ = d.Publish(ctx, 7, 200, [][]byte{[]byte("laptop")}, nil, 1)
+	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone")}, nil, []byte("me"), 1)
+	_, _ = d.Publish(ctx, 7, 200, [][]byte{[]byte("laptop")}, nil, []byte("me"), 1)
 	welcomes.devices = packages
 
 	posted, err := d.Post(ctx, welcomes, 7, 42, -120057, []byte("come in"), 1)
@@ -44,7 +44,7 @@ func TestAWelcomeIsKeptUntilTheDeviceSaysItOpenedIt(t *testing.T) {
 	d, packages := newTestDirectory()
 	welcomes := &mapWelcomes{}
 	ctx := context.Background()
-	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone")}, nil, 1)
+	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone")}, nil, []byte("me"), 1)
 	welcomes.devices = packages
 	_, _ = d.Post(ctx, welcomes, 7, 42, -120057, []byte("come in"), 1)
 
@@ -71,8 +71,8 @@ func TestADeviceCannotConfirmSomebodyElsesWelcome(t *testing.T) {
 	d, packages := newTestDirectory()
 	welcomes := &mapWelcomes{}
 	ctx := context.Background()
-	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone")}, nil, 1)
-	_, _ = d.Publish(ctx, 9, 300, [][]byte{[]byte("other")}, nil, 1)
+	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone")}, nil, []byte("me"), 1)
+	_, _ = d.Publish(ctx, 9, 300, [][]byte{[]byte("other")}, nil, []byte("me"), 1)
 	welcomes.devices = packages
 	_, _ = d.Post(ctx, welcomes, 7, 42, -120057, []byte("come in"), 1)
 
@@ -109,7 +109,7 @@ func TestWelcomesCannotPileUpForever(t *testing.T) {
 	d, packages := newTestDirectory()
 	welcomes := &mapWelcomes{}
 	ctx := context.Background()
-	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone")}, nil, 1)
+	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone")}, nil, []byte("me"), 1)
 	welcomes.devices = packages
 
 	var err error
@@ -199,7 +199,7 @@ func TestAnInvitationRemembersItsChat(t *testing.T) {
 	ctx := context.Background()
 
 	// A device is only known because it published, so there has to be one.
-	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone")}, nil, 1)
+	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone")}, nil, []byte("me"), 1)
 
 	_, _ = d.Post(ctx, welcomes, 7, 42, -120057, []byte("come in"), 1)
 

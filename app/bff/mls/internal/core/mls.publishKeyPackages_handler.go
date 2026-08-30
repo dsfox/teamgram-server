@@ -21,6 +21,9 @@ func (c *MlsCore) MlsPublishKeyPackages(in *mtproto.TLMlsPublishKeyPackages) (*m
 		c.MD.PermAuthKeyId,
 		in.GetKeyPackages(),
 		in.GetLastResort(),
+		// Which identity these belong to, so what an older one left behind
+		// can be thrown away rather than counted and handed out (#136).
+		in.GetName(),
 		int32(time.Now().Unix()))
 	if err != nil {
 		// A client that sent rubbish or too much is told so; anything else is

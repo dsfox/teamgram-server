@@ -29,6 +29,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 // KeyPackage is one published package as the directory holds it.
@@ -37,13 +39,24 @@ type KeyPackage struct {
 	AuthKeyId   int64
 	Bytes       []byte
 	Fingerprint string
-	LastResort  bool
-	Date        int32
+	// The leaf name of the identity that made it. A device that starts its
+	// state over makes a new identity, and what it published under the old one
+	// stays here - so a package has to say whose it is (#136).
+	Name       []byte
+	LastResort bool
+	Date       int32
 }
 
 // Store is the part of storage this needs, named here so the directory can be
 // tested against a map instead of a database.
 type Store interface {
+	// ForgetOtherNames throws away this device's packages that belong to an
+	// identity it no longer has, and says how many went. The device names the
+	// identity it has now; everything else it once published is unusable, and
+	// worse than unusable - it is claimable, and an invitation built from it
+	// can never be opened (#136).
+	ForgetOtherNames(ctx context.Context, userId, authKeyId int64, name []byte) (int, error)
+
 	// Insert adds a package. It reports false without an error when the same
 	// bytes are already published for that device.
 	Insert(ctx context.Context, p KeyPackage) (bool, error)
@@ -101,7 +114,42 @@ func Fingerprint(bytes []byte) string {
 // Publish stores packages a device made. Duplicates are ignored rather than
 // refused: a client that retries after a lost answer must not be punished for
 // it. The count of what was actually added is returned so the client knows.
-func (d *Directory) Publish(ctx context.Context, userId, authKeyId int64, packages [][]byte, lastResort []byte, now int32) (int, error) {
+func (d *Directory) Publish(ctx context.Context, userId, authKeyId int64, packages [][]byte, lastResort []byte, name []byte, now int32) (int, error) {
+	// A name is bytes, possibly none, but never absent: the column it goes in
+	// is NOT NULL, and a nil slice reaches MySQL as NULL. A client too old to
+	// say which identity it has sends nothing here, so without this line every
+	// one of its publishes fails and it is left unreachable - the very thing
+	// this naming was added to prevent.
+	// A name is bytes, possibly none, but never absent: the column it goes in
+	// is NOT NULL, and a nil slice reaches MySQL as NULL. A client too old to
+	// say which identity it has sends nothing here, so without this line every
+	// one of its publishes fails and it is left unreachable - the very thing
+	// this naming was added to prevent.
+	if name == nil {
+		name = []byte{}
+	}
+
+	// First, whatever this device published under an identity it no longer
+	// has. The count below is what decides whether it needs to make more, and
+	// while the old packages are counted it never does - so a device that
+	// started its state over publishes nothing, for ever, and every invitation
+	// built from what it left behind is unopenable (#136).
+	//
+	// Only when the device says which identity it has. An empty name is a
+	// client that has not been taught to say, and throwing its supply away on
+	// that would be worse than the fault.
+	if len(name) > 0 {
+		gone, err := d.store.ForgetOtherNames(ctx, userId, authKeyId, name)
+		if err != nil {
+			return 0, fmt.Errorf("cannot forget what an older identity published: %w", err)
+		}
+		if gone > 0 {
+			logx.WithContext(ctx).Infof(
+				"mls: %d package(s) of %d/%d belonged to an identity it no longer has",
+				gone, userId, authKeyId)
+		}
+	}
+
 	available, err := d.store.CountAvailable(ctx, userId, authKeyId)
 	if err != nil {
 		return 0, fmt.Errorf("cannot count what is published: %w", err)
@@ -121,6 +169,7 @@ func (d *Directory) Publish(ctx context.Context, userId, authKeyId int64, packag
 			AuthKeyId:   authKeyId,
 			Bytes:       bytes,
 			Fingerprint: Fingerprint(bytes),
+			Name:        name,
 			Date:        now,
 		})
 		if err != nil {
@@ -137,6 +186,7 @@ func (d *Directory) Publish(ctx context.Context, userId, authKeyId int64, packag
 			AuthKeyId:   authKeyId,
 			Bytes:       lastResort,
 			Fingerprint: Fingerprint(lastResort),
+			Name:        name,
 			LastResort:  true,
 			Date:        now,
 		}); err != nil {

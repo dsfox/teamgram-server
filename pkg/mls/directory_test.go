@@ -12,8 +12,8 @@ func TestStartingAConversationTakesOnePackagePerDevice(t *testing.T) {
 	d, store := newTestDirectory()
 	ctx := context.Background()
 
-	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone-a"), []byte("phone-b")}, nil, 1)
-	_, _ = d.Publish(ctx, 7, 200, [][]byte{[]byte("laptop-a")}, nil, 1)
+	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone-a"), []byte("phone-b")}, nil, []byte("me"), 1)
+	_, _ = d.Publish(ctx, 7, 200, [][]byte{[]byte("laptop-a")}, nil, []byte("me"), 1)
 
 	claimed, err := d.Claim(ctx, 7)
 	if err != nil {
@@ -40,7 +40,7 @@ func TestStartingAConversationTakesOnePackagePerDevice(t *testing.T) {
 func TestAPackageIsNeverHandedOutTwice(t *testing.T) {
 	d, _ := newTestDirectory()
 	ctx := context.Background()
-	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("one"), []byte("two")}, nil, 1)
+	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("one"), []byte("two")}, nil, []byte("me"), 1)
 
 	first, _ := d.Claim(ctx, 7)
 	second, _ := d.Claim(ctx, 7)
@@ -58,7 +58,7 @@ func TestAPackageIsNeverHandedOutTwice(t *testing.T) {
 func TestAnEmptySupplyFallsBackRatherThanRefusing(t *testing.T) {
 	d, _ := newTestDirectory()
 	ctx := context.Background()
-	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("only-one")}, []byte("last-resort"), 1)
+	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("only-one")}, []byte("last-resort"), []byte("me"), 1)
 
 	_, _ = d.Claim(ctx, 7) // takes the ordinary one
 
@@ -84,12 +84,12 @@ func TestAnEmptySupplyFallsBackRatherThanRefusing(t *testing.T) {
 func TestASilentDeviceDoesNotBlockTheOthers(t *testing.T) {
 	d, _ := newTestDirectory()
 	ctx := context.Background()
-	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone")}, nil, 1)
-	_, _ = d.Publish(ctx, 7, 200, [][]byte{[]byte("laptop")}, nil, 1)
+	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone")}, nil, []byte("me"), 1)
+	_, _ = d.Publish(ctx, 7, 200, [][]byte{[]byte("laptop")}, nil, []byte("me"), 1)
 
 	_, _ = d.Claim(ctx, 7) // empties both
 
-	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone-again")}, nil, 2)
+	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone-again")}, nil, []byte("me"), 2)
 
 	claimed, err := d.Claim(ctx, 7)
 	if err != nil {
@@ -106,12 +106,12 @@ func TestPublishingTheSameThingTwiceAddsItOnce(t *testing.T) {
 	d, store := newTestDirectory()
 	ctx := context.Background()
 
-	added, err := d.Publish(ctx, 7, 100, [][]byte{[]byte("a"), []byte("b")}, nil, 1)
+	added, err := d.Publish(ctx, 7, 100, [][]byte{[]byte("a"), []byte("b")}, nil, []byte("me"), 1)
 	if err != nil || added != 2 {
 		t.Fatalf("first publish added %d (%v)", added, err)
 	}
 
-	added, err = d.Publish(ctx, 7, 100, [][]byte{[]byte("a"), []byte("b")}, nil, 1)
+	added, err = d.Publish(ctx, 7, 100, [][]byte{[]byte("a"), []byte("b")}, nil, []byte("me"), 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestADeviceIsToldWhenToPublishMore(t *testing.T) {
 	for i := range packages {
 		packages[i] = []byte{byte(i), 0xAA}
 	}
-	_, _ = d.Publish(ctx, 7, 100, packages, nil, 1)
+	_, _ = d.Publish(ctx, 7, 100, packages, nil, []byte("me"), 1)
 
 	count, refill, _ = d.Available(ctx, 7, 100)
 	if count != LowWaterMark+1 || refill {
@@ -158,7 +158,7 @@ func TestADeviceCannotFillTheTable(t *testing.T) {
 		packages[i] = []byte{byte(i / 256), byte(i % 256), 0xBB}
 	}
 
-	added, err := d.Publish(ctx, 7, 100, packages, nil, 1)
+	added, err := d.Publish(ctx, 7, 100, packages, nil, []byte("me"), 1)
 	if !errors.Is(err, ErrTooMany) {
 		t.Fatalf("publishing past the bound was allowed: added %d, err %v", added, err)
 	}
@@ -171,7 +171,7 @@ func TestADeviceCannotFillTheTable(t *testing.T) {
 func TestAnEmptyPackageIsRefused(t *testing.T) {
 	d, _ := newTestDirectory()
 
-	_, err := d.Publish(context.Background(), 7, 100, [][]byte{{}}, nil, 1)
+	_, err := d.Publish(context.Background(), 7, 100, [][]byte{{}}, nil, []byte("me"), 1)
 	if !errors.Is(err, ErrEmptyPackage) {
 		t.Fatalf("an empty package gave %v", err)
 	}
@@ -206,7 +206,29 @@ func (m *mapStore) remaining(userId, authKeyId int64) int {
 	return n
 }
 
+func (m *mapStore) ForgetOtherNames(_ context.Context, userId, authKeyId int64, name []byte) (int, error) {
+	kept := m.packages[:0]
+	gone := 0
+	for _, existing := range m.packages {
+		if existing.UserId == userId && existing.AuthKeyId == authKeyId &&
+			string(existing.Name) != string(name) {
+			gone++
+			continue
+		}
+		kept = append(kept, existing)
+	}
+	m.packages = kept
+	return gone, nil
+}
+
 func (m *mapStore) Insert(_ context.Context, p KeyPackage) (bool, error) {
+	// The column is NOT NULL and a nil slice arrives there as NULL, which MySQL
+	// refuses. A fake that accepts what the real table rejects is how a client
+	// that sends no name got a 500 on every publish and could never refill.
+	if p.Name == nil {
+		return false, errors.New("name cannot be null")
+	}
+
 	for _, existing := range m.packages {
 		if existing.UserId == p.UserId && existing.AuthKeyId == p.AuthKeyId &&
 			existing.Fingerprint == p.Fingerprint {
@@ -280,11 +302,11 @@ func TestAskingHowManyAreLeftIsNotPublishing(t *testing.T) {
 	for i := range packages {
 		packages[i] = []byte{byte(i / 256), byte(i % 256), 0xCC}
 	}
-	if _, err := d.Publish(ctx, 7, 100, packages, nil, 1); err != nil {
+	if _, err := d.Publish(ctx, 7, 100, packages, nil, []byte("me"), 1); err != nil {
 		t.Fatal(err)
 	}
 
-	added, err := d.Publish(ctx, 7, 100, nil, nil, 2)
+	added, err := d.Publish(ctx, 7, 100, nil, nil, []byte("me"), 2)
 	if err != nil {
 		t.Fatalf("a full device cannot ask how many it has: %v", err)
 	}
@@ -318,7 +340,7 @@ func TestCountingDevicesAgreesWithListingThem(t *testing.T) {
 	for _, device := range []int64{100, 100, 200} {
 		if _, err := directory.Publish(ctx, 7, device,
 			[][]byte{[]byte("package-" + string(rune('a'+len(store.packages))))},
-			nil, 1); err != nil {
+			nil, []byte("me"), 1); err != nil {
 			t.Fatalf("cannot publish: %v", err)
 		}
 	}
@@ -333,5 +355,65 @@ func TestCountingDevicesAgreesWithListingThem(t *testing.T) {
 	}
 	if count != len(listed) || count != 2 {
 		t.Fatalf("counted %d devices, listed %d, expected 2", count, len(listed))
+	}
+}
+
+// A device that has started its state over offers nothing of the identity it
+// lost.
+//
+// It makes a new identity - after a reinstall, or because what it held was
+// named for somebody else - and what it published under the old one stays here.
+// The supply is counted by the device rather than by the identity, so the
+// server sees a full shelf, never asks for more, and the new identity publishes
+// nothing at all. Everybody who then starts a conversation with that person
+// claims a package of the identity that is gone and builds an invitation the
+// person can never open. Nothing fails anywhere: two ticks on one screen, a
+// padlock that never opens on the other (#136).
+func TestAnIdentityThatIsGoneStopsBeingOffered(t *testing.T) {
+	d, store := newTestDirectory()
+	ctx := context.Background()
+
+	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("old-a"), []byte("old-b")}, nil, []byte("7/before"), 1)
+	if store.remaining(7, 100) != 2 {
+		t.Fatalf("the old identity published %d packages, wanted 2", store.remaining(7, 100))
+	}
+
+	// The same device, a new identity, saying so.
+	added, err := d.Publish(ctx, 7, 100, [][]byte{[]byte("new-a")}, nil, []byte("7/after"), 2)
+	if err != nil {
+		t.Fatalf("publishing under a new identity failed: %v", err)
+	}
+	if added != 1 {
+		t.Fatalf("added %d packages, wanted 1", added)
+	}
+	if left := store.remaining(7, 100); left != 1 {
+		t.Fatalf("%d packages are on offer, wanted only the one of the identity "+
+			"this device has - the rest can still be claimed, and what is built "+
+			"from them can never be opened", left)
+	}
+
+	claimed, err := d.Claim(ctx, 7)
+	if err != nil {
+		t.Fatalf("claiming failed: %v", err)
+	}
+	if len(claimed) != 1 || string(claimed[0].Bytes) != "new-a" {
+		t.Fatalf("claimed %v, wanted only the package of the identity that is here", claimed)
+	}
+}
+
+// A device that cannot say which identity it has keeps what it published.
+//
+// An empty name is a client that has not been taught to say it, and throwing
+// its supply away on that would be worse than the fault this is for: nobody
+// could start a conversation with it at all.
+func TestADeviceThatCannotSayKeepsWhatItHas(t *testing.T) {
+	d, store := newTestDirectory()
+	ctx := context.Background()
+
+	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("a"), []byte("b")}, nil, []byte("7/one"), 1)
+	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("c")}, nil, nil, 2)
+
+	if left := store.remaining(7, 100); left != 3 {
+		t.Fatalf("%d packages left, wanted all 3 kept", left)
 	}
 }

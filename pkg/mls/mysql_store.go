@@ -32,6 +32,7 @@ type keyPackageRow struct {
 	AuthKeyId   int64  `db:"auth_key_id"`
 	KeyPackage  []byte `db:"key_package"`
 	Fingerprint string `db:"fingerprint"`
+	Name        []byte `db:"name"`
 	LastResort  bool   `db:"last_resort"`
 	Date        int32  `db:"date"`
 }
@@ -50,11 +51,31 @@ func (r keyPackageRow) toKeyPackage() KeyPackage {
 // Insert adds a package, and says false rather than failing when the same bytes
 // are already there. The unique key does the deciding: asking first and then
 // inserting would let two requests both decide there was room.
-func (s *MysqlStore) Insert(ctx context.Context, p KeyPackage) (bool, error) {
-	const query = "insert into mls_key_packages(user_id, auth_key_id, key_package, fingerprint, last_resort, date) " +
-		"values (?, ?, ?, ?, ?, ?)"
+// ForgetOtherNames throws away this device's packages that belong to an
+// identity it no longer has.
+//
+// The device says which identity it has now; anything else it once published
+// is not merely useless but harmful - it can still be claimed, and the
+// invitation built from it can never be opened by anybody (#136).
+func (s *MysqlStore) ForgetOtherNames(ctx context.Context, userId, authKeyId int64, name []byte) (int, error) {
+	const query = "delete from mls_key_packages where user_id = ? and auth_key_id = ? and name <> ?"
+	result, err := s.db.Exec(ctx, query, userId, authKeyId, name)
+	if err != nil {
+		logx.WithContext(ctx).Errorf("mls: cannot forget the packages of an older identity: %v", err)
+		return 0, err
+	}
+	gone, err := result.RowsAffected()
+	if err != nil {
+		return 0, nil
+	}
+	return int(gone), nil
+}
 
-	_, err := s.db.Exec(ctx, query, p.UserId, p.AuthKeyId, p.Bytes, p.Fingerprint, p.LastResort, p.Date)
+func (s *MysqlStore) Insert(ctx context.Context, p KeyPackage) (bool, error) {
+	const query = "insert into mls_key_packages(user_id, auth_key_id, key_package, fingerprint, name, last_resort, date) " +
+		"values (?, ?, ?, ?, ?, ?, ?)"
+
+	_, err := s.db.Exec(ctx, query, p.UserId, p.AuthKeyId, p.Bytes, p.Fingerprint, p.Name, p.LastResort, p.Date)
 	if err != nil {
 		if isDuplicate(err) {
 			return false, nil
@@ -74,7 +95,7 @@ func (s *MysqlStore) TakeOne(ctx context.Context, userId, authKeyId int64) (*Key
 	var row keyPackageRow
 
 	err := s.db.QueryRowPartial(ctx, &row,
-		"select id, user_id, auth_key_id, key_package, fingerprint, last_resort, date "+
+		"select id, user_id, auth_key_id, key_package, fingerprint, name, last_resort, date "+
 			"from mls_key_packages where user_id = ? and auth_key_id = ? and last_resort = 0 "+
 			"order by id limit 1",
 		userId, authKeyId)
@@ -109,7 +130,7 @@ func (s *MysqlStore) LastResort(ctx context.Context, userId, authKeyId int64) (*
 	var row keyPackageRow
 
 	err := s.db.QueryRowPartial(ctx, &row,
-		"select id, user_id, auth_key_id, key_package, fingerprint, last_resort, date "+
+		"select id, user_id, auth_key_id, key_package, fingerprint, name, last_resort, date "+
 			"from mls_key_packages where user_id = ? and auth_key_id = ? and last_resort = 1 "+
 			"order by id desc limit 1",
 		userId, authKeyId)
