@@ -162,6 +162,29 @@ func (s *MysqlStore) CountAvailable(ctx context.Context, userId, authKeyId int64
 	return count, nil
 }
 
+// stillSignedIn keeps a device out of both answers below once its session is
+// gone. The rows it leaves behind are not: nothing deletes a device's key
+// packages when it is signed out, and there is no one place where that could be
+// hooked - a session ends by being reset, by logging out, by being taken away.
+// So it is asked at the point of use, which holds however the session ended.
+//
+// Without it a conversation started with somebody adds a leaf for a phone that
+// no longer exists and cannot ever open what is sent to it, and the person's own
+// device count includes a phone they no longer have (#137). Measured on the live
+// server the day it was written: 227 packages of 5 devices with no session.
+//
+// Sign-out itself is already tidy: mls.ForgetDevice throws the rows away from
+// the reset. What was found on the live server was the state it cannot reach -
+// the account behind five devices had been deleted and the session records went
+// with it, while 227 key packages stayed. This holds for that, and for whatever
+// other way a session ends that nobody has thought of yet.
+//
+// `deleted = 0` is what the server itself means by a session, everywhere it asks
+// (app/service/authsession/.../auth_users_dao.go).
+const stillSignedIn = " and exists (select 1 from auth_users a where " +
+	"a.auth_key_id = mls_key_packages.auth_key_id and " +
+	"a.user_id = mls_key_packages.user_id and a.deleted = 0)"
+
 // CountDevices is how many devices of this person have published anything.
 //
 // Counted in SQL rather than by taking the list and measuring it. The list is
@@ -172,7 +195,8 @@ func (s *MysqlStore) CountDevices(ctx context.Context, userId int64) (int, error
 	var count int
 
 	err := s.db.QueryRowPartial(ctx, &count,
-		"select count(distinct auth_key_id) from mls_key_packages where user_id = ?",
+		"select count(distinct auth_key_id) from mls_key_packages where user_id = ?"+
+			stillSignedIn,
 		userId)
 	if err != nil {
 		if errors.Is(err, sqlx.ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
@@ -189,7 +213,8 @@ func (s *MysqlStore) Devices(ctx context.Context, userId int64) ([]int64, error)
 	var devices []int64
 
 	err := s.db.QueryRowsPartial(ctx, &devices,
-		"select distinct auth_key_id from mls_key_packages where user_id = ?", userId)
+		"select distinct auth_key_id from mls_key_packages where user_id = ?"+
+			stillSignedIn, userId)
 	if err != nil {
 		if errors.Is(err, sqlx.ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
