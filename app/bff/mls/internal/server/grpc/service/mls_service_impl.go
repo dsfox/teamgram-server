@@ -37,6 +37,21 @@ func (s *Service) MlsClaimKeyPackages(ctx context.Context, request *mtproto.TLMl
 	return r, err
 }
 
+// MlsClaimConversation
+// mls.claimConversation peer_id:long group_id:bytes = mls.Conversation;
+func (s *Service) MlsClaimConversation(ctx context.Context, request *mtproto.TLMlsClaimConversation) (*mtproto.Mls_Conversation, error) {
+	c := core.New(ctx, s.svcCtx)
+	c.Logger.Debugf("mls.claimConversation - metadata: {%s}, request: {%s}", c.MD, request)
+
+	r, err := c.MlsClaimConversation(request)
+	if err != nil {
+		return nil, err
+	}
+
+	c.Logger.Debugf("mls.claimConversation - reply: {%s}", r)
+	return r, err
+}
+
 // MlsDevicesOf
 // mls.devicesOf users:Vector<long> = mls.DeviceCounts;
 func (s *Service) MlsDevicesOf(ctx context.Context, request *mtproto.TLMlsDevicesOf) (*mtproto.Mls_DeviceCounts, error) {
