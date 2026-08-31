@@ -177,27 +177,62 @@ func (c *SyncCore) processUpdates(syncType SyncType, userId int64, isBot bool, u
 	return needPush, nil
 }
 
+// How long a push to a session may take before it is called lost, and said so.
+//
+// Bounded because it was not. On 31 August the live server worked out 193
+// deliveries for sessions it believed were online and 192 of them vanished
+// without a line in the log: the session client had stopped answering, every
+// call waited on it for ever, and the error was thrown away by `_ =`. Clients
+// then saw only what they asked for - which is how the first thing said in a
+// new group, the one message nobody has asked about yet, became invisible for
+// good (#144).
+//
+// Three seconds is long for a call to a service on the same machine and short
+// enough that nothing is held behind it.
+const pushDeadline = 3 * time.Second
+
+// Sends one push and says when it does not arrive.
+//
+// The wording is not free either: "dropping push" is what
+// deploy/check-health.py already watches for every fifteen minutes, and it
+// never fired because a call that hangs writes nothing at all. A delivery that
+// fails silently is one nobody hears about until somebody reports a message
+// that never came.
+func (c *SyncCore) deliver(what string, keyId int64, serverId string, push func(context.Context) error) {
+	ctx, cancel := context.WithTimeout(c.ctx, pushDeadline)
+	defer cancel()
+	if err := push(ctx); err != nil {
+		c.Logger.Errorf("dropping push: %s to %d on %s: %v", what, keyId, serverId, err)
+	}
+}
+
 func (c *SyncCore) pushUpdatesToSession(syncType SyncType, userId, permAuthKeyId int64, hasServerId *wrapperspb.StringValue, authKeyId, sessionId *wrapperspb.Int64Value, pushData *mtproto.Updates, notification bool) {
 	if syncType == syncTypeUserMe && hasServerId != nil {
 		c.Logger.Debugf("pushUpdatesToSession - pushData: {server_id: %v, auth_key_id: %v}", hasServerId, authKeyId)
 		if sessionId != nil {
-			_ = c.svcCtx.Dao.PushSessionUpdatesToSession(
-				c.ctx,
-				hasServerId.GetValue(),
-				&session.TLSessionPushSessionUpdatesData{
-					PermAuthKeyId: permAuthKeyId,
-					AuthKeyId:     authKeyId.GetValue(),
-					SessionId:     sessionId.GetValue(),
-					Updates:       pushData,
+			c.deliver("session updates", permAuthKeyId, hasServerId.GetValue(),
+				func(ctx context.Context) error {
+					return c.svcCtx.Dao.PushSessionUpdatesToSession(
+						ctx,
+						hasServerId.GetValue(),
+						&session.TLSessionPushSessionUpdatesData{
+							PermAuthKeyId: permAuthKeyId,
+							AuthKeyId:     authKeyId.GetValue(),
+							SessionId:     sessionId.GetValue(),
+							Updates:       pushData,
+						})
 				})
 		} else {
-			_ = c.svcCtx.Dao.PushUpdatesToSession(
-				c.ctx,
-				hasServerId.GetValue(),
-				&session.TLSessionPushUpdatesData{
-					PermAuthKeyId: permAuthKeyId,
-					Notification:  notification,
-					Updates:       pushData,
+			c.deliver("updates", permAuthKeyId, hasServerId.GetValue(),
+				func(ctx context.Context) error {
+					return c.svcCtx.Dao.PushUpdatesToSession(
+						ctx,
+						hasServerId.GetValue(),
+						&session.TLSessionPushUpdatesData{
+							PermAuthKeyId: permAuthKeyId,
+							Notification:  notification,
+							Updates:       pushData,
+						})
 				})
 		}
 	} else {
@@ -240,25 +275,32 @@ func (c *SyncCore) pushUpdatesToSession(syncType SyncType, userId, permAuthKeyId
 		for serverId, keyIdList := range serverIdKeyIdList {
 			for _, keyId := range keyIdList {
 				// log.Debugf("serverIdKeyIdList - #%v", serverIdKeyIdList)
-				_ = c.svcCtx.Dao.PushUpdatesToSession(
-					c.ctx,
-					serverId,
-					&session.TLSessionPushUpdatesData{
-						PermAuthKeyId: keyId,
-						Notification:  notification,
-						Updates:       pushData,
-					})
+				c.deliver("updates", keyId, serverId, func(ctx context.Context) error {
+					return c.svcCtx.Dao.PushUpdatesToSession(
+						ctx,
+						serverId,
+						&session.TLSessionPushUpdatesData{
+							PermAuthKeyId: keyId,
+							Notification:  notification,
+							Updates:       pushData,
+						})
+				})
 			}
 		}
 
 		if syncType == syncTypeUser {
 			if c.svcCtx.Dao.PushClient != nil {
 				c.Logger.Debugf("push PushClient...")
-				_, _ = c.svcCtx.Dao.PushClient.SyncPushUpdatesIfNot(c.ctx, &sync.TLSyncPushUpdatesIfNot{
+				// Said out loud for the same reason as the rest: the fourth
+				// discarded error is the one that hides while the other three
+				// are watched.
+				if _, err := c.svcCtx.Dao.PushClient.SyncPushUpdatesIfNot(c.ctx, &sync.TLSyncPushUpdatesIfNot{
 					UserId:   userId,
 					Excludes: pushExcludeList,
 					Updates:  pushData,
-				})
+				}); err != nil {
+					c.Logger.Errorf("dropping push: notification for %d: %v", userId, err)
+				}
 			}
 
 			// The notification goes to devices where the app is not open. Only a

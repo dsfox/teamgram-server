@@ -10,6 +10,8 @@
 package core
 
 import (
+	"context"
+
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/app/interface/session/session"
 	"github.com/teamgram/teamgram-server/app/messenger/sync/sync"
@@ -18,16 +20,21 @@ import (
 // SyncPushRpcResult
 // sync.pushRpcResult server_id:long auth_key_id:long req_msg_id:long result:bytes = PushUpdates;
 func (c *SyncCore) SyncPushRpcResult(in *sync.TLSyncPushRpcResult) (*mtproto.Void, error) {
-	_ = c.svcCtx.Dao.PushRpcResultToSession(
-		c.ctx,
-		in.ServerId,
-		&session.TLSessionPushRpcResultData{
-			PermAuthKeyId:  in.PermAuthKeyId,
-			AuthKeyId:      in.PermAuthKeyId,
-			SessionId:      in.SessionId,
-			ClientReqMsgId: in.ClientReqMsgId,
-			RpcResultData:  in.RpcResult,
-		})
+	// The same road as an update, and the same silence when it fails: an answer
+	// that never reaches the client leaves it waiting for a reply it will not
+	// get (#144).
+	c.deliver("rpc result", in.PermAuthKeyId, in.ServerId, func(ctx context.Context) error {
+		return c.svcCtx.Dao.PushRpcResultToSession(
+			ctx,
+			in.ServerId,
+			&session.TLSessionPushRpcResultData{
+				PermAuthKeyId:  in.PermAuthKeyId,
+				AuthKeyId:      in.PermAuthKeyId,
+				SessionId:      in.SessionId,
+				ClientReqMsgId: in.ClientReqMsgId,
+				RpcResultData:  in.RpcResult,
+			})
+	})
 
 	return mtproto.EmptyVoid, nil
 }
