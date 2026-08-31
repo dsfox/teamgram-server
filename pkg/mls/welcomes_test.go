@@ -134,6 +134,78 @@ func TestAnEmptyWelcomeIsRefused(t *testing.T) {
 	}
 }
 
+// An invitation nobody came for is not kept for ever (#139).
+//
+// A welcome is left for every device of a person, and only the one whose key
+// package was used can open it - the rest are dead weight from birth. A device
+// that is running drops them within seconds and says so; a device that is gone
+// says nothing, so its share of every invitation ever sent stays.
+//
+// The cost is not the rows. It is what a phone finds when it comes back after
+// a long absence: a pile of invitations, each describing the group at an epoch
+// it has long left. They are opened in order, and every one that names a later
+// epoch than the copy the phone holds makes it let that copy go and join
+// afresh - a new leaf and a ratchet at zero, while everybody else is still
+// reading the leaf it used to speak from. On the stand a group of four went
+// through that three times in twenty minutes.
+//
+// A fortnight, which is the same line #138 draws: a device that has not asked
+// for one is not a device, so an invitation that has waited that long is
+// waiting for nobody. A phone that does come back later is let into whatever it
+// missed by the comparison that already runs.
+func TestAnInvitationNobodyCameForIsNotKeptForever(t *testing.T) {
+	d, packages := newTestDirectory()
+	welcomes := &mapWelcomes{}
+	ctx := context.Background()
+	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone")}, nil, []byte("me"), 1)
+	welcomes.devices = packages
+
+	const sent = int32(1_000_000)
+	if _, err := d.Post(ctx, welcomes, 7, 42, -120057, []byte("come in"), sent); err != nil {
+		t.Fatal(err)
+	}
+
+	// A fortnight and a day later, somebody invites them again.
+	if _, err := d.Post(ctx, welcomes, 7, 43, -120057, []byte("come in again"),
+		sent+WelcomeLife+86400); err != nil {
+		t.Fatal(err)
+	}
+
+	waiting, err := d.Waiting(ctx, welcomes, 7, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(waiting) != 1 {
+		t.Fatalf("%d invitations are waiting; the one nobody came for should have gone", len(waiting))
+	}
+	if waiting[0].FromId != 43 {
+		t.Errorf("the invitation kept is the one from %d rather than the newest", waiting[0].FromId)
+	}
+}
+
+// And a phone that is merely switched off keeps what is waiting for it.
+//
+// The half that makes the rule above safe rather than tidy: an invitation
+// dropped from under a device that is coming back is a conversation that exists
+// on one side only, and that surfaces much later as messages which will not
+// open, far from where it broke.
+func TestAnInvitationOutlivesAPhoneBeingOffForAWeek(t *testing.T) {
+	d, packages := newTestDirectory()
+	welcomes := &mapWelcomes{}
+	ctx := context.Background()
+	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone")}, nil, []byte("me"), 1)
+	welcomes.devices = packages
+
+	const sent = int32(1_000_000)
+	_, _ = d.Post(ctx, welcomes, 7, 42, -120057, []byte("come in"), sent)
+	_, _ = d.Post(ctx, welcomes, 7, 43, -120057, []byte("and again"), sent+7*86400)
+
+	waiting, _ := d.Waiting(ctx, welcomes, 7, 100)
+	if len(waiting) != 2 {
+		t.Fatalf("%d invitations survived a week; both should have", len(waiting))
+	}
+}
+
 // mapWelcomes is the smallest thing that behaves like the table.
 type mapWelcomes struct {
 	rows    []Welcome
@@ -168,6 +240,20 @@ func (m *mapWelcomes) Confirm(_ context.Context, userId, authKeyId int64, ids []
 	removed := 0
 	for _, w := range m.rows {
 		if wanted[w.Id] && w.UserId == userId && w.AuthKeyId == authKeyId {
+			removed++
+			continue
+		}
+		kept = append(kept, w)
+	}
+	m.rows = kept
+	return removed, nil
+}
+
+func (m *mapWelcomes) ForgetOlderThan(_ context.Context, userId int64, before int32) (int, error) {
+	kept := m.rows[:0]
+	removed := 0
+	for _, w := range m.rows {
+		if w.UserId == userId && w.Date < before {
 			removed++
 			continue
 		}

@@ -100,6 +100,28 @@ func (s *MysqlWelcomes) Confirm(ctx context.Context, userId, authKeyId int64, id
 	return int(affected), nil
 }
 
+// ForgetOlderThan drops what has been waiting for this person since before that
+// moment.
+//
+// By the person rather than by the device, because the rows this is for belong
+// to devices that are gone - and a device that is gone is never named again.
+// The index the table already has starts with the user, so this reads the rows
+// of one person and no more.
+func (s *MysqlWelcomes) ForgetOlderThan(ctx context.Context, userId int64, before int32) (int, error) {
+	result, err := s.db.Exec(ctx,
+		"delete from mls_welcomes where user_id = ? and date < ?", userId, before)
+	if err != nil {
+		logx.WithContext(ctx).Errorf("mls: cannot forget the stale welcomes: %v", err)
+		return 0, err
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return int(affected), nil
+}
+
 // Devices asks the key package table, because a device is known here exactly
 // when it has published something to be reached by.
 func (s *MysqlWelcomes) Devices(ctx context.Context, userId int64) ([]int64, error) {
