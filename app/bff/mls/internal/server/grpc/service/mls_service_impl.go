@@ -38,7 +38,7 @@ func (s *Service) MlsClaimKeyPackages(ctx context.Context, request *mtproto.TLMl
 }
 
 // MlsClaimConversation
-// mls.claimConversation peer_id:long group_id:bytes = mls.Conversation;
+// mls.claimConversation peer_id:long group_id:bytes holds_everybody:Bool = mls.Conversation;
 func (s *Service) MlsClaimConversation(ctx context.Context, request *mtproto.TLMlsClaimConversation) (*mtproto.Mls_Conversation, error) {
 	c := core.New(ctx, s.svcCtx)
 	c.Logger.Debugf("mls.claimConversation - metadata: {%s}, request: {%s}", c.MD, request)

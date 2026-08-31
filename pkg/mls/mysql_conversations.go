@@ -57,6 +57,32 @@ func (s *MysqlConversations) Claim(ctx context.Context, peerId int64, groupId []
 	return s.Of(ctx, peerId)
 }
 
+// Settle says this conversation is the chat's whatever was there before, for a
+// caller that is inside it and has just found a leaf there for every device of
+// every member of the chat.
+//
+// Claim alone made the first answer the answer for ever, and one chat on the
+// stand shows what that costs. Its answer was won by a conversation that a
+// device rebuilding on a misreading made and nobody followed: everybody talks
+// in another one, and every device that starts from nothing is sent to a group
+// with nobody in it, to wait for an invitation that cannot come. Neither a
+// message nor an invitation is ever compared with this row, so nothing undid it
+// (#139).
+//
+// Only that caller may say it, and only about a conversation it is in - which
+// is what makes it a fact rather than a claim. It grants nobody anything they
+// did not have: a member can already take the chat into a conversation of their
+// own by inviting everybody to it, and this writes down where the chat ended up.
+func (s *MysqlConversations) Settle(ctx context.Context, peerId int64, groupId []byte, date int32) ([]byte, error) {
+	const settle = "insert into mls_conversations(peer_id, group_id, date) values (?, ?, ?) " +
+		"on duplicate key update group_id = ?, date = ?"
+	if _, err := s.db.Exec(ctx, settle, peerId, groupId, date, groupId, date); err != nil {
+		logx.WithContext(ctx).Errorf("mls: cannot settle the conversation of %d: %v", peerId, err)
+		return nil, err
+	}
+	return groupId, nil
+}
+
 // Of answers which conversation this chat has, or nothing when it has none.
 func (s *MysqlConversations) Of(ctx context.Context, peerId int64) ([]byte, error) {
 	var row conversationRow
