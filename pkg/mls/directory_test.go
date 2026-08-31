@@ -198,6 +198,8 @@ func newTestDirectory() (*Directory, *mapStore) {
 
 // mapStore is the smallest thing that behaves like the table.
 type mapStore struct {
+	seen map[[2]int64]int32
+
 	packages []KeyPackage
 }
 
@@ -219,6 +221,14 @@ func (m *mapStore) ForgetOtherNames(_ context.Context, userId, authKeyId int64, 
 	}
 	m.packages = kept
 	return gone, nil
+}
+
+func (m *mapStore) Seen(_ context.Context, userId, authKeyId int64, now int32) error {
+	if m.seen == nil {
+		m.seen = map[[2]int64]int32{}
+	}
+	m.seen[[2]int64{userId, authKeyId}] = now
+	return nil
 }
 
 func (m *mapStore) Insert(_ context.Context, p KeyPackage) (bool, error) {

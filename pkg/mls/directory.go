@@ -57,6 +57,11 @@ type Store interface {
 	// can never be opened (#136).
 	ForgetOtherNames(ctx context.Context, userId, authKeyId int64, name []byte) (int, error)
 
+	// Seen notes that this device asked the server something just now. It is
+	// how a device that is merely switched off is told from one that has been
+	// reinstalled and is never coming back (#138).
+	Seen(ctx context.Context, userId, authKeyId int64, now int32) error
+
 	// Insert adds a package. It reports false without an error when the same
 	// bytes are already published for that device.
 	Insert(ctx context.Context, p KeyPackage) (bool, error)
@@ -128,6 +133,16 @@ func (d *Directory) Publish(ctx context.Context, userId, authKeyId int64, packag
 	if name == nil {
 		name = []byte{}
 	}
+
+	// This device is here, which is the whole of what Seen records. Every round
+	// arrives as a publish - with packages when the supply is low, with nothing
+	// in it the rest of the time - so this is the one place that sees every
+	// device that is still running (#138).
+	//
+	// A failure here is logged and stepped over: it would cost the device a
+	// fortnight of being counted, and refusing the publish over it would cost
+	// it the packages it came to leave.
+	_ = d.store.Seen(ctx, userId, authKeyId, now)
 
 	// First, whatever this device published under an identity it no longer
 	// has. The count below is what decides whether it needs to make more, and

@@ -183,7 +183,24 @@ func (s *MysqlStore) CountAvailable(ctx context.Context, userId, authKeyId int64
 // (app/service/authsession/.../auth_users_dao.go).
 const stillSignedIn = " and exists (select 1 from auth_users a where " +
 	"a.auth_key_id = mls_key_packages.auth_key_id and " +
-	"a.user_id = mls_key_packages.user_id and a.deleted = 0)"
+	"a.user_id = mls_key_packages.user_id and a.deleted = 0)" +
+	// And seen since, which is the other half of the same question (#138). A
+	// device that reinstalls leaves its old row in auth_users exactly as it
+	// was - nobody logged it out - so by the record it is alive for ever, and
+	// the only thing that tells it apart from a phone in a drawer is that it
+	// never asks anything again.
+	//
+	// Two weeks, because being wrong is cheap in one direction and not in the
+	// other. A phone that comes back after longer publishes, is seen, and is
+	// let into whatever it missed by the comparison that already runs; a
+	// phantom kept is a dead leaf in every conversation started from then on.
+	//
+	// Taken out and measured without it: the account is told it has two
+	// devices when one of them stopped asking a fortnight ago.
+	" and exists (select 1 from mls_devices d where " +
+	"d.auth_key_id = mls_key_packages.auth_key_id and " +
+	"d.user_id = mls_key_packages.user_id and " +
+	"d.last_seen > unix_timestamp() - 14 * 86400)"
 
 // CountDevices is how many devices of this person have published anything.
 //
@@ -230,4 +247,20 @@ func (s *MysqlStore) Devices(ctx context.Context, userId int64) ([]int64, error)
 // is asking first, which is the race this exists to avoid.
 func isDuplicate(err error) bool {
 	return err != nil && strings.Contains(strings.ToLower(err.Error()), "duplicate entry")
+}
+
+// Seen writes down that this device asked the server something, which is what
+// tells a phone that is merely off from one that is never coming back (#138).
+// Every round of every device reaches Publish - the question "how many devices
+// have I" is a publish with nothing in it - so this is where it goes.
+func (s *MysqlStore) Seen(ctx context.Context, userId, authKeyId int64, now int32) error {
+	_, err := s.db.Exec(ctx,
+		"insert into mls_devices(user_id, auth_key_id, last_seen) values (?, ?, ?) "+
+			"on duplicate key update last_seen = values(last_seen)",
+		userId, authKeyId, now)
+	if err != nil {
+		logx.WithContext(ctx).Errorf("mls: cannot note that %d/%d was seen: %v",
+			userId, authKeyId, err)
+	}
+	return err
 }
