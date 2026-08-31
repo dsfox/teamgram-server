@@ -38,8 +38,27 @@ type conversationRow struct {
 }
 
 // Claim says this conversation is the chat's, and answers with the one that
-// is - which is the caller's own when it was first, and somebody else's when
-// it was not.
+// is - which is the caller's own when it was first, when nobody has touched
+// what was there for longer than an invitation lives, and somebody else's
+// otherwise.
+//
+// The second case is what keeps a chat from dying quietly. A device told a
+// different conversation throws its own away and waits to be let in, which is
+// right while somebody is inside the one that won. When nobody is - every phone
+// in the chat reinstalled, or the answer was won by a conversation a rebuilding
+// device made and nobody followed - every device loses, waits, and there is
+// nobody left to invite any of them. Nothing else in the system ever revisits
+// the row, so the chat stops being encrypted for good (#142).
+//
+// A fortnight is not a guess. It is WelcomeLife read out loud: an invitation is
+// swept after that long (#138, #140), so a device that lost a claim and was not
+// invited within one will never be invited - the invitation, if it was ever
+// made, has gone. Holding the answer past that point costs the chat its
+// encryption for ever and buys nothing, which is why the two numbers are the
+// same one rather than two that happen to agree.
+//
+// A living chat never reaches it: every comparison that finds a conversation
+// holding everybody says so (#139), and saying so is what dates the row.
 func (s *MysqlConversations) Claim(ctx context.Context, peerId int64, groupId []byte, date int32) ([]byte, error) {
 	// Insert first and read only if it did not take. Reading first and writing
 	// afterwards is the same race written out longhand: two devices both read
@@ -51,6 +70,26 @@ func (s *MysqlConversations) Claim(ctx context.Context, peerId int64, groupId []
 		return nil, err
 	}
 	if taken, err := result.RowsAffected(); err == nil && taken == 1 {
+		return groupId, nil
+	}
+
+	// Taking over one nobody came back to, and the condition is in the
+	// statement for the same reason the insert is: two devices arriving
+	// together on a stale row would otherwise both take it, which is the split
+	// this whole row exists to prevent. The first moves the date, and the
+	// second no longer matches.
+	const takeOver = "update mls_conversations set group_id = ?, date = ? " +
+		"where peer_id = ? and date < ?"
+	result, err = s.db.Exec(ctx, takeOver, groupId, date, peerId, date-WelcomeLife)
+	if err != nil {
+		logx.WithContext(ctx).Errorf(
+			"mls: cannot take over the conversation of %d: %v", peerId, err)
+		return nil, err
+	}
+	if taken, err := result.RowsAffected(); err == nil && taken == 1 {
+		logx.WithContext(ctx).Infof(
+			"mls: %d had been held by a conversation nobody came back to; %x has it now",
+			peerId, groupId)
 		return groupId, nil
 	}
 
