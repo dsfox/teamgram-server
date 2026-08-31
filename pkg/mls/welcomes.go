@@ -85,17 +85,8 @@ func (d *Directory) Post(ctx context.Context, welcomes WelcomeStore, toUserId, f
 	}
 
 	// The stale ones first, so that what is counted against the bound below is
-	// what somebody might still come for. Housekeeping, so a failure here is
-	// logged and stepped over: it would otherwise cost this person the
-	// invitation they are being sent.
-	if forgotten, err := welcomes.ForgetOlderThan(ctx, toUserId, now-WelcomeLife); err != nil {
-		logx.WithContext(ctx).Errorf(
-			"mls: cannot forget the invitations nobody came for: %v", err)
-	} else if forgotten > 0 {
-		logx.WithContext(ctx).Infof(
-			"mls: %d invitation(s) of %d had been waiting longer than anybody will come",
-			forgotten, toUserId)
-	}
+	// what somebody might still come for.
+	d.forgetTheStale(ctx, welcomes, toUserId, now)
 
 	devices, err := welcomes.Devices(ctx, toUserId)
 	if err != nil {
@@ -129,9 +120,43 @@ func (d *Directory) Post(ctx context.Context, welcomes WelcomeStore, toUserId, f
 	return posted, nil
 }
 
+// forgetTheStale drops what has been waiting past WelcomeLife, for everybody's
+// device of this person.
+//
+// Housekeeping, so a failure is logged and stepped over: neither of the two
+// things this hangs off - leaving an invitation, handing them out - should fail
+// because the tidying did.
+func (d *Directory) forgetTheStale(ctx context.Context, welcomes WelcomeStore, userId int64, now int32) {
+	forgotten, err := welcomes.ForgetOlderThan(ctx, userId, now-WelcomeLife)
+	if err != nil {
+		logx.WithContext(ctx).Errorf(
+			"mls: cannot forget the invitations nobody came for: %v", err)
+		return
+	}
+	if forgotten > 0 {
+		logx.WithContext(ctx).Infof(
+			"mls: %d invitation(s) of %d had been waiting longer than anybody will come",
+			forgotten, userId)
+	}
+}
+
 // Waiting is what a device has not opened yet. Handed out repeatedly until
 // confirmed: a device that read one and crashed before saving asks again.
-func (d *Directory) Waiting(ctx context.Context, welcomes WelcomeStore, userId, authKeyId int64) ([]Welcome, error) {
+//
+// The stale ones are dropped before the rest are handed over, and this is where
+// that matters most. #138 gave an invitation a fortnight and hung the sweep on
+// the call that leaves one, so it ran for a person somebody was inviting and
+// never for a person nobody was: 22 rows on the stand, the oldest eighteen days
+// old, past a limit of fourteen.
+//
+// Asking is also the moment the harm happens. A phone coming back after a long
+// absence is handed the pile, and every invitation naming a later epoch than the
+// copy it holds makes it let that copy go and join afresh - a new leaf and a
+// ratchet at zero while everybody else still reads the leaf it used to speak
+// from (#139). Handing those over and forgetting them at somebody else's next
+// send is the wrong way round.
+func (d *Directory) Waiting(ctx context.Context, welcomes WelcomeStore, userId, authKeyId int64, now int32) ([]Welcome, error) {
+	d.forgetTheStale(ctx, welcomes, userId, now)
 	return welcomes.Waiting(ctx, userId, authKeyId)
 }
 

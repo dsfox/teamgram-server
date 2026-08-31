@@ -27,8 +27,8 @@ func TestAWelcomeReachesEveryDeviceOfThePerson(t *testing.T) {
 		t.Fatalf("left %d welcomes for two devices", posted)
 	}
 
-	phone, _ := d.Waiting(ctx, welcomes, 7, 100)
-	laptop, _ := d.Waiting(ctx, welcomes, 7, 200)
+	phone, _ := d.Waiting(ctx, welcomes, 7, 100, 1)
+	laptop, _ := d.Waiting(ctx, welcomes, 7, 200, 1)
 	if len(phone) != 1 || len(laptop) != 1 {
 		t.Fatalf("phone has %d, laptop has %d", len(phone), len(laptop))
 	}
@@ -48,8 +48,8 @@ func TestAWelcomeIsKeptUntilTheDeviceSaysItOpenedIt(t *testing.T) {
 	welcomes.devices = packages
 	_, _ = d.Post(ctx, welcomes, 7, 42, -120057, []byte("come in"), 1)
 
-	first, _ := d.Waiting(ctx, welcomes, 7, 100)
-	again, _ := d.Waiting(ctx, welcomes, 7, 100)
+	first, _ := d.Waiting(ctx, welcomes, 7, 100, 1)
+	again, _ := d.Waiting(ctx, welcomes, 7, 100, 1)
 	if len(first) != 1 || len(again) != 1 {
 		t.Fatal("a welcome disappeared merely by being read")
 	}
@@ -59,7 +59,7 @@ func TestAWelcomeIsKeptUntilTheDeviceSaysItOpenedIt(t *testing.T) {
 		t.Fatalf("confirming gave %d (%v)", confirmed, err)
 	}
 
-	after, _ := d.Waiting(ctx, welcomes, 7, 100)
+	after, _ := d.Waiting(ctx, welcomes, 7, 100, 1)
 	if len(after) != 0 {
 		t.Fatalf("%d welcomes survived being confirmed", len(after))
 	}
@@ -76,14 +76,14 @@ func TestADeviceCannotConfirmSomebodyElsesWelcome(t *testing.T) {
 	welcomes.devices = packages
 	_, _ = d.Post(ctx, welcomes, 7, 42, -120057, []byte("come in"), 1)
 
-	waiting, _ := d.Waiting(ctx, welcomes, 7, 100)
+	waiting, _ := d.Waiting(ctx, welcomes, 7, 100, 1)
 
 	confirmed, _ := d.Confirm(ctx, welcomes, 9, 300, []int64{waiting[0].Id})
 	if confirmed != 0 {
 		t.Fatal("another person's device confirmed this welcome")
 	}
 
-	still, _ := d.Waiting(ctx, welcomes, 7, 100)
+	still, _ := d.Waiting(ctx, welcomes, 7, 100, 1)
 	if len(still) != 1 {
 		t.Fatal("the welcome was dropped by somebody it was not for")
 	}
@@ -171,7 +171,7 @@ func TestAnInvitationNobodyCameForIsNotKeptForever(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	waiting, err := d.Waiting(ctx, welcomes, 7, 100)
+	waiting, err := d.Waiting(ctx, welcomes, 7, 100, sent+WelcomeLife+86400)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,6 +180,42 @@ func TestAnInvitationNobodyCameForIsNotKeptForever(t *testing.T) {
 	}
 	if waiting[0].FromId != 43 {
 		t.Errorf("the invitation kept is the one from %d rather than the newest", waiting[0].FromId)
+	}
+}
+
+// And nobody has to send anything for the fortnight to mean something.
+//
+// The sweep hung on the call that leaves an invitation, so it ran for a person
+// somebody was inviting and never for a person nobody was: 22 rows on the
+// stand, the oldest eighteen days old, past a limit of fourteen (#140). Asking
+// is also where the harm is - a phone coming back is handed the pile, and every
+// invitation naming a later epoch than the copy it holds makes it let that copy
+// go and join afresh (#139), so handing them over and forgetting them at
+// somebody else's next send is the wrong way round.
+//
+// There is exactly one Post here, and it is the stale one.
+func TestTheFortnightHoldsWithoutASecondInvitation(t *testing.T) {
+	d, packages := newTestDirectory()
+	welcomes := &mapWelcomes{}
+	ctx := context.Background()
+	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone")}, nil, []byte("me"), 1)
+	welcomes.devices = packages
+
+	const sent = int32(1_000_000)
+	if _, err := d.Post(ctx, welcomes, 7, 42, -120057, []byte("come in"), sent); err != nil {
+		t.Fatal(err)
+	}
+
+	waiting, err := d.Waiting(ctx, welcomes, 7, 100, sent+WelcomeLife+86400)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(waiting) != 0 {
+		t.Fatalf("%d invitation(s) older than anybody will come were handed over", len(waiting))
+	}
+	if len(welcomes.rows) != 0 {
+		t.Errorf("the answer was tidied and the box was not: %d row(s) left",
+			len(welcomes.rows))
 	}
 }
 
@@ -200,7 +236,7 @@ func TestAnInvitationOutlivesAPhoneBeingOffForAWeek(t *testing.T) {
 	_, _ = d.Post(ctx, welcomes, 7, 42, -120057, []byte("come in"), sent)
 	_, _ = d.Post(ctx, welcomes, 7, 43, -120057, []byte("and again"), sent+7*86400)
 
-	waiting, _ := d.Waiting(ctx, welcomes, 7, 100)
+	waiting, _ := d.Waiting(ctx, welcomes, 7, 100, sent+7*86400)
 	if len(waiting) != 2 {
 		t.Fatalf("%d invitations survived a week; both should have", len(waiting))
 	}

@@ -53,7 +53,8 @@ func (c *MlsCore) MlsSendWelcome(in *mtproto.TLMlsSendWelcome) (*mtproto.Mls_Ok,
 //
 // mls.getWelcomes = mls.Welcomes;
 func (c *MlsCore) MlsGetWelcomes(in *mtproto.TLMlsGetWelcomes) (*mtproto.Mls_Welcomes, error) {
-	waiting, err := c.svcCtx.Directory.Waiting(c.ctx, c.svcCtx.Welcomes, c.MD.UserId, c.MD.PermAuthKeyId)
+	waiting, err := c.svcCtx.Directory.Waiting(c.ctx, c.svcCtx.Welcomes, c.MD.UserId, c.MD.PermAuthKeyId,
+		int32(time.Now().Unix()))
 	if err != nil {
 		c.Logger.Errorf("mls.getWelcomes - %v", err)
 		return nil, mtproto.ErrInternalServerError
