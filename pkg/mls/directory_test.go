@@ -290,6 +290,25 @@ func (m *mapStore) Devices(_ context.Context, userId int64) ([]int64, error) {
 	return devices, nil
 }
 
+func (m *mapStore) DeviceNames(ctx context.Context, userId int64) ([][]byte, error) {
+	devices, err := m.Devices(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+	names := make([][]byte, 0, len(devices))
+	for _, authKeyId := range devices {
+		name := []byte{}
+		for _, p := range m.packages {
+			if p.UserId == userId && p.AuthKeyId == authKeyId {
+				name = p.Name
+				break
+			}
+		}
+		names = append(names, name)
+	}
+	return names, nil
+}
+
 func (m *mapStore) CountDevices(ctx context.Context, userId int64) (int, error) {
 	devices, err := m.Devices(ctx, userId)
 	return len(devices), err
@@ -425,5 +444,81 @@ func TestADeviceThatCannotSayKeepsWhatItHas(t *testing.T) {
 
 	if left := store.remaining(7, 100); left != 3 {
 		t.Fatalf("%d packages left, wanted all 3 kept", left)
+	}
+}
+
+// The names of a person's devices come from the same rows as the count, so the
+// two cannot disagree (#139).
+//
+// This is what makes them usable together. Taking a leaf out asks two
+// questions - whether a device is missing, which the count answers, and which
+// leaf is it, which the names answer - and the second is only safe while it is
+// about the same set as the first. They used to come from two calls, one of
+// which spent a key package, so nobody dared act on them for anybody but their
+// own account: a leaf whose device was gone stayed for ever, and every commit
+// in the conversation was encrypted to it.
+func TestTheDeviceNamesAreTheDevicesThatWereCounted(t *testing.T) {
+	d, _ := newTestDirectory()
+	ctx := context.Background()
+
+	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone-one")}, nil, []byte("7/phone"), 1)
+	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("phone-two")}, nil, []byte("7/phone"), 1)
+	_, _ = d.Publish(ctx, 7, 200, [][]byte{[]byte("laptop-one")}, nil, []byte("7/laptop"), 1)
+
+	count, err := d.DeviceCount(ctx, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names, err := d.DeviceNames(ctx, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(names) != count {
+		t.Fatalf("%d device(s) counted and %d named", count, len(names))
+	}
+	if count != 2 {
+		t.Fatalf("two devices published and %d were counted", count)
+	}
+
+	said := map[string]bool{}
+	for _, name := range names {
+		said[string(name)] = true
+	}
+	if !said["7/phone"] || !said["7/laptop"] {
+		t.Errorf("the names are %q, which is not the two devices that published", names)
+	}
+}
+
+// A device that published before key packages said whose they are keeps its
+// place in the answer, with nothing in it.
+//
+// The alternative is a shorter list, and a caller reading that would conclude a
+// leaf belongs to nobody and take a live phone out of the conversation. An
+// empty name says "there is a device here and I cannot tell you which", which
+// is the answer that stops it.
+func TestADeviceThatCannotBeNamedStillHasItsPlace(t *testing.T) {
+	d, _ := newTestDirectory()
+	ctx := context.Background()
+
+	_, _ = d.Publish(ctx, 7, 100, [][]byte{[]byte("named")}, nil, []byte("7/phone"), 1)
+	_, _ = d.Publish(ctx, 7, 200, [][]byte{[]byte("older")}, nil, []byte{}, 1)
+
+	names, err := d.DeviceNames(ctx, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(names) != 2 {
+		t.Fatalf("two devices published and %d were named", len(names))
+	}
+
+	empty := 0
+	for _, name := range names {
+		if len(name) == 0 {
+			empty++
+		}
+	}
+	if empty != 1 {
+		t.Fatalf("%d of the names are empty; the device that cannot be named is one", empty)
 	}
 }

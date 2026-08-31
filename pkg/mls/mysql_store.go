@@ -226,6 +226,49 @@ func (s *MysqlStore) CountDevices(ctx context.Context, userId int64) (int, error
 	return count, nil
 }
 
+// deviceRow is one device of a person and the identity it publishes under.
+type deviceRow struct {
+	AuthKeyId int64  `db:"auth_key_id"`
+	Name      []byte `db:"name"`
+}
+
+// DeviceNames is the leaf name each device of this person publishes under, one
+// per device that CountDevices counts.
+//
+// One row per device rather than per package, because a device publishes many
+// and they all carry the same name - and after #136 it is the same name, since
+// what an older identity left is thrown away the moment the device says which
+// identity it has now.
+//
+// A name may be empty: a device that published before key packages carried one
+// is counted here and cannot be named. It keeps its row, so the caller learns
+// that this person has a device it cannot account for rather than being handed
+// a shorter list and quietly concluding a leaf is dead (#139).
+func (s *MysqlStore) DeviceNames(ctx context.Context, userId int64) ([][]byte, error) {
+	var rows []deviceRow
+
+	err := s.db.QueryRowsPartial(ctx, &rows,
+		"select auth_key_id, max(name) as name from mls_key_packages where user_id = ?"+
+			stillSignedIn+" group by auth_key_id order by auth_key_id",
+		userId)
+	if err != nil {
+		if errors.Is(err, sqlx.ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		logx.WithContext(ctx).Errorf("mls: cannot list the device names: %v", err)
+		return nil, err
+	}
+
+	names := make([][]byte, 0, len(rows))
+	for _, r := range rows {
+		if r.Name == nil {
+			r.Name = []byte{}
+		}
+		names = append(names, r.Name)
+	}
+	return names, nil
+}
+
 func (s *MysqlStore) Devices(ctx context.Context, userId int64) ([]int64, error) {
 	var devices []int64
 
