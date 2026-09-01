@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 // A commit is what moves a conversation from one epoch to the next: somebody
@@ -44,8 +46,30 @@ type GroupStore interface {
 type CommitStore interface {
 	Waiting(ctx context.Context, userId, authKeyId int64) ([]Commit, error)
 	Confirm(ctx context.Context, userId, authKeyId int64, ids []int64) (int, error)
+	ForgetOlderThan(ctx context.Context, userId, authKeyId int64, before int32) (int, error)
 	Devices(ctx context.Context, userId int64) ([]int64, error)
 }
+
+// CommitLife is how long a commit waits for the device it was left for.
+//
+// Until this there was no such thing: the only way a commit left the table was
+// a device saying it had applied one, so a commit it cannot apply and never
+// will - for a group it has left, or waiting behind an earlier one that is not
+// coming - stayed for ever and was handed over every thirty seconds. Seven of
+// them sat on the stand against one device, a day old (#145).
+//
+// The same fortnight an invitation has, and it is worth saying why rather than
+// copying it. Past that long a device is not a device (#138): its invitations
+// have already been swept, so it cannot be caught up by one either, and when it
+// does come back it is let in afresh by the comparison that runs anyway (#132,
+// #139) rather than by working through a chain. A commit older than that has
+// nothing left it could be applied to, so the two are the same number rather
+// than two that happen to agree.
+//
+// It is generous for the case it must not break - a phone off for a week comes
+// back and finishes its chain - because what is bounded here is a device that
+// will never apply them, not one that is late.
+const CommitLife int32 = WelcomeLife
 
 // Commit is one waiting for a device.
 type Commit struct {
@@ -154,8 +178,33 @@ func Accept(
 //
 // Order is not a nicety here: a commit can only be applied to the epoch it was
 // made from, so out of order they all fail but the first.
-func WaitingCommits(ctx context.Context, commits CommitStore, userId, authKeyId int64) ([]Commit, error) {
+func WaitingCommits(ctx context.Context, commits CommitStore, userId, authKeyId int64, now int32) ([]Commit, error) {
+	forgetTheStaleCommits(ctx, commits, userId, authKeyId, now)
 	return commits.Waiting(ctx, userId, authKeyId)
+}
+
+// forgetTheStaleCommits drops what this device has left waiting past CommitLife.
+//
+// Hung on the call the device asks with, which is the shape #140 arrived at
+// after getting it wrong for invitations: a sweep hanging on somebody else's
+// send runs for the device somebody is committing to and never for the one
+// drowning in them. Asking is also where the harm is - a phone handed a pile it
+// cannot apply works through it instead of reading.
+//
+// Housekeeping, so a failure is logged and stepped over: handing over what is
+// waiting must not fail because the tidying did.
+func forgetTheStaleCommits(ctx context.Context, commits CommitStore, userId, authKeyId int64, now int32) {
+	forgotten, err := commits.ForgetOlderThan(ctx, userId, authKeyId, now-CommitLife)
+	if err != nil {
+		logx.WithContext(ctx).Errorf(
+			"mls: cannot forget the commits nobody applied: %v", err)
+		return
+	}
+	if forgotten > 0 {
+		logx.WithContext(ctx).Infof(
+			"mls: %d commit(s) of %d/%d had been waiting longer than any device "+
+				"comes back from", forgotten, userId, authKeyId)
+	}
 }
 
 // ConfirmCommits forgets what a device says it has applied.

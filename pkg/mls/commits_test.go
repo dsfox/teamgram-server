@@ -6,6 +6,13 @@ import (
 	"testing"
 )
 
+// The moment these tests ask at, which is the one they write at: the rows here
+// are made with Accept(..., 1), so asking at the same second asks about commits
+// that cannot be stale. A wall clock instead would sweep every one of them - a
+// row dated 1 is older than any fortnight - and four tests failed exactly that
+// way before this was written down.
+const now int32 = 1
+
 // The whole reason this exists: two people change a group at the same moment,
 // and only one of them can be right.
 //
@@ -35,7 +42,7 @@ func TestTwoCommitsFromOneEpochAndOnlyOneIsTaken(t *testing.T) {
 
 	// And the loser's commit was not handed out: a device that applied both
 	// would be applying one to an epoch it was not made from.
-	waiting, _ := WaitingCommits(ctx, commits, 9, 100)
+	waiting, _ := WaitingCommits(ctx, commits, 9, 100, now)
 	if len(waiting) != 1 {
 		t.Fatalf("%d commits waiting; only the winner should be", len(waiting))
 	}
@@ -58,7 +65,7 @@ func TestTheLoserSucceedsFromTheNewEpoch(t *testing.T) {
 		t.Fatalf("the rebuilt commit was refused: %v", err)
 	}
 
-	waiting, _ := WaitingCommits(ctx, commits, 9, 100)
+	waiting, _ := WaitingCommits(ctx, commits, 9, 100, now)
 	if len(waiting) != 2 {
 		t.Fatalf("%d commits waiting, expected both", len(waiting))
 	}
@@ -105,13 +112,13 @@ func TestACommitIsKeptUntilTheDeviceSaysItApplied(t *testing.T) {
 	ctx := context.Background()
 
 	_, _ = Accept(ctx, groups, commits, []byte("g"), 1, 1, []int64{9}, []byte("c"), 1)
-	waiting, _ := WaitingCommits(ctx, commits, 9, 100)
+	waiting, _ := WaitingCommits(ctx, commits, 9, 100, now)
 	if len(waiting) != 1 {
 		t.Fatalf("%d waiting", len(waiting))
 	}
 
 	// Fetched and not confirmed: it must still be there.
-	again, _ := WaitingCommits(ctx, commits, 9, 100)
+	again, _ := WaitingCommits(ctx, commits, 9, 100, now)
 	if len(again) != 1 {
 		t.Fatalf("a commit that was never confirmed was forgotten")
 	}
@@ -119,7 +126,7 @@ func TestACommitIsKeptUntilTheDeviceSaysItApplied(t *testing.T) {
 	if _, err := ConfirmCommits(ctx, commits, 9, 100, []int64{waiting[0].Id}); err != nil {
 		t.Fatal(err)
 	}
-	after, _ := WaitingCommits(ctx, commits, 9, 100)
+	after, _ := WaitingCommits(ctx, commits, 9, 100, now)
 	if len(after) != 0 {
 		t.Fatalf("%d waiting after it was applied", len(after))
 	}
@@ -154,13 +161,13 @@ func TestTheCommitComesBackToTheDeviceThatMadeIt(t *testing.T) {
 		t.Fatalf("left %d copies for three devices", posted)
 	}
 
-	own, _ := WaitingCommits(ctx, commits, 7, 500)
+	own, _ := WaitingCommits(ctx, commits, 7, 500, now)
 	if len(own) != 1 {
 		t.Errorf("the phone that made the commit cannot learn that it won")
 	}
 	// And the same person's other phone, which is a separate leaf and needs it
 	// exactly as much as anybody else's does.
-	other, _ := WaitingCommits(ctx, commits, 7, 600)
+	other, _ := WaitingCommits(ctx, commits, 7, 600, now)
 	if len(other) != 1 {
 		t.Errorf("the author's other phone got %d commits, not one", len(other))
 	}
@@ -211,6 +218,45 @@ func (m *mapGroups) Take(_ context.Context, groupId []byte, from int64, deliveri
 	return true, nil
 }
 
+func TestACommitNobodyAppliedIsForgottenWhenTheDeviceAsks(t *testing.T) {
+	commits := &mapCommits{devices: map[int64][]int64{9: {100}}}
+	groups := &mapGroups{commits: commits}
+	ctx := context.Background()
+
+	// One made a fortnight and a day ago, one made now. The clock is the
+	// argument, so this needs no waiting and no wall time.
+	made := int32(10 * CommitLife)
+	stale := made - CommitLife - 86400
+	if _, err := Accept(ctx, groups, commits, []byte("old"), 1, 1, []int64{9},
+		[]byte("nobody will apply this"), stale); err != nil {
+		t.Fatalf("the old commit should have been taken: %v", err)
+	}
+	if _, err := Accept(ctx, groups, commits, []byte("new"), 1, 1, []int64{9},
+		[]byte("this one is fresh"), made); err != nil {
+		t.Fatalf("the fresh commit should have been taken: %v", err)
+	}
+
+	waiting, err := WaitingCommits(ctx, commits, 9, 100, made)
+	if err != nil {
+		t.Fatalf("asking failed: %v", err)
+	}
+
+	// Both halves. That the stale one goes is just as true of a box that hands
+	// over nothing at all, so the fresh one has to arrive beside it.
+	if len(waiting) != 1 {
+		t.Fatalf("%d commits waiting, expected only the fresh one", len(waiting))
+	}
+	if string(waiting[0].Bytes) != "this one is fresh" {
+		t.Errorf("the wrong commit survived: %s", waiting[0].Bytes)
+	}
+
+	// And the box was tidied, not just the answer: leaving the row means the
+	// next phone to ask pays for it again.
+	if len(commits.rows) != 1 {
+		t.Errorf("%d rows are left rather than one", len(commits.rows))
+	}
+}
+
 type mapCommits struct {
 	rows    []Commit
 	devices map[int64][]int64
@@ -252,6 +298,20 @@ func (m *mapCommits) Confirm(_ context.Context, userId, authKeyId int64, ids []i
 	return removed, nil
 }
 
+func (m *mapCommits) ForgetOlderThan(_ context.Context, userId, authKeyId int64, before int32) (int, error) {
+	var kept []Commit
+	forgotten := 0
+	for _, row := range m.rows {
+		if row.UserId == userId && row.AuthKeyId == authKeyId && row.Date < before {
+			forgotten++
+			continue
+		}
+		kept = append(kept, row)
+	}
+	m.rows = kept
+	return forgotten, nil
+}
+
 func (m *mapCommits) Devices(_ context.Context, userId int64) ([]int64, error) {
 	return m.devices[userId], nil
 }
@@ -290,7 +350,7 @@ func TestADeliveryThatFailsHalfwayLeavesTheEpochAlone(t *testing.T) {
 
 	// And nobody is holding a commit for an epoch the group is not on.
 	for _, device := range []struct{ user, key int64 }{{9, 100}, {8, 200}} {
-		waiting, _ := WaitingCommits(ctx, commits, device.user, device.key)
+		waiting, _ := WaitingCommits(ctx, commits, device.user, device.key, now)
 		if len(waiting) != 0 {
 			t.Errorf("device %d/%d is holding %d commit(s) from a change that "+
 				"never happened", device.user, device.key, len(waiting))

@@ -90,7 +90,11 @@ func (c *MlsCore) MlsSendCommit(in *mtproto.TLMlsSendCommit) (*mtproto.Mls_Commi
 //
 // mls.getCommits = mls.Commits;
 func (c *MlsCore) MlsGetCommits(in *mtproto.TLMlsGetCommits) (*mtproto.Mls_Commits, error) {
-	waiting, err := mls.WaitingCommits(c.ctx, c.svcCtx.Commits, c.MD.UserId, c.MD.PermAuthKeyId)
+	// The moment is passed in for the same reason it is for invitations: this
+	// call is also where the box is swept, and a sweep that reads the clock for
+	// itself cannot be tested against an aged row.
+	waiting, err := mls.WaitingCommits(c.ctx, c.svcCtx.Commits, c.MD.UserId, c.MD.PermAuthKeyId,
+		int32(time.Now().Unix()))
 	if err != nil {
 		c.Logger.Errorf("mls.getCommits - %v", err)
 		return nil, mtproto.ErrInternalServerError

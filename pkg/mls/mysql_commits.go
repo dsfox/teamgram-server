@@ -188,6 +188,28 @@ func (s *MysqlCommits) Confirm(ctx context.Context, userId, authKeyId int64, ids
 	return int(affected), nil
 }
 
+// ForgetOlderThan drops what this device has been handed and never applied
+// since before that moment.
+//
+// By the device rather than by the person, unlike welcomes: a commit is left
+// for one device, and the index the table has starts with both halves, so this
+// reads exactly the rows of the device that is asking.
+func (s *MysqlCommits) ForgetOlderThan(ctx context.Context, userId, authKeyId int64, before int32) (int, error) {
+	result, err := s.db.Exec(ctx,
+		"delete from mls_commits where user_id = ? and auth_key_id = ? and date < ?",
+		userId, authKeyId, before)
+	if err != nil {
+		logx.WithContext(ctx).Errorf("mls: cannot forget the stale commits: %v", err)
+		return 0, err
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return int(affected), nil
+}
+
 // Devices asks the key package table, for the same reason welcomes do: a device
 // is reachable here exactly when it has published something to be reached by.
 func (s *MysqlCommits) Devices(ctx context.Context, userId int64) ([]int64, error) {
