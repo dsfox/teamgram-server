@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/teamgram/proto/mtproto"
+	"github.com/teamgram/teamgram-server/pkg/mls"
 )
 
 // MlsClaimConversation says which conversation a chat has, and settles it the
@@ -49,12 +50,22 @@ func (c *MlsCore) MlsClaimConversation(in *mtproto.TLMlsClaimConversation) (*mtp
 		return nil, mtproto.ErrInternalServerError
 	}
 
+	// Which chat this is, said the one way both sides of it can say. A caller
+	// names a chat by its dialog id, and for a chat between two that is the
+	// other person - so alpha claimed one chat under delta's number and delta
+	// claimed the same chat under alpha's, each was first under its own, both
+	// were told they had won, and the two of them talked in conversations that
+	// could not read each other with nothing to say so (#155). The pair is what
+	// the row is keyed by; a group's dialog id was already the same everywhere
+	// and passes through untouched.
+	chatId, withId := mls.ChatKey(c.MD.UserId, peerId)
+
 	var (
 		held []byte
 		err  error
 		now  = int32(time.Now().Unix())
 	)
-	held, err = c.svcCtx.Conversations.Claim(c.ctx, peerId, claimed, now)
+	held, err = c.svcCtx.Conversations.Claim(c.ctx, chatId, withId, claimed, now)
 	if err != nil {
 		c.Logger.Errorf("mls.claimConversation - %v", err)
 		return nil, mtproto.ErrInternalServerError
@@ -82,8 +93,14 @@ func (c *MlsCore) MlsClaimConversation(in *mtproto.TLMlsClaimConversation) (*mtp
 	}
 
 	// Said whichever way it goes, and the claim is named beside the answer,
-	// because the question afterwards is always whether this caller won.
-	c.Logger.Infof("mls.claimConversation - %d is held by %x (the claim was %x)",
-		peerId, held, claimed)
+	// because the question afterwards is always whether this caller won. The
+	// chat is printed as the pair it is keyed by and as the caller named it,
+	// since a log that says only one of the two cannot be matched to the phone
+	// that asked.
+	c.Logger.Infof("mls.claimConversation - %d/%d is held by %x (the claim was %x, asked about %d)",
+		chatId, withId, held, claimed, peerId)
+	// Answered with the caller's own name for the chat: the pair is how the
+	// server keeps it and means nothing to a phone, which knows this chat as
+	// the person on the other end of it.
 	return &mtproto.Mls_Conversation{PeerId: peerId, GroupId: held}, nil
 }

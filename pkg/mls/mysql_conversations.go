@@ -25,6 +25,14 @@ import (
 // to tell them. So the first claim wins, and the primary key on the chat is
 // what makes that atomic - two claims arriving together, one is stored and the
 // other is answered with what is stored.
+//
+// Which chat a row is about is a pair rather than a number, and that is the
+// whole of #155. A device names a chat by its dialog id, and for a chat between
+// two that is the other person - so each side calls one chat by a different
+// number, each is first under its own, both win, and they talk in conversations
+// that cannot read each other with nothing anywhere to say so. ChatKey below is
+// where the two names become one, and everything here is keyed by what it
+// returns.
 type MysqlConversations struct {
 	db *sqlx.DB
 }
@@ -33,8 +41,31 @@ func NewMysqlConversations(db *sqlx.DB) *MysqlConversations {
 	return &MysqlConversations{db: db}
 }
 
+// ChatKey names a chat the same way on both sides of it.
+//
+// A group is already named the same everywhere: its dialog id is the chat
+// itself, it is negative, and who is asking does not change it.
+//
+// A chat between two is named by neither side alone. The caller says "the chat
+// with that person" and means the pair, so the pair is what is written down,
+// smallest first - the one form both sides produce out of the two halves each
+// of them holds (#155).
+//
+// A chat with oneself is the pair of one number, which is symmetric already and
+// needs no case of its own.
+func ChatKey(callerId, peerId int64) (int64, int64) {
+	if peerId <= 0 {
+		return peerId, 0
+	}
+	if callerId < peerId {
+		return callerId, peerId
+	}
+	return peerId, callerId
+}
+
 type conversationRow struct {
 	PeerId  int64  `db:"peer_id"`
+	WithId  int64  `db:"with_id"`
 	GroupId []byte `db:"group_id"`
 	Date    int32  `db:"date"`
 }
@@ -63,21 +94,21 @@ type conversationRow struct {
 // decided above, by whether anybody is still in it; only one settled before the
 // roster existed and not committed in since reaches the fortnight at all, and
 // any commit takes a row out of that set for good (#147).
-func (s *MysqlConversations) Claim(ctx context.Context, peerId int64, groupId []byte, date int32) ([]byte, error) {
+func (s *MysqlConversations) Claim(ctx context.Context, peerId, withId int64, groupId []byte, date int32) ([]byte, error) {
 	// Insert first and read only if it did not take. Reading first and writing
 	// afterwards is the same race written out longhand: two devices both read
 	// nothing and both write, and the second overwrites the first.
-	const claim = "insert ignore into mls_conversations(peer_id, group_id, date) values (?, ?, ?)"
-	result, err := s.db.Exec(ctx, claim, peerId, groupId, date)
+	const claim = "insert ignore into mls_conversations(peer_id, with_id, group_id, date) values (?, ?, ?, ?)"
+	result, err := s.db.Exec(ctx, claim, peerId, withId, groupId, date)
 	if err != nil {
-		logx.WithContext(ctx).Errorf("mls: cannot claim the conversation of %d: %v", peerId, err)
+		logx.WithContext(ctx).Errorf("mls: cannot claim the conversation of %d/%d: %v", peerId, withId, err)
 		return nil, err
 	}
 	if taken, err := result.RowsAffected(); err == nil && taken == 1 {
 		return groupId, nil
 	}
 
-	held, err := s.Of(ctx, peerId)
+	held, err := s.Of(ctx, peerId, withId)
 	if err != nil {
 		return nil, err
 	}
@@ -106,19 +137,19 @@ func (s *MysqlConversations) Claim(ctx context.Context, peerId int64, groupId []
 		// row exists to prevent. The first moves it and the second no longer
 		// matches what it judged.
 		const takeOver = "update mls_conversations set group_id = ?, date = ? " +
-			"where peer_id = ? and group_id = ?"
-		result, err = s.db.Exec(ctx, takeOver, groupId, date, peerId, held)
+			"where peer_id = ? and with_id = ? and group_id = ?"
+		result, err = s.db.Exec(ctx, takeOver, groupId, date, peerId, withId, held)
 		if err != nil {
 			logx.WithContext(ctx).Errorf(
-				"mls: cannot take over the conversation of %d: %v", peerId, err)
+				"mls: cannot take over the conversation of %d/%d: %v", peerId, withId, err)
 			return nil, err
 		}
 		taken, err := result.RowsAffected()
 		takenOver = err == nil && taken == 1
 		if takenOver {
 			logx.WithContext(ctx).Infof(
-				"mls: %x held %d and has nobody left in it; %x has it now",
-				held, peerId, groupId)
+				"mls: %x held %d/%d and has nobody left in it; %x has it now",
+				held, peerId, withId, groupId)
 		}
 	} else {
 		// Nothing is known about that conversation: it was settled before the
@@ -131,26 +162,26 @@ func (s *MysqlConversations) Claim(ctx context.Context, peerId int64, groupId []
 		// the last conversation without one has gone, this branch can go with
 		// it, and until then a fortnight is still better than for ever (#142).
 		const takeOverStale = "update mls_conversations set group_id = ?, date = ? " +
-			"where peer_id = ? and date < ?"
-		result, err = s.db.Exec(ctx, takeOverStale, groupId, date, peerId, date-WelcomeLife)
+			"where peer_id = ? and with_id = ? and date < ?"
+		result, err = s.db.Exec(ctx, takeOverStale, groupId, date, peerId, withId, date-WelcomeLife)
 		if err != nil {
 			logx.WithContext(ctx).Errorf(
-				"mls: cannot take over the conversation of %d: %v", peerId, err)
+				"mls: cannot take over the conversation of %d/%d: %v", peerId, withId, err)
 			return nil, err
 		}
 		taken, err := result.RowsAffected()
 		takenOver = err == nil && taken == 1
 		if takenOver {
 			logx.WithContext(ctx).Infof(
-				"mls: %d had been held by a conversation nobody came back to and nothing is known about; %x has it now",
-				peerId, groupId)
+				"mls: %d/%d had been held by a conversation nobody came back to and nothing is known about; %x has it now",
+				peerId, withId, groupId)
 		}
 	}
 	if takenOver {
 		return groupId, nil
 	}
 
-	return s.Of(ctx, peerId)
+	return s.Of(ctx, peerId, withId)
 }
 
 // How long a device may go without asking the server anything before it is
@@ -202,30 +233,21 @@ func (s *MysqlConversations) stillThere(ctx context.Context, groupId []byte) (kn
 }
 
 // Of answers which conversation this chat has, or nothing when it has none.
-func (s *MysqlConversations) Of(ctx context.Context, peerId int64) ([]byte, error) {
+//
+// The chat is the pair from ChatKey and never one side's name for it: asking
+// under one number answers about a different chat on each of the two phones in
+// it (#155).
+func (s *MysqlConversations) Of(ctx context.Context, peerId, withId int64) ([]byte, error) {
 	var row conversationRow
-	const query = "select peer_id, group_id, date from mls_conversations where peer_id = ?"
-	if err := s.db.QueryRowPartial(ctx, &row, query, peerId); err != nil {
+	const query = "select peer_id, with_id, group_id, date from mls_conversations " +
+		"where peer_id = ? and with_id = ?"
+	if err := s.db.QueryRowPartial(ctx, &row, query, peerId, withId); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		logx.WithContext(ctx).Errorf("mls: cannot read the conversation of %d: %v", peerId, err)
+		logx.WithContext(ctx).Errorf(
+			"mls: cannot read the conversation of %d/%d: %v", peerId, withId, err)
 		return nil, err
 	}
 	return row.GroupId, nil
-}
-
-// Forget takes the chat's conversation away, so the next claim wins.
-//
-// For a chat whose conversation nobody can read any more: everybody who held
-// it has reinstalled, or it was made before any of this and cannot be joined.
-// Without this such a chat would keep pointing at a conversation that exists
-// for nobody, and no new one could ever be claimed.
-func (s *MysqlConversations) Forget(ctx context.Context, peerId int64) error {
-	const query = "delete from mls_conversations where peer_id = ?"
-	if _, err := s.db.Exec(ctx, query, peerId); err != nil {
-		logx.WithContext(ctx).Errorf("mls: cannot forget the conversation of %d: %v", peerId, err)
-		return err
-	}
-	return nil
 }

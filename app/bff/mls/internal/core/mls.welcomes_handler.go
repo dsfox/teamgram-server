@@ -14,14 +14,37 @@ import (
 // It travels here rather than as a message: handshake traffic never touches the
 // message pipeline, so no client has to hide anything from a chat list.
 //
-// mls.sendWelcome user_id:long welcome:bytes = mls.Ok;
+// The chat it names is turned round on the way, and that is not a detail. An
+// invitation carries the chat as its sender sees it, and a chat between two has
+// no single name: each side calls it by the other person. So an invitation from
+// alpha to delta says "the chat with delta", and delta - reading it as written -
+// files the conversation under itself, under a chat with nobody, where nothing
+// will ever look for it again. That is half of #155, and it was on the stand:
+// delta held a conversation under its own number.
+//
+// Turned round here rather than on the phones because this is the one place
+// where both names are known at once, and because a phone already out in the
+// world is mended without being rebuilt. The invitation naming the very person
+// it is being left for is exactly the case that has to move: for them the chat
+// is the one with whoever sent it. An invitation to another device of the
+// sender's own account names somebody else and is left alone, as is a group,
+// whose dialog id is the same number on every device in it.
+//
+// mls.sendWelcome user_id:long welcome:bytes peer_id:long = mls.Ok;
 func (c *MlsCore) MlsSendWelcome(in *mtproto.TLMlsSendWelcome) (*mtproto.Mls_Ok, error) {
+	peerId := in.GetPeerId()
+	if peerId > 0 && peerId == in.GetUserId() {
+		peerId = c.MD.UserId
+		c.Logger.Infof("mls.sendWelcome - the invitation named %d, who is the one being invited; "+
+			"for them this chat is the one with %d", in.GetUserId(), peerId)
+	}
+
 	posted, err := c.svcCtx.Directory.Post(
 		c.ctx,
 		c.svcCtx.Welcomes,
 		in.GetUserId(),
 		c.MD.UserId,
-		in.GetPeerId(),
+		peerId,
 		in.GetWelcome(),
 		int32(time.Now().Unix()))
 	if err != nil {
