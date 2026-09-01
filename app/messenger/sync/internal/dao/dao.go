@@ -10,6 +10,7 @@
 package dao
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/teamgram/marmota/pkg/net/rpcx"
@@ -21,6 +22,7 @@ import (
 	chat_client "github.com/teamgram/teamgram-server/app/service/biz/chat/client"
 	idgen_client "github.com/teamgram/teamgram-server/app/service/idgen/client"
 	status_client "github.com/teamgram/teamgram-server/app/service/status/client"
+	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stores/kv"
 	"github.com/zeromicro/go-zero/zrpc"
 )
@@ -40,7 +42,34 @@ type Dao struct {
 	Notifier *pushnotify.Notifier
 }
 
+// refuseTheStreamingPath says why sync will not run on the streaming session
+// client, or nil when it is not asked to.
+//
+// The path is broken and nothing measures it (#149). Its `unavailable` latch is
+// only ever set: `sendLoop` and `recvLoop` return when the stream breaks, so
+// afterwards nobody drains the channel, and merely clearing the latch would
+// replace an honest refusal with silent loss. No scenario and no test touch it,
+// and it appears in no deployed config.
+//
+// Upstream's file is left exactly as it is - it is theirs, and every carry would
+// bring it back - so what is ours is the refusal to start on it. A switch that
+// is off by default and known broken is worse than one that is not there: the
+// day somebody turns it on, delivery stops in a way that looks like anything
+// else.
+func refuseTheStreamingPath(on bool) error {
+	if !on {
+		return nil
+	}
+	return fmt.Errorf(
+		"sync: UseStreamSession is on, and that path does not work (#149) - " +
+			"a broken stream ends both of its goroutines and nothing reopens " +
+			"them, so pushes would be accepted and lost. Turn it off, or close " +
+			"#149 first")
+}
+
 func New(c config.Config) *Dao {
+	logx.Must(refuseTheStreamingPath(c.UseStreamSession))
+
 	db := sqlx.NewMySQL(&c.Mysql)
 	d := &Dao{
 		Mysql:            newMysqlDao(db),

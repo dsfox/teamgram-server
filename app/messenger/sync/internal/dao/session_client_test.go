@@ -2,6 +2,7 @@ package dao
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -232,4 +233,27 @@ func (h *hangingSession) SessionPushUpdatesData(ctx context.Context, _ *session.
 	}
 	<-ctx.Done()
 	return nil, grpcStatus.FromContextError(ctx.Err()).Err()
+}
+
+// The streaming path is refused rather than left as a switch to find.
+//
+// #149: its latch is only ever set, and both goroutines end when the stream
+// breaks, so nothing reopens them and clearing the latch would turn an honest
+// refusal into silent loss. Nothing measures that path - no scenario, no test,
+// no deployed config - and upstream's file stays as it is, because it is theirs
+// and every carry brings it back. What is ours is refusing to start on it.
+func TestSyncRefusesToRunOnTheStreamingPath(t *testing.T) {
+	if err := refuseTheStreamingPath(false); err != nil {
+		t.Fatalf("sync refused to start with the switch off: %v", err)
+	}
+
+	err := refuseTheStreamingPath(true)
+	if err == nil {
+		t.Fatal("sync would have started on a path that accepts pushes and loses them")
+	}
+	// The message has to name the issue, because whoever meets it is somebody
+	// who turned the switch on and needs to know what to read.
+	if !strings.Contains(err.Error(), "#149") {
+		t.Errorf("the refusal does not say where to look: %v", err)
+	}
 }
