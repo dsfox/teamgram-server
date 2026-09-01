@@ -30,7 +30,7 @@ import (
 
 type Config struct {
 	zrpc.RpcServerConf
-	InboxConsumer    kafka.KafkaConsumerConf `json:\",optional\"` // the queue is optional: work is also accepted over gRPC
+	InboxConsumer    kafka.KafkaConsumerConf `json:",optional"` // the queue is optional: work is also accepted over gRPC
 	Mysql            sqlx.Config
 	Cache            cache.CacheConf
 	KV               kv.KvConf

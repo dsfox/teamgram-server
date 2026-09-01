@@ -40,7 +40,7 @@ type Config struct {
 	Cache            cache.CacheConf
 	KV               kv.KvConf
 	Routine          Routine
-	SyncConsumer     kafka.KafkaConsumerConf `json:\",optional\"` // the queue is optional: work is also accepted over gRPC
+	SyncConsumer     kafka.KafkaConsumerConf `json:",optional"` // the queue is optional: work is also accepted over gRPC
 	SessionClient    zrpc.RpcClientConf
 	IdgenClient      zrpc.RpcClientConf
 	StatusClient     zrpc.RpcClientConf
