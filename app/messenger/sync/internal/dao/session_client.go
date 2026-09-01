@@ -54,7 +54,51 @@ type Session struct {
 	options        SessionOptions
 	ctx            context.Context
 	cancel         context.CancelFunc
-	unavailable    atomic.Bool // set when connection errors detected
+	unavailable    atomic.Bool  // set when connection errors detected
+	markedAt       atomic.Int64 // when it was set, so that it can be unset
+}
+
+// How long a session that has just failed is left alone before one push is let
+// through to find out whether it is answering again.
+//
+// The mark this clears used to be permanent: one connection error and every
+// push to that session was refused for the life of the process, with nothing
+// anywhere that could take the mark off. On 31 August that is what 192
+// undelivered updates were - the session server was back within seconds and
+// nothing here ever asked again (#146). A restart of the whole container was
+// the only cure.
+//
+// Long enough that a session which is really down is not asked on every push,
+// short enough that a person waiting for a message does not notice.
+const sessionRetryAfter = 5 * time.Second
+
+// markUnavailable records that this session failed, and when.
+func (c *Session) markUnavailable() {
+	c.markedAt.Store(time.Now().UnixNano())
+	if !c.unavailable.Swap(true) {
+		logx.Errorf("session(%s) marked unavailable due to conn error", c.serverId)
+	}
+}
+
+// refusing says whether to drop this push without trying.
+//
+// It goes false once the pause is over, while the session is still marked:
+// that one push is what finds out the server is back, and getting through
+// clears the mark. Without it there is no way back at all.
+func (c *Session) refusing() bool {
+	if !c.unavailable.Load() {
+		return false
+	}
+	return time.Since(time.Unix(0, c.markedAt.Load())) < sessionRetryAfter
+}
+
+// alive records a push that got through, which is the one thing that can take
+// the mark off. Said out loud, because "delivery came back by itself" is the
+// sentence this whole issue is about.
+func (c *Session) alive() {
+	if c.unavailable.Swap(false) {
+		logx.Infof("session(%s) is answering again", c.serverId)
+	}
 }
 
 func isSessionConnError(err error) bool {
@@ -80,7 +124,7 @@ func (c *Session) process(sessionChan chan sessionDataCtx) {
 				return
 			}
 
-			if c.unavailable.Load() {
+			if c.refusing() {
 				logx.Errorf("session(%s) unavailable, dropping push", c.serverId)
 				continue
 			}
@@ -91,27 +135,30 @@ func (c *Session) process(sessionChan chan sessionDataCtx) {
 				if err != nil {
 					logx.Errorf("c.client.PushSessionUpdates(%s, %v, reply) serverId:%s error(%v)", r, c.serverId, c.serverId, err)
 					if isSessionConnError(err) {
-						c.unavailable.Store(true)
-						logx.Errorf("session(%s) marked unavailable due to conn error", c.serverId)
+						c.markUnavailable()
 					}
+				} else {
+					c.alive()
 				}
 			case *session.TLSessionPushUpdatesData:
 				_, err = c.client.SessionPushUpdatesData(sessionData.ctx, r)
 				if err != nil {
 					logx.Errorf("c.client.PushUpdates(%s, %v, reply) serverId:%s error(%v)", r, c.serverId, c.serverId, err)
 					if isSessionConnError(err) {
-						c.unavailable.Store(true)
-						logx.Errorf("session(%s) marked unavailable due to conn error", c.serverId)
+						c.markUnavailable()
 					}
+				} else {
+					c.alive()
 				}
 			case *session.TLSessionPushRpcResultData:
 				_, err = c.client.SessionPushRpcResultData(sessionData.ctx, r)
 				if err != nil {
 					logx.Errorf("c.client.PushRpcResult(%s, %v, reply) serverId:%s error(%v)", r, c.serverId, c.serverId, err)
 					if isSessionConnError(err) {
-						c.unavailable.Store(true)
-						logx.Errorf("session(%s) marked unavailable due to conn error", c.serverId)
+						c.markUnavailable()
 					}
+				} else {
+					c.alive()
 				}
 			default:
 				logx.Errorf("invalid type: %#v", r)
@@ -162,7 +209,7 @@ func detach(ctx context.Context) context.Context {
 }
 
 func (c *Session) PushUpdates(ctx context.Context, msg *session.TLSessionPushUpdatesData) (err error) {
-	if c.unavailable.Load() {
+	if c.refusing() {
 		return fmt.Errorf("session(%s) unavailable", c.serverId)
 	}
 	idx := atomic.AddUint64(&c.sessionChanNum, 1) % c.options.RoutineSize
@@ -171,7 +218,7 @@ func (c *Session) PushUpdates(ctx context.Context, msg *session.TLSessionPushUpd
 }
 
 func (c *Session) PushSessionUpdates(ctx context.Context, msg *session.TLSessionPushSessionUpdatesData) (err error) {
-	if c.unavailable.Load() {
+	if c.refusing() {
 		return fmt.Errorf("session(%s) unavailable", c.serverId)
 	}
 	idx := atomic.AddUint64(&c.sessionChanNum, 1) % c.options.RoutineSize
@@ -180,7 +227,7 @@ func (c *Session) PushSessionUpdates(ctx context.Context, msg *session.TLSession
 }
 
 func (c *Session) PushRpcResult(ctx context.Context, msg *session.TLSessionPushRpcResultData) (err error) {
-	if c.unavailable.Load() {
+	if c.refusing() {
 		return fmt.Errorf("session(%s) unavailable", c.serverId)
 	}
 	idx := atomic.AddUint64(&c.sessionChanNum, 1) % c.options.RoutineSize
