@@ -52,18 +52,18 @@ func (s *Service) MlsClaimConversation(ctx context.Context, request *mtproto.TLM
 	return r, err
 }
 
-// MlsDevicesOf
-// mls.devicesOf users:Vector<long> = mls.DeviceCounts;
-func (s *Service) MlsDevicesOf(ctx context.Context, request *mtproto.TLMlsDevicesOf) (*mtproto.Mls_DeviceCounts, error) {
+// MlsMembersOf
+// mls.membersOf peer_id:long group_id:bytes = mls.Members;
+func (s *Service) MlsMembersOf(ctx context.Context, request *mtproto.TLMlsMembersOf) (*mtproto.Mls_Members, error) {
 	c := core.New(ctx, s.svcCtx)
-	c.Logger.Debugf("mls.devicesOf - metadata: {%s}, request: {%s}", c.MD, request)
+	c.Logger.Debugf("mls.membersOf - metadata: {%s}, request: {%s}", c.MD, request)
 
-	r, err := c.MlsDevicesOf(request)
+	r, err := c.MlsMembersOf(request)
 	if err != nil {
 		return nil, err
 	}
 
-	c.Logger.Debugf("mls.devicesOf - reply: {%s}", r)
+	c.Logger.Debugf("mls.membersOf - reply: {%s}", r)
 	return r, err
 }
 

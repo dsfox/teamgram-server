@@ -81,10 +81,6 @@ type Store interface {
 	Devices(ctx context.Context, userId int64) ([]int64, error)
 	CountDevices(ctx context.Context, userId int64) (int, error)
 
-	// DeviceNames is the leaf name each of those devices publishes under, one
-	// per device and in the same order, empty where a device published before
-	// key packages said whose they are (#136).
-	DeviceNames(ctx context.Context, userId int64) ([][]byte, error)
 }
 
 // LowWaterMark is the count below which a device should publish more. It is
@@ -240,22 +236,6 @@ func (d *Directory) DeviceCount(ctx context.Context, userId int64) (int, error) 
 	return count, nil
 }
 
-// DeviceNames is the name each device of this person publishes under.
-//
-// Answered beside the count and read from the same rows, which is the whole
-// point: taking a leaf out asks two questions - whether a device is missing,
-// which is the count, and which leaf is it, which is the names - and while
-// those came from two calls they could disagree. A caller then had to treat
-// the names as a guess, so nobody dared remove a leaf belonging to anybody but
-// their own account, and a leaf whose device is gone stayed for ever with every
-// commit encrypted to it (#139).
-func (d *Directory) DeviceNames(ctx context.Context, userId int64) ([][]byte, error) {
-	names, err := d.store.DeviceNames(ctx, userId)
-	if err != nil {
-		return nil, fmt.Errorf("cannot list the device names: %w", err)
-	}
-	return names, nil
-}
 
 // Claim takes one package for every device of a person - which is what starting
 // a conversation with them needs, since each device is a member of its own.
