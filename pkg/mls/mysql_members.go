@@ -132,6 +132,15 @@ func (m *MysqlMembers) Record(ctx context.Context, groupId []byte, epoch int64, 
 		logx.WithContext(ctx).Errorf("mls members - cannot forget the leaves %x lost: %v", groupId, err)
 		return err
 	}
+
+	// Said on the way through, and it has to be. This writer replaces a roster
+	// whole - everything the list did not name is deleted - and until now it
+	// spoke only when it refused one. So when the roster and the trees
+	// disagreed there was no way to ask what it had been told: the one number
+	// that would have answered it was never written down. A pass that only
+	// speaks when it fails cannot be measured (#144, #154).
+	logx.WithContext(ctx).Infof(
+		"mls members - %x holds %d leaf/leaves at epoch %d", groupId, written, epoch)
 	return nil
 }
 
