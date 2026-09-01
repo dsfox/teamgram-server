@@ -59,8 +59,10 @@ type conversationRow struct {
 // encryption for ever and buys nothing, which is why the two numbers are the
 // same one rather than two that happen to agree.
 //
-// A living chat never reaches it: every comparison that finds a conversation
-// holding everybody says so (#139), and saying so is what dates the row.
+// It applies to fewer and fewer rows. A conversation the roster knows about is
+// decided above, by whether anybody is still in it; only one settled before the
+// roster existed and not committed in since reaches the fortnight at all, and
+// any commit takes a row out of that set for good (#147).
 func (s *MysqlConversations) Claim(ctx context.Context, peerId int64, groupId []byte, date int32) ([]byte, error) {
 	// Insert first and read only if it did not take. Reading first and writing
 	// afterwards is the same race written out longhand: two devices both read
