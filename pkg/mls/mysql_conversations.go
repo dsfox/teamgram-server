@@ -1,9 +1,11 @@
 package mls
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
 
@@ -73,53 +75,128 @@ func (s *MysqlConversations) Claim(ctx context.Context, peerId int64, groupId []
 		return groupId, nil
 	}
 
-	// Taking over one nobody came back to, and the condition is in the
-	// statement for the same reason the insert is: two devices arriving
-	// together on a stale row would otherwise both take it, which is the split
-	// this whole row exists to prevent. The first moves the date, and the
-	// second no longer matches.
-	const takeOver = "update mls_conversations set group_id = ?, date = ? " +
-		"where peer_id = ? and date < ?"
-	result, err = s.db.Exec(ctx, takeOver, groupId, date, peerId, date-WelcomeLife)
+	held, err := s.Of(ctx, peerId)
 	if err != nil {
-		logx.WithContext(ctx).Errorf(
-			"mls: cannot take over the conversation of %d: %v", peerId, err)
 		return nil, err
 	}
-	if taken, err := result.RowsAffected(); err == nil && taken == 1 {
-		logx.WithContext(ctx).Infof(
-			"mls: %d had been held by a conversation nobody came back to; %x has it now",
-			peerId, groupId)
+	if held == nil || bytes.Equal(held, groupId) {
+		return held, nil
+	}
+
+	// Whether the conversation holding this chat still has anybody in it who is
+	// here. That question could not be asked before - nobody knew who was in a
+	// group - and a fortnight since the claim was the closest thing to an
+	// answer (#142). Now it is asked directly, and a conversation nobody is
+	// left in stops holding the chat at once (#147).
+	known, live, err := s.stillThere(ctx, held)
+	if err != nil {
+		return nil, err
+	}
+
+	var takenOver bool
+	if known {
+		if live > 0 {
+			return held, nil
+		}
+		// The group id is in the condition for the same reason the insert above
+		// is an insert-ignore: two devices arriving together on a conversation
+		// nobody is in would otherwise both take it, which is the split this
+		// row exists to prevent. The first moves it and the second no longer
+		// matches what it judged.
+		const takeOver = "update mls_conversations set group_id = ?, date = ? " +
+			"where peer_id = ? and group_id = ?"
+		result, err = s.db.Exec(ctx, takeOver, groupId, date, peerId, held)
+		if err != nil {
+			logx.WithContext(ctx).Errorf(
+				"mls: cannot take over the conversation of %d: %v", peerId, err)
+			return nil, err
+		}
+		taken, err := result.RowsAffected()
+		takenOver = err == nil && taken == 1
+		if takenOver {
+			logx.WithContext(ctx).Infof(
+				"mls: %x held %d and has nobody left in it; %x has it now",
+				held, peerId, groupId)
+		}
+	} else {
+		// Nothing is known about that conversation: it was settled before the
+		// roster existed and nobody has committed in it since, so there is no
+		// list to find nobody in. The old rule stands for exactly these, and
+		// only these - releasing a chat because the server happens not to know
+		// who is in its conversation would hand it to whoever asked next.
+		//
+		// It empties itself: any commit or any new group writes a roster. When
+		// the last conversation without one has gone, this branch can go with
+		// it, and until then a fortnight is still better than for ever (#142).
+		const takeOverStale = "update mls_conversations set group_id = ?, date = ? " +
+			"where peer_id = ? and date < ?"
+		result, err = s.db.Exec(ctx, takeOverStale, groupId, date, peerId, date-WelcomeLife)
+		if err != nil {
+			logx.WithContext(ctx).Errorf(
+				"mls: cannot take over the conversation of %d: %v", peerId, err)
+			return nil, err
+		}
+		taken, err := result.RowsAffected()
+		takenOver = err == nil && taken == 1
+		if takenOver {
+			logx.WithContext(ctx).Infof(
+				"mls: %d had been held by a conversation nobody came back to and nothing is known about; %x has it now",
+				peerId, groupId)
+		}
+	}
+	if takenOver {
 		return groupId, nil
 	}
 
 	return s.Of(ctx, peerId)
 }
 
-// Settle says this conversation is the chat's whatever was there before, for a
-// caller that is inside it and has just found a leaf there for every device of
-// every member of the chat.
+// How long a device may go without asking the server anything before it is
+// taken for gone.
 //
-// Claim alone made the first answer the answer for ever, and one chat on the
-// stand shows what that costs. Its answer was won by a conversation that a
-// device rebuilding on a misreading made and nobody followed: everybody talks
-// in another one, and every device that starts from nothing is sent to a group
-// with nobody in it, to wait for an invitation that cannot come. Neither a
-// message nor an invitation is ever compared with this row, so nothing undid it
-// (#139).
+// The same fortnight the device count uses (#138), and for the same reason:
+// a phone that comes back after longer publishes, is seen, and is let into
+// whatever it missed by the comparison that already runs, while a phantom kept
+// is a dead leaf in every conversation started from then on.
+const DeviceLife = int32(14 * 86400)
+
+// stillThere says whether anything is known about who holds this conversation,
+// and how many of them have a device that has been seen lately.
 //
-// Only that caller may say it, and only about a conversation it is in - which
-// is what makes it a fact rather than a claim. It grants nobody anything they
-// did not have: a member can already take the chat into a conversation of their
-// own by inviting everybody to it, and this writes down where the chat ended up.
-func (s *MysqlConversations) Settle(ctx context.Context, peerId int64, groupId []byte, date int32) ([]byte, error) {
-	const settle = "insert into mls_conversations(peer_id, group_id, date) values (?, ?, ?) " +
-		"on duplicate key update group_id = ?, date = ?"
-	if _, err := s.db.Exec(ctx, settle, peerId, groupId, date, groupId, date); err != nil {
-		logx.WithContext(ctx).Errorf("mls: cannot settle the conversation of %d: %v", peerId, err)
-		return nil, err
+// The two answers are separate on purpose. "Nobody is in it" and "nobody has
+// told us who is in it" look identical from a count of zero, and they call for
+// opposite things: the first releases the chat, the second must not.
+//
+// Asked about people rather than about leaves, because a leaf names a device by
+// the MLS identity's own number and the mapping to an auth key lives in
+// mls_key_packages.name - which step 3 of #147 reads and this does not need: a
+// conversation with a live member in it is being used, whichever of their
+// phones is doing the using.
+func (s *MysqlConversations) stillThere(ctx context.Context, groupId []byte) (known bool, live int, err error) {
+	var held int
+	if err = s.db.QueryRowPartial(ctx, &held,
+		"select count(*) from mls_members where group_id = ?", groupId); err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			logx.WithContext(ctx).Errorf("mls: cannot read who holds %x: %v", groupId, err)
+			return false, 0, err
+		}
+		err = nil
 	}
-	return groupId, nil
+	if held == 0 {
+		return false, 0, nil
+	}
+
+	if err = s.db.QueryRowPartial(ctx, &live,
+		"select count(*) from mls_members m join mls_devices d on d.user_id = m.user_id "+
+			"where m.group_id = ? and d.last_seen > ?",
+		groupId, int32(time.Now().Unix())-DeviceLife); err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			logx.WithContext(ctx).Errorf("mls: cannot count who is still in %x: %v", groupId, err)
+			return true, 0, err
+		}
+		err = nil
+	}
+	return true, live, nil
 }
 
 // Of answers which conversation this chat has, or nothing when it has none.
