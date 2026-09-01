@@ -40,7 +40,7 @@ import (
 // hands nobody anything new, since a member can already take the chat into a
 // conversation of their own by inviting everybody to it.
 //
-// mls.claimConversation peer_id:long group_id:bytes holds_everybody:Bool = mls.Conversation;
+// mls.claimConversation peer_id:long group_id:bytes holds_everybody:Bool holds:Vector<bytes> = mls.Conversation;
 func (c *MlsCore) MlsClaimConversation(in *mtproto.TLMlsClaimConversation) (*mtproto.Mls_Conversation, error) {
 	peerId := in.GetPeerId()
 	claimed := in.GetGroupId()
@@ -62,6 +62,27 @@ func (c *MlsCore) MlsClaimConversation(in *mtproto.TLMlsClaimConversation) (*mtp
 	if err != nil {
 		c.Logger.Errorf("mls.claimConversation - %v", err)
 		return nil, mtproto.ErrInternalServerError
+	}
+
+	// And who the caller says this conversation holds. A new group's membership
+	// arrives here and nowhere else: its creator accepts its own commit locally
+	// and never posts it, there being nobody to have raced with, so no commit
+	// will ever carry it (#147).
+	//
+	// Recorded whoever won the claim, because the roster is about the group the
+	// caller named rather than about the chat - a conversation that lost the
+	// claim still holds the people it holds. An empty list says nothing and is
+	// ignored; a failure here does not fail the claim, which is the thing the
+	// caller is waiting for.
+	if len(in.GetHolds()) > 0 {
+		// Epoch zero: a claim carries no epoch, and a new group is at its
+		// first. Any commit afterwards names a higher one and takes over.
+		if err := c.svcCtx.Members.Record(c.ctx, claimed, 0, in.GetHolds(), now); err != nil {
+			c.Logger.Errorf("mls.claimConversation - the roster of %x was not written: %v", claimed, err)
+		} else {
+			c.Logger.Infof("mls.claimConversation - %x holds %d leaf/leaves",
+				claimed, len(in.GetHolds()))
+		}
 	}
 
 	// Said whichever way it goes, and said differently for the two, because the

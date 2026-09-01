@@ -19,6 +19,8 @@ type ServiceContext struct {
 	Commits *mls.MysqlCommits
 	// Which conversation belongs to which chat, decided once (#135).
 	Conversations *mls.MysqlConversations
+	// Who holds a leaf in each conversation, as the committer says (#147).
+	Members *mls.MysqlMembers
 	Store         kv.Store
 	UserClient    user_client.UserClient
 }
@@ -32,6 +34,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		Groups:        mls.NewMysqlGroups(db),
 		Commits:       mls.NewMysqlCommits(db),
 		Conversations: mls.NewMysqlConversations(db),
+		Members:       mls.NewMysqlMembers(db),
 		Store:         kv.NewStore(c.KV),
 		UserClient:    user_client.NewUserClient(rpcx.GetCachedRpcClient(c.UserClient)),
 	}

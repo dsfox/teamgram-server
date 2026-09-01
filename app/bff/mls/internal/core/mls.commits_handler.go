@@ -58,6 +58,25 @@ func (c *MlsCore) MlsSendCommit(in *mtproto.TLMlsSendCommit) (*mtproto.Mls_Commi
 		}
 	}
 
+	// And who the group holds now that this commit is taken. Only on the way
+	// that was accepted: a commit that lost its epoch never happened, and its
+	// roster describes a group that never existed (#147).
+	//
+	// At the epoch the group has moved to rather than the one the commit was
+	// made from, because that is the membership being described. A failure here
+	// does not fail the commit - the commit is the thing that matters, and the
+	// next one repairs whatever this lost.
+	if holds := in.GetHolds(); len(holds) > 0 {
+		if err := c.svcCtx.Members.Record(
+			c.ctx, in.GetGroupId(), in.GetEpoch()+1, holds, int32(time.Now().Unix())); err != nil {
+			c.Logger.Errorf("mls.sendCommit - the roster of %x was not written: %v",
+				in.GetGroupId(), err)
+		} else {
+			c.Logger.Infof("mls.sendCommit - %x holds %d leaf/leaves at epoch %d",
+				in.GetGroupId(), len(holds), in.GetEpoch()+1)
+		}
+	}
+
 	c.Logger.Infof("mls.sendCommit - epoch %d taken, left for %d device(s)",
 		in.GetEpoch(), posted)
 	return &mtproto.Mls_CommitResult{Accepted: true, Epoch: in.GetEpoch() + 1}, nil
