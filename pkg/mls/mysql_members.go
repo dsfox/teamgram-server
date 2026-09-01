@@ -134,11 +134,15 @@ func (m *MysqlMembers) Record(ctx context.Context, groupId []byte, epoch int64, 
 	}
 
 	// Said on the way through, and it has to be. This writer replaces a roster
-	// whole - everything the list did not name is deleted - and until now it
-	// spoke only when it refused one. So when the roster and the trees
-	// disagreed there was no way to ask what it had been told: the one number
-	// that would have answered it was never written down. A pass that only
-	// speaks when it fails cannot be measured (#144, #154).
+	// whole - everything the list did not name is deleted - and it used to speak
+	// only when it refused one, so there was no way to ask afterwards what it
+	// had been told. A pass that only speaks when it fails cannot be measured,
+	// which is the lesson the counter behind #144 already carries.
+	//
+	// It went in during a hunt for a roster that looked short and was not: the
+	// reading had been cut by a `tail` of the reader's own (#154). The line
+	// stays because the rule stands on its own - the next time a roster really
+	// is short, this is what answers it.
 	logx.WithContext(ctx).Infof(
 		"mls members - %x holds %d leaf/leaves at epoch %d", groupId, written, epoch)
 	return nil
