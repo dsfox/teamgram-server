@@ -11,13 +11,14 @@ import (
 // MlsSendCommit takes a membership change, if it was made from the epoch the
 // conversation is actually on, and leaves it for everybody who has to apply it.
 //
-// This is the one place the server has an opinion about a conversation. MLS
-// validates a commit against the epoch it was made from, so of two made from
-// the same epoch exactly one can be taken - RFC 9420 gives that ordering to the
-// delivery service, and here that is us. What it learns is that a group exists
-// and which epoch it is on; not who is in it, and not a word of what is said.
+// This is where the server has an opinion about a conversation. MLS validates a
+// commit against the epoch it was made from, so of two made from the same epoch
+// exactly one can be taken - RFC 9420 gives that ordering to the delivery
+// service, and here that is us. What it learns here is that a group exists,
+// which epoch it is on, and, since #147, who holds a leaf in it. Not a word of
+// what is said.
 //
-// mls.sendCommit group_id:bytes epoch:long members:Vector<long> commit:bytes = mls.CommitResult;
+// mls.sendCommit group_id:bytes epoch:long members:Vector<long> commit:bytes holds:Vector<bytes> = mls.CommitResult;
 func (c *MlsCore) MlsSendCommit(in *mtproto.TLMlsSendCommit) (*mtproto.Mls_CommitResult, error) {
 	posted, err := mls.Accept(
 		c.ctx,

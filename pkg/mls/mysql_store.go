@@ -226,13 +226,6 @@ func (s *MysqlStore) CountDevices(ctx context.Context, userId int64) (int, error
 	return count, nil
 }
 
-// deviceRow is one device of a person and the identity it publishes under.
-type deviceRow struct {
-	AuthKeyId int64  `db:"auth_key_id"`
-	Name      []byte `db:"name"`
-}
-
-
 func (s *MysqlStore) Devices(ctx context.Context, userId int64) ([]int64, error) {
 	var devices []int64
 

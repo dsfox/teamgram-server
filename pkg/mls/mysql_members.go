@@ -148,15 +148,6 @@ func userOf(leaf []byte) (int64, bool) {
 	return who, true
 }
 
-func holds(leaves [][]byte, leaf []byte) bool {
-	for _, held := range leaves {
-		if bytes.Equal(held, leaf) {
-			return true
-		}
-	}
-	return false
-}
-
 // LeafState is one leaf of a group and whether anybody is behind it.
 type LeafState struct {
 	Name   []byte

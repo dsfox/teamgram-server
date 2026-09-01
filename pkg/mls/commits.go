@@ -11,9 +11,10 @@ import (
 // so of two commits made from the same epoch exactly one can be taken. The other
 // has to be refused, and its author has to apply the winner and try again.
 //
-// RFC 9420 gives that ordering to the delivery service. Here that is this file,
-// and it is the one place the server stops being dumb: it learns that a group
-// exists and which epoch it is on. Not who is in it, not a word of what is said.
+// RFC 9420 gives that ordering to the delivery service. Here that is this file:
+// it learns that a group exists and which epoch it is on. Who is in the group
+// it is told outright and keeps in mls_members (#147). What it cannot do is
+// read a word of what is said, and that is the line that matters.
 
 // ErrBehind is a commit made from an epoch the conversation has already left.
 // The caller lost a race; the answer is to catch up and send again, not to

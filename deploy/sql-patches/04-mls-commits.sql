@@ -6,11 +6,18 @@
 -- only one: the other must be told, rebuilt on top of the winner, and sent
 -- again. RFC 9420 gives that job to the delivery service, which here is us.
 --
--- This is the one place the server stops being dumb. It learns that a group
--- exists and which epoch it is on - not who is in it, not what is said. That
--- was written into the plan from the start (docs/06-mls-plan.md, "What stays
--- visible to us even when this is done"), and it is worth saying again here
--- rather than leaving somebody to find it in a table.
+-- This comment used to say that here is the one place the server stops being
+-- dumb - that it learns a group exists and which epoch it is on, "not who is
+-- in it", and that the plan had said so from the start. Both halves were
+-- wrong, and they are worth leaving on the record because the code was written
+-- against them for weeks. The plan says the opposite in as many words
+-- (docs/06-mls-plan.md, "What stays visible to us even when this is done"),
+-- and since #147 the server is told a group's membership outright and keeps it
+-- in mls_members.
+--
+-- What it still cannot do is read a word of what is said, tell an addition
+-- from a removal, or join a group. docs/08-what-the-server-holds.md is the
+-- whole reckoning, including what that invented line cost.
 
 -- Which epoch each conversation is on, so two commits from the same one cannot
 -- both be accepted.
