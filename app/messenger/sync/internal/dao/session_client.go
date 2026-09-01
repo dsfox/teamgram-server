@@ -72,6 +72,30 @@ type Session struct {
 // short enough that a person waiting for a message does not notice.
 const sessionRetryAfter = 5 * time.Second
 
+// pushCallDeadline is how long the call itself may take once it leaves the
+// queue.
+//
+// #144 put a deadline on the push and it never reached the call. `deliver` in
+// the core wraps `PushUpdates`, and `PushUpdates` only puts the work on a
+// channel and returns - the gRPC call is made later, by `process`, with the
+// context that travelled in the channel. That context comes from `detach`,
+// which is `context.WithoutCancel`, and by its contract such a context carries
+// no deadline at all. So the three seconds bounded the enqueue, which never
+// takes any time, and the call was left unbounded.
+//
+// That is the shape of what happened on 31 August: the session client stopped
+// answering, every call waited on it for ever, and 192 updates never reached
+// anybody. A refused connection answers at once and is not this; a server that
+// accepts and then says nothing is, and it is the harder half.
+//
+// The detaching itself stays and is right: the request that produced the push
+// has answered and cancelled its context by the time the queue gets to it, and
+// with the original context 30 deliveries in 35 died as "context canceled".
+// What was missing is a deadline of the call's own.
+//
+// A var so a test can shorten it.
+var pushCallDeadline = 3 * time.Second
+
 // markUnavailable records that this session failed, and when.
 func (c *Session) markUnavailable() {
 	c.markedAt.Store(time.Now().UnixNano())
@@ -129,9 +153,13 @@ func (c *Session) process(sessionChan chan sessionDataCtx) {
 				continue
 			}
 
+			// The call's own deadline. What arrives in the channel carries none:
+			// see pushCallDeadline.
+			pushCtx, done := context.WithTimeout(sessionData.ctx, pushCallDeadline)
+
 			switch r := sessionData.updates.(type) {
 			case *session.TLSessionPushSessionUpdatesData:
-				_, err = c.client.SessionPushSessionUpdatesData(sessionData.ctx, r)
+				_, err = c.client.SessionPushSessionUpdatesData(pushCtx, r)
 				if err != nil {
 					logx.Errorf("c.client.PushSessionUpdates(%s, %v, reply) serverId:%s error(%v)", r, c.serverId, c.serverId, err)
 					if isSessionConnError(err) {
@@ -141,7 +169,7 @@ func (c *Session) process(sessionChan chan sessionDataCtx) {
 					c.alive()
 				}
 			case *session.TLSessionPushUpdatesData:
-				_, err = c.client.SessionPushUpdatesData(sessionData.ctx, r)
+				_, err = c.client.SessionPushUpdatesData(pushCtx, r)
 				if err != nil {
 					logx.Errorf("c.client.PushUpdates(%s, %v, reply) serverId:%s error(%v)", r, c.serverId, c.serverId, err)
 					if isSessionConnError(err) {
@@ -151,7 +179,7 @@ func (c *Session) process(sessionChan chan sessionDataCtx) {
 					c.alive()
 				}
 			case *session.TLSessionPushRpcResultData:
-				_, err = c.client.SessionPushRpcResultData(sessionData.ctx, r)
+				_, err = c.client.SessionPushRpcResultData(pushCtx, r)
 				if err != nil {
 					logx.Errorf("c.client.PushRpcResult(%s, %v, reply) serverId:%s error(%v)", r, c.serverId, c.serverId, err)
 					if isSessionConnError(err) {
@@ -163,6 +191,7 @@ func (c *Session) process(sessionChan chan sessionDataCtx) {
 			default:
 				logx.Errorf("invalid type: %#v", r)
 			}
+			done()
 		case <-c.ctx.Done():
 			return
 		}

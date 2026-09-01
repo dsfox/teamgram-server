@@ -172,3 +172,64 @@ func TestASessionThatGoesOnFailingIsNotAskedEveryTime(t *testing.T) {
 	case <-time.After(200 * time.Millisecond):
 	}
 }
+
+// A session that accepts the call and then says nothing is given up on.
+//
+// This is the half of #146 that the deadline was supposed to close and did not.
+// `deliver` in the core wraps the push in three seconds, but `PushUpdates` only
+// puts the work on a channel and returns; the call is made later by `process`,
+// with a context that came through `detach` - `context.WithoutCancel` - which
+// by contract carries no deadline. So the call was unbounded, and a session
+// that stopped answering held that goroutine for ever. On 31 August that was
+// 192 updates nobody ever got.
+//
+// A refused connection is the easy half and answers at once. This is the other
+// one: the fake accepts and waits, exactly as a hung server does, and gRPC's
+// own answer to a passed deadline is what it returns.
+func TestAPushToASessionThatSaysNothingIsGivenUpOn(t *testing.T) {
+	was := pushCallDeadline
+	pushCallDeadline = 100 * time.Millisecond
+	defer func() { pushCallDeadline = was }()
+
+	entered := make(chan struct{}, 1)
+	fake := &hangingSession{entered: entered}
+	c := newTestSession(fake)
+	defer c.cancel()
+
+	if err := c.PushUpdates(context.Background(), &session.TLSessionPushUpdatesData{}); err != nil {
+		t.Fatalf("the push was refused before it was even tried: %v", err)
+	}
+
+	select {
+	case <-entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the session client was never called at all")
+	}
+
+	// The point: the call comes back rather than holding the goroutine, and the
+	// session is marked so the next push is not thrown into the same hole.
+	deadline := time.Now().Add(2 * time.Second)
+	for !c.unavailable.Load() {
+		if time.Now().After(deadline) {
+			t.Fatal("the call never came back: a session that says nothing still holds this goroutine for ever, which is #146")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// A session that accepts a call and never answers, which is what a hung server
+// looks like from here. It waits for the context, and answers what gRPC answers
+// when a deadline passes.
+type hangingSession struct {
+	sessionclient.SessionClient
+	entered chan struct{}
+}
+
+func (h *hangingSession) SessionPushUpdatesData(ctx context.Context, _ *session.TLSessionPushUpdatesData) (*mtproto.Bool, error) {
+	select {
+	case h.entered <- struct{}{}:
+	default:
+	}
+	<-ctx.Done()
+	return nil, grpcStatus.FromContextError(ctx.Err()).Err()
+}
