@@ -10,6 +10,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/teamgram/teamgram-server/app/interface/gnetway/internal/config"
 	sessionclient "github.com/teamgram/teamgram-server/app/interface/session/client"
@@ -28,6 +29,24 @@ const (
 	maxNodeFailures = 3 // consecutive failures before removing node from ring
 )
 
+// nodeReturnsAfter is how long a node stays out of the ring before it is tried
+// again.
+//
+// It used to stay out for ever, and nothing anywhere put it back. With direct
+// addresses and no etcd - which is how this server runs - `discovery.Watch`
+// calls `update` once at startup and returns; the whole function is an if and a
+// call, so the only path that adds a node never runs a second time. On a
+// one-node install the ring is then empty, `dispatcher.Get` finds nothing, and
+// every request is answered `not found session` until somebody restarts the
+// container: nobody can sign in, and nobody can write (#150).
+//
+// Taking a failing node out is still right - with several of them the traffic
+// should go round it - so it goes out, and comes back to be tried. Five
+// seconds, which is what sync waits before trusting a session again (#146).
+//
+// A var rather than a const so a test can make the pause short enough to watch.
+var nodeReturnsAfter = 5 * time.Second
+
 var (
 	ErrSessionNotFound = errors.New("not found session")
 )
@@ -38,6 +57,10 @@ type ShardingSessionClient struct {
 	dispatcher   *hash.ConsistentHash
 	sessions     map[string]sessionclient.SessionClient
 	failCounters map[string]int
+	// When each node that has been taken out of the ring may be tried again.
+	// The client itself stays in `sessions`: zrpc reconnects underneath, so
+	// what is being paused is the routing, not the connection.
+	sidelined map[string]time.Time
 }
 
 func NewShardingSessionClient(c config.Config) *ShardingSessionClient {
@@ -45,6 +68,7 @@ func NewShardingSessionClient(c config.Config) *ShardingSessionClient {
 		dispatcher:   hash.NewConsistentHash(),
 		sessions:     make(map[string]sessionclient.SessionClient),
 		failCounters: make(map[string]int),
+		sidelined:    make(map[string]time.Time),
 	}
 	sess.watch(c.Session)
 
@@ -106,10 +130,55 @@ func (sess *ShardingSessionClient) watch(c zrpc.RpcClientConf) {
 	}
 }
 
+// bringBackWhatIsDue puts a sidelined node into the ring once its pause is over.
+//
+// Asked before every dispatch rather than on a timer of its own: there is no
+// other moment: the one thing that used to add nodes runs at startup and never
+// again, which is why a node taken out stayed out for ever (#150).
+//
+// The read is done under the read lock and the write only when there is
+// something to write, so the ordinary call - nothing sidelined - costs a map
+// length and no contention.
+func (sess *ShardingSessionClient) bringBackWhatIsDue() {
+	now := time.Now()
+
+	sess.mu.RLock()
+	due := false
+	for _, when := range sess.sidelined {
+		if !now.Before(when) {
+			due = true
+			break
+		}
+	}
+	sess.mu.RUnlock()
+	if !due {
+		return
+	}
+
+	sess.mu.Lock()
+	for node, when := range sess.sidelined {
+		if now.Before(when) {
+			continue
+		}
+		delete(sess.sidelined, node)
+		if _, ok := sess.sessions[node]; !ok {
+			// Taken away by an update rather than by a failure. Nothing to
+			// bring back, and adding it would put a name in the ring with no
+			// client behind it.
+			continue
+		}
+		sess.dispatcher.Add(node)
+		logx.Infof("session node %s is back in the ring after %s", node, nodeReturnsAfter)
+	}
+	sess.mu.Unlock()
+}
+
 func (sess *ShardingSessionClient) InvokeByKey(key string, cb func(client sessionclient.SessionClient) (err error)) error {
 	if cb == nil {
 		return nil
 	}
+
+	sess.bringBackWhatIsDue()
 
 	sess.mu.RLock()
 	val, ok := sess.dispatcher.Get(key)
@@ -159,10 +228,12 @@ func (sess *ShardingSessionClient) InvokeByKey(key string, cb func(client sessio
 	sess.failCounters[node]++
 	failCount := sess.failCounters[node]
 	if failCount >= maxNodeFailures {
-		logx.Errorf("session node %s unreachable (%d consecutive failures), removing from ring", node, failCount)
+		logx.Errorf("session node %s unreachable (%d consecutive failures), out of the ring for %s", node, failCount, nodeReturnsAfter)
 		sess.dispatcher.Remove(node)
-		delete(sess.sessions, node)
 		delete(sess.failCounters, node)
+		// The client stays: it is what makes putting the node back possible,
+		// and zrpc reconnects behind it on its own.
+		sess.sidelined[node] = time.Now().Add(nodeReturnsAfter)
 	} else {
 		logx.Errorf("session node %s connection error (%d/%d), retrying on another node", node, failCount, maxNodeFailures)
 	}
