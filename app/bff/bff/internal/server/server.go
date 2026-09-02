@@ -33,6 +33,7 @@ import (
 	dialogs_helper "github.com/teamgram/teamgram-server/app/bff/dialogs"
 	drafts_helper "github.com/teamgram/teamgram-server/app/bff/drafts"
 	files_helper "github.com/teamgram/teamgram-server/app/bff/files"
+	invite_helper "github.com/teamgram/teamgram-server/app/bff/invite"
 	messages_helper "github.com/teamgram/teamgram-server/app/bff/messages"
 	miscellaneous_helper "github.com/teamgram/teamgram-server/app/bff/miscellaneous"
 	mls_helper "github.com/teamgram/teamgram-server/app/bff/mls"
@@ -105,6 +106,17 @@ func (s *Server) Initialize() error {
 				KV:         c.KV,
 				UserClient: c.BizServiceClient,
 				SyncClient: c.SyncClient,
+			}))
+
+		// invite_helper: invitations people send themselves (#47). A code bound
+		// to a contact's number, for the member who vouches for them.
+		mtproto.RegisterRPCInviteServer(
+			grpcServer,
+			invite_helper.New(invite_helper.Config{
+				RpcServerConf: c.RpcServerConf,
+				KV:            c.KV,
+				Mysql:         c.Mysql,
+				UserClient:    c.BizServiceClient,
 			}))
 
 		// qrcode_helper
