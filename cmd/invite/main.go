@@ -6,6 +6,10 @@
 // expires; nothing about it is tied to a number, so it is worth exactly as much
 // as the trouble of passing it along.
 //
+// Since #47 a member mints one for a contact from the app, bound to that
+// contact's number and carried by the phone's own SMS. This tool is for the
+// owner - a number you know, a lost phone, a recovery phrase.
+//
 //	invite                             # for somebody new, good for a day
 //	invite --phone +79991234567        # for that number only - a lost phone
 //	invite --hours 2 --note "Natalya"

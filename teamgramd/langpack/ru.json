@@ -9620,6 +9620,7 @@
     "HashtagSearch.SearchPlaceholder": "Поиск хештегов",
     "HashtagSearch.StoriesFoundInfo": "Смотреть истории с %@",
     "HashtagSearch.ThisChat": "Этот чат",
+    "Ice9.MessageFromAnotherDevice": "🔒 Сообщение с другого устройства",
     "ImportStickerPack.AddToExistingStickerSet": "Добавить к существующему набору",
     "ImportStickerPack.CheckingLink": "проверка доступности...",
     "ImportStickerPack.ChooseLink": "Выберите ссылку",
@@ -9695,8 +9696,12 @@
     "Invitation.JoinVoiceChatAsSpeaker": "Подключиться как спикер",
     "Invitation.PrivateGroup": "частная группа",
     "Invitation.PublicGroup": "публичная группа",
+    "Invite.AlreadyHere": "Этот человек уже в ice9 — просто напишите ему.",
     "Invite.ChannelsTooMuch": "У пользователя максимальное число групп и каналов. Пожалуйста, предложите ему сперва покинуть какую-нибудь группу или канал.",
+    "Invite.CodeHint": "Код — в SMS от того, кто вас пригласил.",
+    "Invite.CodeLine": "Ваш код приглашения: %@",
     "Invite.LargeRecipientsCountWarning": "Отправка всех приглашений может занять некоторое время.",
+    "Invite.NoCode": "Не удалось получить код приглашения. Попробуйте позже.",
     "InviteLink.AdditionalLinks": "Дополнительные ссылки",
     "InviteLink.ApprovalRequired": "подтверждение админом",
     "InviteLink.CallLinkTitle": "Ссылка на звонок",
@@ -9799,7 +9804,7 @@
     "InviteLink.UsageLimitReached": "достигнут лимит",
     "InviteLinks.InviteLinkExpired": "Срок действия ссылки истёк.",
     "InviteText.SingleContact": "Привет, я использую ice9 для переписки. Присоединяйся! Скачать его можно здесь: %@",
-    "InviteText.URL": "",
+    "InviteText.URL": "https://ice9.app",
     "Items.NOfM": "%1$@ из %2$@",
     "Join.ChannelsTooMuch": "У Вас максимальное число групп и каналов. Пожалуйста, сперва покиньте какую-нибудь группу или канал.",
     "KeyCommand.ChatInfo": "Информация чата",
@@ -15490,8 +15495,7 @@
     "Your_cards_expiration_month_is_invalid": "Вы ввели неверный месяц завершения срока действия.",
     "Your_cards_expiration_year_is_invalid": "Вы ввели неверный год завершения срока действия.",
     "Your_cards_number_is_invalid": "Вы ввели неверный номер карты.",
-    "Your_cards_security_code_is_invalid": "Вы ввели неверный код безопасности.",
-    "Ice9.MessageFromAnotherDevice": "🔒 Сообщение с другого устройства"
+    "Your_cards_security_code_is_invalid": "Вы ввели неверный код безопасности."
   },
-  "version": 21604146
+  "version": 21604148
 }

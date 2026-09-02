@@ -25,10 +25,12 @@ import (
 // HelpGetInviteText
 // help.getInviteText#4d392343 = help.InviteText;
 func (c *ConfigurationCore) HelpGetInviteText(in *mtproto.TLHelpGetInviteText) (*mtproto.Help_InviteText, error) {
-	// The text a person sends to a friend who is not here yet. There is nothing
-	// enterprise about it, and refusing left the client retrying at every visit
-	// to the contact list.
+	// The link a person sends to a friend who is not here yet. Android puts
+	// this answer in the link slot of its own localized sentence ("Download it
+	// here: %1$s"), so a sentence here read as "Download it here: Let's use
+	// ice9 to chat." (#47). Refusing is not an option either: that left the
+	// client retrying at every visit to the contact list.
 	return mtproto.MakeTLHelpInviteText(&mtproto.Help_InviteText{
-		Message: "Let's use ice9 to chat.",
+		Message: "https://ice9.app",
 	}).To_Help_InviteText(), nil
 }

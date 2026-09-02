@@ -9147,6 +9147,7 @@
   "InvalidPhoneNumber": "Некорректный номер телефона. Пожалуйста, проверьте номер и попробуйте ещё раз.",
   "Invisible": "невидимый",
   "Invite": "Пригласить",
+  "InviteAlreadyHere": "Этот человек уже в ice9 — просто напишите ему.",
   "InviteBlockedManyMessage": "Вы можете отправить этим пользователям личные сообщения с пригласительной ссылкой на группу.",
   "InviteBlockedOneMessage": "Вы можете отправить пригласительную ссылку на группу личным сообщением.",
   "InviteBlockedTitle": "Отправьте ссылку",
@@ -9157,6 +9158,8 @@
   "InviteCallRestrictedUsersOne": "**%s** не принимает звонки, но Вы можете отправить пригласительную ссылку.",
   "InviteChannelRestrictedUsers2One": "Пользователя **%s** можно пригласить только по ссылке, однако у Вас недостаточно прав, чтобы отправлять ссылки на этот канал.",
   "InviteChannelRestrictedUsersOne": "**%s** запретил(а) добавлять себя в каналы, но Вы можете отправить пригласительную ссылку.",
+  "InviteCodeHint": "Код — в SMS от того, кто вас пригласил.",
+  "InviteCodeLine": "Ваш код приглашения: %1$s",
   "InviteExpired": "Срок действия ссылки истёк.",
   "InviteFriends": "Пригласить друзей",
   "InviteFriendsHelp": "Выберите людей, которых хотите пригласить в ice9",
@@ -9167,6 +9170,7 @@
   "InviteMessagePremiumBlockedOne": "Отправлять **%1$s** сообщения и приглашения в группы могут только контакты и **Premium**-пользователи.",
   "InviteMessagePremiumBlockedThree": "**%1$s**, **%2$s** и **%3$s** могут приглашать в группы только контакты и **Premium**-пользователи.",
   "InviteMessagePremiumBlockedTwo": "Отправлять **%1$s** и **%2$s** сообщения и приглашения в группы могут только контакты и **Premium**-пользователи.",
+  "InviteNoCode": "Не удалось получить код приглашения. Попробуйте позже.",
   "InvitePremiumBlockedOne": "**%1$s** могут приглашать в группы только контакты и **Premium**-пользователи.",
   "InvitePremiumBlockedOr": "или",
   "InvitePremiumBlockedSubscribe": "Оформить ice9 Premium",
@@ -14710,5 +14714,5 @@
   "login_with_telegram": "Войти через ice9",
   "telegram_passport": "ice9 Passport"
  },
- "version": 60209809
+ "version": 60209810
 }
