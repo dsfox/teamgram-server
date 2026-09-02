@@ -510,6 +510,13 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, md *metadat
 			Users: []*mtproto.User{},
 		}).To_Payments_SavedStarGifts(), nil
 
+	// The 12.10 clients report how long a message was on screen whenever a chat
+	// is read. We keep no such metrics; taking the report and dropping it is
+	// the honest answer, and the refusal it replaced fired the health check
+	// every fifteen minutes for a week (#159).
+	case "TLMessagesReportReadMetrics":
+		return mtproto.BoolTrue, nil
+
 	// help.test is what the client sends to mark the end of an update poll. The
 	// answer only has to arrive; an error here does not block the poll, but it
 	// has no business being an error either.

@@ -57,6 +57,7 @@ func TestStubAnswersEncode(t *testing.T) {
 // Everything the client asks for at startup and gets a stub answer to.
 func stubRequests() []mtproto.TLObject {
 	return []mtproto.TLObject{
+		&mtproto.TLMessagesReportReadMetrics{},
 		&mtproto.TLMessagesGetTopReactions{},
 		&mtproto.TLMessagesGetRecentReactions{},
 		&mtproto.TLMessagesGetDefaultTagReactions{},
