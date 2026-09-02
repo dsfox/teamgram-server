@@ -41,7 +41,8 @@ type VerifyCodeInterface interface {
 // phone number could sign in as its owner. It is kept only because removing a
 // name from a config file is not the way to close a hole; it is never selected
 // by default, and the deploy does not set it.
-func NewVerifyCode(c *conf.SmsVerifyCodeConfig, store invite.Store) VerifyCodeInterface {
+// recorder may be nil: then a spent invitation is not written down (#47).
+func NewVerifyCode(c *conf.SmsVerifyCodeConfig, store invite.Store, recorder invite.Recorder) VerifyCodeInterface {
 	if c == nil {
 		c = new(conf.SmsVerifyCodeConfig)
 	}
@@ -53,5 +54,5 @@ func NewVerifyCode(c *conf.SmsVerifyCodeConfig, store invite.Store) VerifyCodeIn
 		return none.New(c)
 	}
 
-	return invite.New(c, store)
+	return invite.New(c, store).WithRecorder(recorder)
 }

@@ -16,6 +16,21 @@ type Config struct {
 	Mysql      sqlx.Config
 	UserClient zrpc.RpcClientConf
 	// How long a code a person sent lives. Seven days, not the CLI's one: a
-	// person does not install an app the day the SMS arrives.
-	InvitationDays int `json:",default=7"`
+	// person does not install an app the day the SMS arrives. Unset means
+	// seven - see Days. Not read from a file: the combined bff builds this
+	// config in code, so a tag here would be a rule that never applied (#151).
+	InvitationDays int
+}
+
+// DefaultInvitationDays is what a code lives when the config says nothing.
+const DefaultInvitationDays = 7
+
+// Days is the lifetime to use, the default applied in code rather than in a
+// struct tag: a tag the loader does not read is a rule that never applied
+// (#151), and this one has to.
+func (c Config) Days() int {
+	if c.InvitationDays <= 0 {
+		return DefaultInvitationDays
+	}
+	return c.InvitationDays
 }

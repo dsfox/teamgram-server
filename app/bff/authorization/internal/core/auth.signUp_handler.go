@@ -208,6 +208,10 @@ func (c *AuthorizationCore) AuthSignUp(in *mtproto.TLAuthSignUp) (*mtproto.Auth_
 			c.pushSignInMessage(ctx, user.Id(), codeData.PhoneCode)
 			c.ensureRecoveryPhrase(ctx, user.Id(), phoneNumber)
 			c.onContactSignUp(ctx, c.MD.PermAuthKeyId, user.Id(), phoneNumber)
+			// Who came in on whose invitation: the id exists only now (#47).
+			if err := c.svcCtx.Invitations.Adopted(ctx, phoneNumber, user.Id()); err != nil {
+				c.Logger.Errorf("auth.signUp - %v", err)
+			}
 		},
 	).(*mtproto.Auth_Authorization), nil
 }

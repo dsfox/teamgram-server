@@ -246,3 +246,28 @@ func (brokenStore) IncrCtx(context.Context, string) (int64, error) {
 func (brokenStore) DelCtx(context.Context, ...string) (int, error) {
 	return 0, errMissing{}
 }
+
+// memoRecorder remembers the one redemption it was told about (#47).
+type memoRecorder struct {
+	code, phone string
+	at          int32
+}
+
+func (m *memoRecorder) Redeemed(_ context.Context, code, phone string, at int32) error {
+	m.code, m.phone, m.at = code, phone, at
+	return nil
+}
+
+func TestSpendingAnInvitationIsRecorded(t *testing.T) {
+	store := &mapStore{data: map[string]string{}}
+	code, _ := Mint(context.Background(), store, 3600, Invitation{Phone: "+79991234567"})
+	memo := &memoRecorder{}
+	v := New(nil, store).WithRecorder(memo)
+
+	if !v.useInvitation(context.Background(), attempt.Attempt{Code: code, PhoneNumber: "+79991234567"}) {
+		t.Fatal("the invitation was not spent")
+	}
+	if memo.code != code || memo.phone != "+79991234567" || memo.at == 0 {
+		t.Fatalf("recorded %+v", memo)
+	}
+}

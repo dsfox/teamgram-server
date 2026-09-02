@@ -30,6 +30,7 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/pkg/code/attempt"
@@ -76,7 +77,15 @@ type Invitation struct {
 }
 
 type verifier struct {
-	store Store
+	store    Store
+	recorder Recorder
+}
+
+// WithRecorder makes a spent invitation a line in the record of who brought
+// whom (#47). Without one nothing is written, which is how the CLI runs.
+func (v *verifier) WithRecorder(r Recorder) *verifier {
+	v.recorder = r
+	return v
 }
 
 func New(_ *conf.SmsVerifyCodeConfig, store Store) *verifier {
@@ -229,8 +238,20 @@ func (v *verifier) useInvitation(ctx context.Context, a attempt.Attempt) bool {
 		logx.WithContext(ctx).Errorf("sign-in: cannot spend the invitation: %v", err)
 		return false
 	}
+	if deleted != 1 {
+		return false
+	}
 
-	return deleted == 1
+	// Written down here because this is the moment the code was spent, and
+	// the only place that knows which attempt took it (#47).
+	if v.recorder != nil {
+		if err := v.recorder.Redeemed(ctx, a.Code, a.PhoneNumber, int32(time.Now().Unix())); err != nil {
+			// The person is in; the record is for the owner, and a gap in it
+			// is logged rather than charged to them.
+			logx.WithContext(ctx).Errorf("sign-in: spent the invitation but could not record it: %v", err)
+		}
+	}
+	return true
 }
 
 // allows is the rule an invitation is worth stating on its own: an invitation

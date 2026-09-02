@@ -19,16 +19,20 @@
 package config
 
 import (
-	"github.com/teamgram/teamgram-server/pkg/queue"
+	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/teamgram-server/pkg/code/conf"
+	"github.com/teamgram/teamgram-server/pkg/queue"
 	"github.com/zeromicro/go-zero/core/stores/kv"
 	"github.com/zeromicro/go-zero/zrpc"
 )
 
 type Config struct {
 	zrpc.RpcServerConf
-	KV                        kv.KvConf
-	Code                      *conf.SmsVerifyCodeConfig
+	KV   kv.KvConf
+	Code *conf.SmsVerifyCodeConfig
+	// For the record of who brought whom (#47): a spent invitation and the
+	// account that came in on it are written down here.
+	Mysql                     sqlx.Config
 	UserClient                zrpc.RpcClientConf
 	AuthsessionClient         zrpc.RpcClientConf
 	ChatClient                zrpc.RpcClientConf

@@ -50,7 +50,7 @@ func (c *InviteCore) InviteMint(in *mtproto.TLInviteMint) (*mtproto.Invite_Minte
 		}
 	}
 
-	seconds := c.svcCtx.Config.InvitationDays * 24 * 3600
+	seconds := c.svcCtx.Config.Days() * 24 * 3600
 	now := int32(time.Now().Unix())
 	code, err := invite.Mint(c.ctx, c.svcCtx.Store, seconds, invite.Invitation{
 		Phone: phone,
@@ -70,6 +70,6 @@ func (c *InviteCore) InviteMint(in *mtproto.TLInviteMint) (*mtproto.Invite_Minte
 		c.Logger.Errorf("invite.mint - %v", err)
 	}
 
-	c.Logger.Infof("invite.mint - %d vouches for %s, code lives %d days", c.MD.UserId, phone, c.svcCtx.Config.InvitationDays)
+	c.Logger.Infof("invite.mint - %d vouches for %s, code lives %d days", c.MD.UserId, phone, c.svcCtx.Config.Days())
 	return &mtproto.Invite_Minted{Code: code, Expires: now + int32(seconds)}, nil
 }

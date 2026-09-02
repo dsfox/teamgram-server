@@ -147,6 +147,7 @@ func (s *Server) Initialize() error {
 					RpcServerConf:             c.RpcServerConf,
 					KV:                        c.KV,
 					Code:                      c.Code,
+					Mysql:                     c.Mysql,
 					UserClient:                c.BizServiceClient,
 					AuthsessionClient:         c.AuthSessionClient,
 					ChatClient:                c.BizServiceClient,

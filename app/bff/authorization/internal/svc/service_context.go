@@ -24,6 +24,9 @@ import (
 	"github.com/teamgram/teamgram-server/app/bff/authorization/internal/logic"
 	"github.com/teamgram/teamgram-server/app/bff/authorization/plugin"
 	"github.com/teamgram/teamgram-server/pkg/code"
+	"github.com/teamgram/teamgram-server/pkg/code/invite"
+
+	"github.com/teamgram/marmota/pkg/stores/sqlx"
 )
 
 type ServiceContext struct {
@@ -31,17 +34,22 @@ type ServiceContext struct {
 	*dao.Dao
 	*logic.AuthLogic
 	Plugin plugin.AuthorizationPlugin
+	// The record of who brought whom (#47): the verifier writes the
+	// redemption, signUp writes who came in.
+	Invitations *invite.MysqlInvitations
 }
 
 func NewServiceContext(c config.Config, code2 code.VerifyCodeInterface, plugin plugin.AuthorizationPlugin) *ServiceContext {
 	d := dao.New(c)
+	invitations := invite.NewMysqlInvitations(sqlx.NewMySQL(&c.Mysql))
 	if code2 == nil {
-		code2 = code.NewVerifyCode(c.Code, d.Store())
+		code2 = code.NewVerifyCode(c.Code, d.Store(), invitations)
 	}
 	return &ServiceContext{
-		Config:    c,
-		Dao:       d,
-		AuthLogic: logic.NewAuthSignLogic(d, code2),
-		Plugin:    plugin,
+		Config:      c,
+		Dao:         d,
+		AuthLogic:   logic.NewAuthSignLogic(d, code2),
+		Plugin:      plugin,
+		Invitations: invitations,
 	}
 }
