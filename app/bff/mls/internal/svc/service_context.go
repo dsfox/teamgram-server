@@ -5,8 +5,10 @@ import (
 	"github.com/teamgram/marmota/pkg/stores/kv"
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/teamgram-server/app/bff/mls/internal/config"
+	sync_client "github.com/teamgram/teamgram-server/app/messenger/sync/client"
 	user_client "github.com/teamgram/teamgram-server/app/service/biz/user/client"
 	"github.com/teamgram/teamgram-server/pkg/mls"
+	"github.com/teamgram/teamgram-server/pkg/queue"
 )
 
 type ServiceContext struct {
@@ -23,6 +25,8 @@ type ServiceContext struct {
 	Members *mls.MysqlMembers
 	Store         kv.Store
 	UserClient    user_client.UserClient
+	// Says "there is something in your box" to the devices of a person (#156).
+	SyncClient sync_client.SyncClient
 }
 
 func NewServiceContext(c config.Config) *ServiceContext {
@@ -37,5 +41,6 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		Members:       mls.NewMysqlMembers(db),
 		Store:         kv.NewStore(c.KV),
 		UserClient:    user_client.NewUserClient(rpcx.GetCachedRpcClient(c.UserClient)),
+		SyncClient:    queue.NewSyncClient(c.SyncClient),
 	}
 }

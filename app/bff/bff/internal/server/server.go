@@ -92,8 +92,8 @@ func (s *Server) Initialize() error {
 			}))
 
 		// mls_helper: the directory of key packages for end-to-end encryption.
-		// It shares the database this process already opens, and talks to
-		// nothing else.
+		// It shares the database this process already opens, and says one
+		// thing to a phone unasked: there is something in your box (#156).
 		mtproto.RegisterRPCMlsServer(
 			grpcServer,
 			mls_helper.New(mls_helper.Config{
@@ -104,6 +104,7 @@ func (s *Server) Initialize() error {
 				// only thing that can say which number is asking.
 				KV:         c.KV,
 				UserClient: c.BizServiceClient,
+				SyncClient: c.SyncClient,
 			}))
 
 		// qrcode_helper

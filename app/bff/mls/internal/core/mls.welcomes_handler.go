@@ -65,6 +65,13 @@ func (c *MlsCore) MlsSendWelcome(in *mtproto.TLMlsSendWelcome) (*mtproto.Mls_Ok,
 	// here yet. The sender learns it from the count rather than from an error
 	// they cannot act on.
 	c.Logger.Infof("mls.sendWelcome - left for %d device(s) of %d", posted, in.GetUserId())
+
+	// And say so at once, so the invited device joins the conversation before
+	// the first message into it arrives rather than after (#156).
+	if posted > 0 {
+		c.tellToCheckTheBox(in.GetUserId())
+	}
+
 	return &mtproto.Mls_Ok{Ok: posted > 0}, nil
 }
 

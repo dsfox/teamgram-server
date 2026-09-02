@@ -80,6 +80,12 @@ func (c *MlsCore) MlsSendCommit(in *mtproto.TLMlsSendCommit) (*mtproto.Mls_Commi
 
 	c.Logger.Infof("mls.sendCommit - epoch %d taken, left for %d device(s)",
 		in.GetEpoch(), posted)
+
+	// And say so at once, so the message that will be sent into the new epoch
+	// does not overtake this commit on the way to everybody's screen (#156).
+	// The members are exactly who the commit was left for.
+	c.tellToCheckTheBox(in.GetMembers()...)
+
 	return &mtproto.Mls_CommitResult{Accepted: true, Epoch: in.GetEpoch() + 1}, nil
 }
 
