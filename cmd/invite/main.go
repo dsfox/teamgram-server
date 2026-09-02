@@ -31,7 +31,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/teamgram/teamgram-server/pkg/code/invite"
 
@@ -83,10 +82,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	code, err := mint(ctx, store, *hours, invite.Invitation{Phone: *phone, Note: *note})
-	if err != nil {
+	code, err := invite.Mint(ctx, store, *hours*3600, invite.Invitation{Phone: *phone, Note: *note})
+	if err != nil && code == "" {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+	if err != nil {
+		// Minted and usable, only not listed for --list: said, not fatal.
+		fmt.Fprintln(os.Stderr, err)
 	}
 
 	fmt.Println(code)
@@ -125,38 +128,6 @@ func mintRecovery(ctx context.Context, store kv.Store, phone string, force bool)
 			"back - hand it over now or mint another. The server replaces it with\n"+
 			"one of its own the next time this account signs in, so that nobody is\n"+
 			"left holding a code that was never passed along.\n", phone)
-}
-
-// mint writes an invitation nobody has used yet. The code is as long as every
-// other sign-in code, because the clients draw exactly as many boxes as the
-// server declares - a shorter one simply cannot be typed in.
-func mint(ctx context.Context, store kv.Store, hours int, inv invite.Invitation) (string, error) {
-	for attempt := 0; attempt < 20; attempt++ {
-		code := invite.Code()
-		key := invite.InvitationKey(code)
-
-		// Taken already: try another rather than overwrite somebody's invitation.
-		// A missing key is an empty string, not an error - checking the error is
-		// how this loop used to decide every code was taken.
-		if existing, err := store.GetCtx(ctx, key); err == nil && existing != "" {
-			continue
-		}
-
-		if inv.Note == "" {
-			inv.Note = "minted " + time.Now().Format(time.RFC3339)
-		}
-		if err := store.SetexCtx(ctx, key, invite.Encode(inv), hours*3600); err != nil {
-			return "", fmt.Errorf("cannot write the invitation: %w", err)
-		}
-
-		// Noted, so that --list can find it: the store cannot walk its own keys.
-		if err := invite.RememberOutstanding(ctx, store, code); err != nil {
-			fmt.Fprintf(os.Stderr, "the invitation was minted but not listed: %v\n", err)
-		}
-		return code, nil
-	}
-
-	return "", fmt.Errorf("could not find a free code after twenty tries")
 }
 
 func showOutstanding(ctx context.Context, store kv.Store) {
