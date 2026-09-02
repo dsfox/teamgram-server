@@ -56,6 +56,10 @@ BFFProxyClients:
     # route and no client, and the request falls through to the stub layer,
     # which refuses it with a licence message that explains nothing.
     "/mtproto.RPCMls": "bff.bff"
+    # Invitations people send themselves (#47). Same rule as the line above:
+    # every /mtproto.RPC* prefix of ours needs a client here, and the proto
+    # tests refuse a route that has none.
+    "/mtproto.RPCInvite": "bff.bff"
     "/mtproto.RPCMiscellaneous": "bff.bff"
     "/mtproto.RPCAuthorization": "bff.bff"
     #"/mtproto.RPCGdpr": "bff.bff"
