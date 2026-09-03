@@ -3,6 +3,7 @@ package apns
 import (
 	"encoding/hex"
 	"encoding/json"
+	"github.com/teamgram/proto/mtproto"
 	"testing"
 
 	"github.com/teamgram/teamgram-server/pkg/fcm"
@@ -32,12 +33,14 @@ func sent(t *testing.T, n Notify) map[string]any {
 }
 
 // The payload as the extension reads it: the alert stays as the fallback,
-// mutable-content is what makes the extension run, and p is the envelope the
-// FCM path already builds - from_id and no text, because the text never
-// leaves the device (#42).
+// mutable-content is what makes the extension run, and p is the envelope in
+// the shape upstream's extension was written to read - the alert again, the
+// chat's id under the key for its kind, the message's id - and no text,
+// because the text never leaves the device (#42).
 func TestPayloadWithSecretWakesTheExtension(t *testing.T) {
 	secret := testKey()
-	got := sent(t, Notify{Title: "ice9", Body: "New message", Badge: 3, FromId: "136908607", Secret: secret})
+	got := sent(t, Notify{Title: "ice9", Body: "New message", Badge: 3, FromId: "136908607",
+		PeerType: int32(mtproto.PEER_USER), PeerId: 136908607, MsgId: 790, Secret: secret})
 
 	aps := got["aps"].(map[string]any)
 	if aps["mutable-content"] != float64(1) {
@@ -54,12 +57,37 @@ func TestPayloadWithSecretWakesTheExtension(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if inside["custom"].(map[string]any)["from_id"] != "136908607" {
-		t.Fatalf("the envelope does not say who it is from: %v", inside)
+	if inside["from_id"] != "136908607" || inside["msg_id"] != "790" {
+		t.Fatalf("the envelope does not name the chat and the message: %v", inside)
+	}
+	if inside["aps"].(map[string]any)["alert"].(map[string]any)["body"] != "New message" {
+		t.Fatalf("the envelope's own alert is not the fallback: %v", inside)
 	}
 	for _, key := range []string{"text", "message", "sender", "title", "body"} {
 		if _, there := inside[key]; there {
 			t.Fatalf("the envelope carries %q, which must never leave the device", key)
+		}
+	}
+}
+
+// A group's id goes under chat_id, a channel's under channel_id: the key is
+// what tells the extension which kind of chat to open.
+func TestTheEnvelopeNamesTheChatByItsKind(t *testing.T) {
+	secret := testKey()
+	for kind, key := range map[int32]string{
+		int32(mtproto.PEER_CHAT):    "chat_id",
+		int32(mtproto.PEER_CHANNEL): "channel_id",
+	} {
+		got := sent(t, Notify{Title: "ice9", Body: "New message", PeerType: kind, PeerId: 120062, MsgId: 5, Secret: secret})
+		inside, err := fcm.OpenEnvelope(secret, got["p"].(string))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inside[key] != "120062" {
+			t.Fatalf("a chat of kind %d is not under %s: %v", kind, key, inside)
+		}
+		if _, there := inside["from_id"]; there {
+			t.Fatalf("a chat of kind %d also says from_id, and the extension would open a person: %v", kind, inside)
 		}
 	}
 }

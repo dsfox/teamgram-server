@@ -14,16 +14,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"os"
-	"time"
-
 	"github.com/sideshow/apns2"
 	"github.com/sideshow/apns2/payload"
 	"github.com/sideshow/apns2/token"
-	"golang.org/x/net/http2"
-
+	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/pkg/fcm"
+	"golang.org/x/net/http2"
+	"net/http"
+	"os"
+	"strconv"
+	"time"
 )
 
 // ErrTokenGone means Apple reported the token no longer exists: the app was
@@ -124,11 +124,30 @@ type Notify struct {
 	// whatever it opens by default, which is not the conversation somebody was
 	// told about.
 	FromId string
+	// The chat the message is in and the message itself, for the envelope
+	// (#42): the extension polls the difference and then looks this message
+	// up by id to read its words, under `from_id`, `chat_id` or `channel_id`
+	// by the kind of peer - the keys the extension was written to read.
+	PeerType int32
+	PeerId   int64
+	MsgId    int32
 	// The device's registered push secret, hex as the database holds it. With
 	// it the push carries the envelope the notification extension opens (#42);
 	// without it the alert alone, which is what a build without the extension
 	// shows either way.
 	Secret string
+}
+
+// peerKey is the key the extension reads a chat's id under.
+func peerKey(peerType int32) string {
+	switch peerType {
+	case int32(mtproto.PEER_CHAT):
+		return "chat_id"
+	case int32(mtproto.PEER_CHANNEL):
+		return "channel_id"
+	default:
+		return "from_id"
+	}
 }
 
 // buildPayload is the payload as sent, on its own so a test can read it.
@@ -150,16 +169,36 @@ func buildPayload(n Notify) *payload.Payload {
 		p = p.Custom("from_id", n.FromId)
 	}
 	if n.Secret != "" {
-		envelope, err := fcm.Envelope(n.Secret, map[string]any{
-			"badge":   n.Badge,
-			"custom":  map[string]any{"from_id": n.FromId},
-			"loc_key": "",
-		})
+		// The shape upstream's extension reads: the alert again, so the
+		// extension starts from the same words the phone would show, and the
+		// ids as decimal strings at the top level.
+		inside := map[string]any{
+			"aps": map[string]any{
+				"alert": map[string]any{"title": n.Title, "body": n.Body},
+				"sound": "default",
+				"badge": n.Badge,
+			},
+			peerKey(n.PeerType): strconv.FormatInt(n.PeerId, 10),
+			"msg_id":            strconv.FormatInt(int64(n.MsgId), 10),
+		}
+		envelope, err := fcm.Envelope(n.Secret, inside)
 		if err == nil {
 			p = p.MutableContent().Custom("p", envelope)
 		}
 	}
 	return p
+}
+
+// PayloadJSON is the payload exactly as it would go to Apple, for a walk that
+// hands it to a simulator instead: `xcrun simctl push` takes the same JSON, so
+// the extension is measured on what the server really sends rather than on a
+// copy of the algorithm kept beside the test (#42).
+func PayloadJSON(n Notify) (string, error) {
+	raw, err := buildPayload(n).MarshalJSON()
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
 }
 
 // Send delivers the notification. It returns ErrTokenGone when the token should

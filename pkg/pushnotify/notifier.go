@@ -116,7 +116,7 @@ func (n *Notifier) Enabled() bool {
 // Sending happens aside from message delivery: Apple answers in hundreds of
 // milliseconds, and up to a minute when the network is down. Waiting for that
 // before showing the message on the other devices is not acceptable.
-func (n *Notifier) NewMessage(ctx context.Context, userId int64, peerType int32, peerId int64, onlineAuthKeyIds []int64) {
+func (n *Notifier) NewMessage(ctx context.Context, userId int64, peerType int32, peerId int64, msgId int32, onlineAuthKeyIds []int64) {
 	if !n.Enabled() {
 		return
 	}
@@ -126,7 +126,7 @@ func (n *Notifier) NewMessage(ctx context.Context, userId int64, peerType int32,
 		// message is delivered.
 		sendCtx, cancel := context.WithTimeout(context.Background(), sendTimeout)
 		defer cancel()
-		n.notify(sendCtx, userId, peerType, peerId, onlineAuthKeyIds)
+		n.notify(sendCtx, userId, peerType, peerId, msgId, onlineAuthKeyIds)
 	})
 }
 
@@ -134,7 +134,7 @@ func (n *Notifier) NewMessage(ctx context.Context, userId int64, peerType int32,
 // all of their devices included.
 const sendTimeout = 30 * time.Second
 
-func (n *Notifier) notify(ctx context.Context, userId int64, peerType int32, peerId int64, onlineAuthKeyIds []int64) {
+func (n *Notifier) notify(ctx context.Context, userId int64, peerType int32, peerId int64, msgId int32, onlineAuthKeyIds []int64) {
 	if n.muted(ctx, userId, peerType, peerId) {
 		return
 	}
@@ -158,7 +158,7 @@ func (n *Notifier) notify(ctx context.Context, userId int64, peerType int32, pee
 		fromId = strconv.FormatInt(peerId, 10)
 	}
 	for _, d := range targets {
-		n.send(ctx, d, badge, fromId)
+		n.send(ctx, d, badge, fromId, peerType, peerId, msgId)
 	}
 }
 
@@ -182,7 +182,7 @@ func offlineTargets(list []devices.DeviceDO, onlineAuthKeyIds []int64) []devices
 	return targets
 }
 
-func (n *Notifier) send(ctx context.Context, d devices.DeviceDO, badge int, fromId string) {
+func (n *Notifier) send(ctx context.Context, d devices.DeviceDO, badge int, fromId string, peerType int32, peerId int64, msgId int32) {
 	var err error
 
 	// Said before the attempt, whatever Apple or Google then answer: whether
@@ -197,12 +197,15 @@ func (n *Notifier) send(ctx context.Context, d devices.DeviceDO, badge int, from
 	switch {
 	case d.IsAPNs() && n.sender != nil:
 		err = n.sender.Send(ctx, d.Token, apns.Notify{
-			Title:   n.title,
-			Body:    n.body,
-			Badge:   badge,
-			Sandbox: d.AppSandbox,
-			FromId:  fromId,
-			Secret:  d.Secret,
+			Title:    n.title,
+			Body:     n.body,
+			Badge:    badge,
+			Sandbox:  d.AppSandbox,
+			FromId:   fromId,
+			PeerType: peerType,
+			PeerId:   peerId,
+			MsgId:    msgId,
+			Secret:   d.Secret,
 		})
 	case d.IsFCM() && n.fcm != nil:
 		// The secret is the key the device registered; without it the app
