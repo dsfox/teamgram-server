@@ -18,6 +18,9 @@
 // and - for an encrypted conversation - text only that device can read. That is
 // the only way this product can ever show more than "New message", since the
 // server cannot read the message either.
+//
+// Since #42 the APNs path sends the same envelope: the iPhone's notification
+// extension opens it with the same key, the way the Android app does.
 package fcm
 
 import (
@@ -135,6 +138,75 @@ func igeEncrypt(plain, key, iv []byte) ([]byte, error) {
 		copy(out[i:], buf)
 		prevCipher = out[i : i+aes.BlockSize]
 		prevPlain = in
+	}
+	return out, nil
+}
+
+// OpenEnvelope is the inverse of Envelope, step for step what the clients do:
+// check the key id, derive, decrypt, check the message key against the
+// plaintext, read the length, read the json. An envelope this refuses is one a
+// phone would refuse - and a phone says nothing but "DECRYPT ERROR".
+func OpenEnvelope(secretHex, envelope string) (map[string]any, error) {
+	authKey, err := hex.DecodeString(secretHex)
+	if err != nil {
+		return nil, fmt.Errorf("the key is not hex: %w", err)
+	}
+	raw, err := base64.URLEncoding.DecodeString(envelope)
+	if err != nil {
+		return nil, fmt.Errorf("the envelope is not base64url: %w", err)
+	}
+	if len(raw) < 24 {
+		return nil, fmt.Errorf("the envelope is %d bytes, shorter than its own header", len(raw))
+	}
+	keyId := sha1.Sum(authKey)
+	if string(raw[:8]) != string(keyId[len(keyId)-8:]) {
+		return nil, fmt.Errorf("the key id does not name this key, so the client drops it")
+	}
+	msgKey := raw[8:24]
+	aesKey, aesIv := keyPair(authKey, msgKey)
+	plain, err := igeDecrypt(raw[24:], aesKey, aesIv)
+	if err != nil {
+		return nil, err
+	}
+	sum := sha256.Sum256(append(append([]byte{}, authKey[88+x:88+x+32]...), plain...))
+	if string(sum[8:24]) != string(msgKey) {
+		return nil, fmt.Errorf("the message key does not match the plaintext, so the client drops it")
+	}
+	length := binary.LittleEndian.Uint32(plain[:4])
+	if int(length) > len(plain)-4 {
+		return nil, fmt.Errorf("the length says %d bytes, only %d follow", length, len(plain)-4)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(plain[4:4+length], &payload); err != nil {
+		return nil, fmt.Errorf("what came out is not json: %w", err)
+	}
+	return payload, nil
+}
+
+func igeDecrypt(data, key, iv []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	if len(data)%aes.BlockSize != 0 {
+		return nil, fmt.Errorf("the ciphertext is %d bytes, not a whole number of blocks", len(data))
+	}
+	prevCipher := iv[:aes.BlockSize]
+	prevPlain := iv[aes.BlockSize:]
+	out := make([]byte, len(data))
+	for i := 0; i < len(data); i += aes.BlockSize {
+		in := data[i : i+aes.BlockSize]
+		buf := make([]byte, aes.BlockSize)
+		for j := range buf {
+			buf[j] = in[j] ^ prevPlain[j]
+		}
+		block.Decrypt(buf, buf)
+		for j := range buf {
+			buf[j] ^= prevCipher[j]
+		}
+		copy(out[i:], buf)
+		prevCipher = in
+		prevPlain = out[i : i+aes.BlockSize]
 	}
 	return out, nil
 }

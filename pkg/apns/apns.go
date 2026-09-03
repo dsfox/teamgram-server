@@ -1,11 +1,13 @@
 // Package apns delivers notifications to Apple devices.
 //
 // Important property: a notification carries neither the message text nor the
-// sender name — only "New message". This is deliberate: showing the text in the
-// banner would require handing it to Apple, even if encrypted. We hand over
-// nothing, so Apple only ever sees that an event happened. In Telegram the
-// decryption and text substitution are done by a separate app extension, which
-// we do not ship; see docs/03-push-notifications.md.
+// sender name - only "New message", and, since #42, the same encrypted
+// envelope the Android push carries: the device's registered key opens it and
+// finds who wrote, nothing more. Showing the text would require handing it to
+// Apple, even if encrypted, so the phone fetches and opens the message itself,
+// in the notification extension the app ships, and draws the words on its own
+// screen. Apple only ever sees that an event happened, and from whom the app
+// should fetch. See docs/03-push-notifications.md.
 package apns
 
 import (
@@ -20,6 +22,8 @@ import (
 	"github.com/sideshow/apns2/payload"
 	"github.com/sideshow/apns2/token"
 	"golang.org/x/net/http2"
+
+	"github.com/teamgram/teamgram-server/pkg/fcm"
 )
 
 // ErrTokenGone means Apple reported the token no longer exists: the app was
@@ -120,11 +124,21 @@ type Notify struct {
 	// whatever it opens by default, which is not the conversation somebody was
 	// told about.
 	FromId string
+	// The device's registered push secret, hex as the database holds it. With
+	// it the push carries the envelope the notification extension opens (#42);
+	// without it the alert alone, which is what a build without the extension
+	// shows either way.
+	Secret string
 }
 
-// Send delivers the notification. It returns ErrTokenGone when the token should
-// be forgotten.
-func (s *Sender) Send(ctx context.Context, deviceToken string, n Notify) error {
+// buildPayload is the payload as sent, on its own so a test can read it.
+//
+// The alert is the fallback: what the phone shows when the extension does not
+// answer in time, or is not there. mutable-content is what makes the extension
+// run at all, and p is the envelope it opens - the same one the FCM path
+// builds, with from_id and no text. An envelope that cannot be built does not
+// stop the push: the alert still says a message came.
+func buildPayload(n Notify) *payload.Payload {
 	p := payload.NewPayload().
 		AlertTitle(n.Title).
 		AlertBody(n.Body).
@@ -135,6 +149,23 @@ func (s *Sender) Send(ctx context.Context, deviceToken string, n Notify) error {
 	if n.FromId != "" {
 		p = p.Custom("from_id", n.FromId)
 	}
+	if n.Secret != "" {
+		envelope, err := fcm.Envelope(n.Secret, map[string]any{
+			"badge":   n.Badge,
+			"custom":  map[string]any{"from_id": n.FromId},
+			"loc_key": "",
+		})
+		if err == nil {
+			p = p.MutableContent().Custom("p", envelope)
+		}
+	}
+	return p
+}
+
+// Send delivers the notification. It returns ErrTokenGone when the token should
+// be forgotten.
+func (s *Sender) Send(ctx context.Context, deviceToken string, n Notify) error {
+	p := buildPayload(n)
 
 	client := s.production
 	if n.Sandbox {

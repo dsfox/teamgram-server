@@ -1,11 +1,6 @@
 package fcm
 
 import (
-	"crypto/aes"
-	"crypto/sha1"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"strings"
@@ -22,75 +17,14 @@ func testKey() string {
 	return hex.EncodeToString(key)
 }
 
-// openLikeTheClient repeats what PushListenerController does, step for step:
-// check the key id, derive, decrypt, check the message key against the
-// plaintext, read the length, read the json. A payload this refuses is one the
-// phone would refuse, and the phone says nothing but "DECRYPT ERROR".
+// openLikeTheClient is OpenEnvelope with the test failing on its behalf.
 func openLikeTheClient(t *testing.T, secretHex, envelope string) map[string]any {
 	t.Helper()
-
-	authKey, err := hex.DecodeString(secretHex)
-	if err != nil {
-		t.Fatalf("the key is not hex: %v", err)
-	}
-	raw, err := base64.URLEncoding.DecodeString(envelope)
-	if err != nil {
-		t.Fatalf("the envelope is not base64url: %v", err)
-	}
-	if len(raw) < 24 {
-		t.Fatalf("the envelope is %d bytes, shorter than its own header", len(raw))
-	}
-
-	keyId := sha1.Sum(authKey)
-	if string(raw[:8]) != string(keyId[len(keyId)-8:]) {
-		t.Fatal("the key id does not name this key, so the client drops it")
-	}
-
-	msgKey := raw[8:24]
-	aesKey, aesIv := keyPair(authKey, msgKey)
-	plain := igeDecrypt(t, raw[24:], aesKey, aesIv)
-
-	sum := sha256.Sum256(append(append([]byte{}, authKey[88+x:88+x+32]...), plain...))
-	if string(sum[8:24]) != string(msgKey) {
-		t.Fatal("the message key does not match the plaintext, so the client drops it")
-	}
-
-	length := binary.LittleEndian.Uint32(plain[:4])
-	if int(length) > len(plain)-4 {
-		t.Fatalf("the length says %d bytes, only %d follow", length, len(plain)-4)
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(plain[4:4+length], &payload); err != nil {
-		t.Fatalf("what came out is not json: %v", err)
-	}
-	return payload
-}
-
-func igeDecrypt(t *testing.T, data, key, iv []byte) []byte {
-	t.Helper()
-	block, err := aes.NewCipher(key)
+	payload, err := OpenEnvelope(secretHex, envelope)
 	if err != nil {
 		t.Fatal(err)
 	}
-	prevCipher := iv[:aes.BlockSize]
-	prevPlain := iv[aes.BlockSize:]
-	out := make([]byte, len(data))
-	for i := 0; i < len(data); i += aes.BlockSize {
-		in := data[i : i+aes.BlockSize]
-		buf := make([]byte, aes.BlockSize)
-		for j := range buf {
-			buf[j] = in[j] ^ prevPlain[j]
-		}
-		block.Decrypt(buf, buf)
-		for j := range buf {
-			buf[j] ^= prevCipher[j]
-		}
-		copy(out[i:], buf)
-		prevCipher = in
-		prevPlain = out[i : i+aes.BlockSize]
-	}
-	return out
+	return payload
 }
 
 func TestTheClientCanOpenTheEnvelope(t *testing.T) {

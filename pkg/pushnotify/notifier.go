@@ -185,6 +185,15 @@ func offlineTargets(list []devices.DeviceDO, onlineAuthKeyIds []int64) []devices
 func (n *Notifier) send(ctx context.Context, d devices.DeviceDO, badge int, fromId string) {
 	var err error
 
+	// Said before the attempt, whatever Apple or Google then answer: whether
+	// the phone was handed something its extension can open, or only the
+	// words "New message" (#42). The scenarios read this line.
+	carrying := "alert only"
+	if d.Secret != "" {
+		carrying = "envelope"
+	}
+	logx.WithContext(ctx).Infof("notification for user %d, device %d: %s", d.UserId, d.AuthKeyId, carrying)
+
 	switch {
 	case d.IsAPNs() && n.sender != nil:
 		err = n.sender.Send(ctx, d.Token, apns.Notify{
@@ -193,6 +202,7 @@ func (n *Notifier) send(ctx context.Context, d devices.DeviceDO, badge int, from
 			Badge:   badge,
 			Sandbox: d.AppSandbox,
 			FromId:  fromId,
+			Secret:  d.Secret,
 		})
 	case d.IsFCM() && n.fcm != nil:
 		// The secret is the key the device registered; without it the app
