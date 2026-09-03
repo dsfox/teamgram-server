@@ -189,18 +189,6 @@ func buildPayload(n Notify) *payload.Payload {
 	return p
 }
 
-// PayloadJSON is the payload exactly as it would go to Apple, for a walk that
-// hands it to a simulator instead: `xcrun simctl push` takes the same JSON, so
-// the extension is measured on what the server really sends rather than on a
-// copy of the algorithm kept beside the test (#42).
-func PayloadJSON(n Notify) (string, error) {
-	raw, err := buildPayload(n).MarshalJSON()
-	if err != nil {
-		return "", err
-	}
-	return string(raw), nil
-}
-
 // Send delivers the notification. It returns ErrTokenGone when the token should
 // be forgotten.
 func (s *Sender) Send(ctx context.Context, deviceToken string, n Notify) error {
