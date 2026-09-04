@@ -2,6 +2,7 @@ package devices
 
 import (
 	"context"
+	"strings"
 
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/zeromicro/go-zero/core/logx"
@@ -30,6 +31,33 @@ func (r *Registry) Register(ctx context.Context, d *DeviceDO) error {
 
 	if _, err := r.db.NamedExec(ctx, query, d); err != nil {
 		logx.WithContext(ctx).Errorf("devices.Register(%d, %d) - error: %v", d.UserId, d.TokenType, err)
+		return err
+	}
+
+	// One token is one install of the app on one device. Deleting the app
+	// signs nothing out - nobody can - so the old key stays a session for
+	// ever and its row keeps the token, while the new install registers the
+	// same token under a new key: two rows for one phone, woken twice, and
+	// still woken after the new install signs out (#162). Two keys with one
+	// token are either two accounts on one install, which name each other in
+	// other_uids, or a stale install. The rows of the accounts this
+	// registration names stay; every other row with the token goes - the same
+	// person's rows under other keys included, since one account is signed in
+	// on one install once.
+	if d.Token == "" {
+		return nil
+	}
+	others := SplitUids(d.OtherUids)
+	args := []interface{}{d.TokenType, d.Token, d.AuthKeyId}
+	stale := "delete from devices where token_type = ? and token = ? and auth_key_id <> ?"
+	if len(others) > 0 {
+		stale += " and user_id not in (?" + strings.Repeat(", ?", len(others)-1) + ")"
+		for _, uid := range others {
+			args = append(args, uid)
+		}
+	}
+	if _, err := r.db.Exec(ctx, stale, args...); err != nil {
+		logx.WithContext(ctx).Errorf("devices.Register(%d, %d) - cannot drop the stale installs: %v", d.UserId, d.TokenType, err)
 		return err
 	}
 

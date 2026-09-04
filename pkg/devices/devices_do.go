@@ -53,8 +53,8 @@ func (d *DeviceDO) Reachable() bool {
 }
 
 // JoinUids packs the list of accounts signed in on this device into a single
-// string. The app sends it along with the token; for now we keep it only so that
-// nothing is lost when the record is read back.
+// string. The app sends it along with the token, and Register reads it back to
+// tell a second account on the same install from a stale one.
 func JoinUids(uids []int64) string {
 	parts := make([]string, 0, len(uids))
 	for _, uid := range uids {
@@ -62,4 +62,16 @@ func JoinUids(uids []int64) string {
 	}
 
 	return strings.Join(parts, ",")
+}
+
+// SplitUids reads JoinUids back. Nothing that is not a number is an account.
+func SplitUids(joined string) []int64 {
+	uids := make([]int64, 0)
+	for _, part := range strings.Split(joined, ",") {
+		if uid, err := strconv.ParseInt(strings.TrimSpace(part), 10, 64); err == nil {
+			uids = append(uids, uid)
+		}
+	}
+
+	return uids
 }

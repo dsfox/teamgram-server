@@ -97,6 +97,74 @@ func TestReadDeviceBack(t *testing.T) {
 	}
 }
 
+// One token is one install of the app on one device. Deleting the app signs
+// nothing out, so the old key stays a session and its row keeps the token
+// while the new install registers the same token under a new key - two rows
+// for one phone, woken twice, and still woken after the new install signs out
+// (#162). Two keys with one token are two accounts on one install, which name
+// each other in other_uids, or a stale install; the stale one goes.
+func TestOneTokenOneInstall(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	registry := devices.NewRegistry(db)
+	const token = "one token, one install"
+	t.Cleanup(func() { _ = registry.Forget(ctx, devices.TokenTypeAPNs, token) })
+
+	register := func(authKeyId, userId int64, otherUids string) {
+		t.Helper()
+		signIn(t, db, authKeyId, userId)
+		if err := registry.Register(ctx, &devices.DeviceDO{
+			AuthKeyId: authKeyId, UserId: userId, TokenType: devices.TokenTypeAPNs,
+			Token: token, OtherUids: otherUids,
+		}); err != nil {
+			t.Fatalf("cannot store the device: %v", err)
+		}
+	}
+	keys := func(userId int64) []int64 {
+		t.Helper()
+		list, err := registry.ListByUser(ctx, userId)
+		if err != nil {
+			t.Fatalf("cannot read the devices back: %v", err)
+		}
+		ids := make([]int64, 0, len(list))
+		for _, d := range list {
+			ids = append(ids, d.AuthKeyId)
+		}
+		return ids
+	}
+
+	const alice, bob, carol = -424252, -424253, -424254
+
+	// The phone is set up again: the same person, the same token, a new key.
+	register(-11, alice, "")
+	register(-12, alice, "")
+	if got := keys(alice); len(got) != 1 || got[0] != -12 {
+		t.Fatalf("after reinstalling, the person holds keys %v; wanted the new one alone", got)
+	}
+
+	// A second account signs in on that same install and names the first.
+	register(-13, bob, "-424252")
+	if got := keys(alice); len(got) != 1 {
+		t.Fatalf("a second account on the phone took the first one's row: %v", got)
+	}
+	if got := keys(bob); len(got) != 1 {
+		t.Fatalf("the second account holds keys %v", got)
+	}
+
+	// The phone is wiped and somebody else signs in: the earlier rows are
+	// theirs no more, and a banner about their chats would land on a stranger.
+	register(-14, carol, "")
+	if got := keys(alice); len(got) != 0 {
+		t.Fatalf("a stranger's phone still carries the first person's row: %v", got)
+	}
+	if got := keys(bob); len(got) != 0 {
+		t.Fatalf("a stranger's phone still carries the second person's row: %v", got)
+	}
+	if got := keys(carol); len(got) != 1 {
+		t.Fatalf("the stranger holds keys %v", got)
+	}
+}
+
 // signIn gives the key the standing of a session: a devices row is read back
 // only while auth_users says its key is signed in, so a test that only writes
 // the device is testing a phone nobody is signed in on.
