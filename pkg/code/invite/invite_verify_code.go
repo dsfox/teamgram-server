@@ -74,6 +74,11 @@ type Invitation struct {
 
 	// Note is for the person who minted it, and is never checked.
 	Note string `json:"note,omitempty"`
+
+	// Chat, when set, is the group the person is put into when they sign up
+	// with this code (#164). Zero - every code minted before the field - is
+	// ice9 alone.
+	Chat int64 `json:"chat,omitempty"`
 }
 
 type verifier struct {

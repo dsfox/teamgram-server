@@ -27,12 +27,14 @@ type invitationRow struct {
 	MintedAt   int32  `db:"minted_at"`
 	RedeemedAt int32  `db:"redeemed_at"`
 	InviteeId  int64  `db:"invitee_id"`
+	ChatId     int64  `db:"chat_id"`
 }
 
-// Minted writes the row the moment a code exists.
-func (s *MysqlInvitations) Minted(ctx context.Context, code, phone string, inviterId int64, at int32) error {
-	const query = "insert into invitations(code, inviter_id, phone, minted_at) values (?, ?, ?, ?)"
-	if _, err := s.db.Exec(ctx, query, code, inviterId, phone, at); err != nil {
+// Minted writes the row the moment a code exists. chatId is the group the
+// code was minted from, or zero (#164).
+func (s *MysqlInvitations) Minted(ctx context.Context, code, phone string, inviterId int64, at int32, chatId int64) error {
+	const query = "insert into invitations(code, inviter_id, phone, minted_at, chat_id) values (?, ?, ?, ?, ?)"
+	if _, err := s.db.Exec(ctx, query, code, inviterId, phone, at, chatId); err != nil {
 		return fmt.Errorf("cannot record the invitation: %w", err)
 	}
 	return nil
@@ -59,10 +61,27 @@ func (s *MysqlInvitations) Adopted(ctx context.Context, phone string, inviteeId 
 	return nil
 }
 
+// Landing is where the account that just came in on this number belongs:
+// the chat the invitation was minted from and who minted it, or zeros for
+// an invitation into ice9 alone (#164). Read after Adopted, from the same row.
+func (s *MysqlInvitations) Landing(ctx context.Context, phone string, inviteeId int64) (int64, int64, error) {
+	const query = "select code, inviter_id, phone, minted_at, redeemed_at, invitee_id, chat_id from invitations " +
+		"where phone = ? and invitee_id = ? order by redeemed_at desc limit 1"
+	var row invitationRow
+	err := s.db.QueryRowPartial(ctx, &row, query, phone, inviteeId)
+	if errors.Is(err, sqlx.ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
+		return 0, 0, nil
+	}
+	if err != nil {
+		return 0, 0, fmt.Errorf("cannot read where the invitation leads: %w", err)
+	}
+	return row.ChatId, row.InviterId, nil
+}
+
 // LiveCode is the unredeemed code this inviter already holds for this number,
 // or "" - so minting again revokes it rather than piling up.
 func (s *MysqlInvitations) LiveCode(ctx context.Context, phone string, inviterId int64) (string, error) {
-	const query = "select code, inviter_id, phone, minted_at, redeemed_at, invitee_id from invitations " +
+	const query = "select code, inviter_id, phone, minted_at, redeemed_at, invitee_id, chat_id from invitations " +
 		"where inviter_id = ? and phone = ? and redeemed_at = 0 order by minted_at desc limit 1"
 	var row invitationRow
 	err := s.db.QueryRowPartial(ctx, &row, query, inviterId, phone)

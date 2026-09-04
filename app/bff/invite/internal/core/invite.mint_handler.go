@@ -64,7 +64,7 @@ func (c *InviteCore) InviteMint(in *mtproto.TLInviteMint) (*mtproto.Invite_Minte
 		// Minted and usable, only not on the CLI's --list: said, not charged.
 		c.Logger.Errorf("invite.mint - %v", err)
 	}
-	if err := c.svcCtx.Invitations.Minted(c.ctx, code, phone, c.MD.UserId, now); err != nil {
+	if err := c.svcCtx.Invitations.Minted(c.ctx, code, phone, c.MD.UserId, now, 0); err != nil {
 		// The code works without the record; the record is what the owner
 		// reads later, and a gap there is logged, not charged to the person.
 		c.Logger.Errorf("invite.mint - %v", err)
