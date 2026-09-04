@@ -212,6 +212,13 @@ func (c *AuthorizationCore) AuthSignUp(in *mtproto.TLAuthSignUp) (*mtproto.Auth_
 			if err := c.svcCtx.Invitations.Adopted(ctx, phoneNumber, user.Id()); err != nil {
 				c.Logger.Errorf("auth.signUp - %v", err)
 			}
+			// And where the invitation leads: a code minted from a group puts
+			// the person into it (#164).
+			if chatId, inviterId, err := c.svcCtx.Invitations.Landing(ctx, phoneNumber, user.Id()); err != nil {
+				c.Logger.Errorf("auth.signUp - %v", err)
+			} else if chatId != 0 {
+				c.landInChat(ctx, chatId, inviterId, user.Id())
+			}
 		},
 	).(*mtproto.Auth_Authorization), nil
 }
