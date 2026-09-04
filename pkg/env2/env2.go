@@ -13,7 +13,12 @@ import (
 var (
 	MyAppName = "ice9"
 	MyWebSite = "teamgram.net"
-	TDotMe    = "t.me"
+	// The host a group's invite link carries. It is the one the apps answer
+	// for and the site serves an invitation page on (#87); on t.me the link
+	// opened somebody else's messenger and handed it the hash. Written twice,
+	// here and as the flag's default below, and the flag wins at start-up -
+	// tests/test_link_domain_gate.py holds the two together.
+	TDotMe = "i.ice9.app"
 	// MyWebClientSite = "web.teamgram.net"
 	MyTgScheme = "tg"
 	// IosAppStoreId   = ""
@@ -31,7 +36,7 @@ var (
 func init() {
 	flag.StringVar(&MyAppName, "app_name", "ice9", "app_name")
 	flag.StringVar(&MyWebSite, "site_name", "teamgram.net", "site_name")
-	flag.StringVar(&TDotMe, "t.me", "t.me", "t.me")
+	flag.StringVar(&TDotMe, "t.me", "i.ice9.app", "t.me")
 	// flag.StringVar(&MyWebClientSite, "webclient", "web.teamgram.net", "web.teamgram.net")
 	flag.StringVar(&MyTgScheme, "tg", "tg", "tg")
 	// flag.StringVar(&IosAppStoreId, "app_store_id", "", "")

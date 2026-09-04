@@ -51,6 +51,7 @@ func TestReadDeviceBack(t *testing.T) {
 		OtherUids:  "1,2",
 	}
 
+	signIn(t, db, want.AuthKeyId, userId)
 	if err := registry.Register(ctx, &want); err != nil {
 		t.Fatalf("cannot store the device: %v", err)
 	}
@@ -64,6 +65,19 @@ func TestReadDeviceBack(t *testing.T) {
 	}
 	if len(list) != 1 {
 		t.Fatalf("expected one device, got %d", len(list))
+	}
+
+	// The same row once the key has signed out: still in the table, and no
+	// longer a device anybody holds. Read back, it was a banner on a phone
+	// with no account on it (4 September).
+	if _, err := db.Exec(ctx, "update auth_users set deleted = 1 where auth_key_id = ? and user_id = ?",
+		want.AuthKeyId, userId); err != nil {
+		t.Fatalf("cannot sign the key out: %v", err)
+	}
+	if left, err := registry.ListByUser(ctx, userId); err != nil {
+		t.Fatalf("cannot read the devices back after signing out: %v", err)
+	} else if len(left) != 0 {
+		t.Fatalf("a device whose key signed out is still read back: %d device(s)", len(left))
 	}
 
 	got := list[0]
@@ -81,6 +95,22 @@ func TestReadDeviceBack(t *testing.T) {
 	case !got.IsAPNs():
 		t.Error("the device is not recognised as notifiable")
 	}
+}
+
+// signIn gives the key the standing of a session: a devices row is read back
+// only while auth_users says its key is signed in, so a test that only writes
+// the device is testing a phone nobody is signed in on.
+func signIn(t *testing.T, db *sqlx.DB, authKeyId, userId int64) {
+	t.Helper()
+	ctx := context.Background()
+	if _, err := db.Exec(ctx,
+		"insert into auth_users(auth_key_id, user_id, hash, date_created, date_active) values (?, ?, ?, 0, 0)",
+		authKeyId, userId, authKeyId); err != nil {
+		t.Fatalf("cannot sign the key in: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = db.Exec(ctx, "delete from auth_users where auth_key_id = ? and user_id = ?", authKeyId, userId)
+	})
 }
 
 func TestUnreadCountReadsAsNumber(t *testing.T) {

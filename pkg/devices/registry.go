@@ -48,11 +48,22 @@ func (r *Registry) Unregister(ctx context.Context, authKeyId, userId int64, toke
 	return nil
 }
 
-// ListByUser returns every device of the user.
+// ListByUser returns every device of the user that is still signed in.
+//
+// A device is its authorization key, and the row outlives the key: signing
+// out, "terminate session" and deleting the account all mark the key gone in
+// auth_users and none of them comes here - the app does not ask for its token
+// back either, on any platform. So the key's standing is read where it is
+// kept, the way pkg/mls does for key packages (stillSignedIn): a phone that
+// signed out was being woken about every message afterwards, with a banner
+// that opened the sign-in screen (4 September). `deleted = 0` is what the
+// server itself means by a session, everywhere it asks.
 func (r *Registry) ListByUser(ctx context.Context, userId int64) ([]DeviceDO, error) {
 	var list []DeviceDO
 	query := "select id, auth_key_id, user_id, token_type, token, no_muted, locked_period, app_sandbox, secret, other_uids, state " +
-		"from devices where user_id = ?"
+		"from devices where user_id = ?" +
+		" and exists (select 1 from auth_users a where a.auth_key_id = devices.auth_key_id" +
+		" and a.user_id = devices.user_id and a.deleted = 0)"
 
 	if err := r.db.QueryRowsPartial(ctx, &list, query, userId); err != nil {
 		logx.WithContext(ctx).Errorf("devices.ListByUser(%d) - error: %v", userId, err)
