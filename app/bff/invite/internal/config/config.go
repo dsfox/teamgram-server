@@ -15,6 +15,7 @@ type Config struct {
 	KV         kv.KvConf
 	Mysql      sqlx.Config
 	UserClient zrpc.RpcClientConf
+	ChatClient zrpc.RpcClientConf
 	// How long a code a person sent lives. Seven days, not the CLI's one: a
 	// person does not install an app the day the SMS arrives. Unset means
 	// seven - see Days. Not read from a file: the combined bff builds this

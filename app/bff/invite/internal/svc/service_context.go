@@ -5,6 +5,7 @@ import (
 	"github.com/teamgram/marmota/pkg/stores/kv"
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/teamgram-server/app/bff/invite/internal/config"
+	chat_client "github.com/teamgram/teamgram-server/app/service/biz/chat/client"
 	user_client "github.com/teamgram/teamgram-server/app/service/biz/user/client"
 	"github.com/teamgram/teamgram-server/pkg/code/invite"
 )
@@ -17,6 +18,8 @@ type ServiceContext struct {
 	Invitations *invite.MysqlInvitations
 	// Says whether a number already has an account.
 	UserClient user_client.UserClient
+	// Says whether the person asking is in the group (#164).
+	ChatClient chat_client.ChatClient
 }
 
 func NewServiceContext(c config.Config) *ServiceContext {
@@ -25,5 +28,6 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		Store:       kv.NewStore(c.KV),
 		Invitations: invite.NewMysqlInvitations(sqlx.NewMySQL(&c.Mysql)),
 		UserClient:  user_client.NewUserClient(rpcx.GetCachedRpcClient(c.UserClient)),
+		ChatClient:  chat_client.NewChatClient(rpcx.GetCachedRpcClient(c.ChatClient)),
 	}
 }

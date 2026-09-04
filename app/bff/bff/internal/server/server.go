@@ -117,6 +117,7 @@ func (s *Server) Initialize() error {
 				KV:            c.KV,
 				Mysql:         c.Mysql,
 				UserClient:    c.BizServiceClient,
+				ChatClient:    c.BizServiceClient,
 			}))
 
 		// qrcode_helper
