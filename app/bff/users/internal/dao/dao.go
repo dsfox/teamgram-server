@@ -25,10 +25,13 @@ import (
 	chat_client "github.com/teamgram/teamgram-server/app/service/biz/chat/client"
 	dialog_client "github.com/teamgram/teamgram-server/app/service/biz/dialog/client"
 	user_client "github.com/teamgram/teamgram-server/app/service/biz/user/client"
+	"github.com/zeromicro/go-zero/core/stores/kv"
 )
 
 type Dao struct {
 	user_client.UserClient
+	// The key-value store, for the count of phone lookups (#170).
+	KV kv.Store
 	chat_client.ChatClient
 	dialog_client.DialogClient
 	plugin.StoryPlugin
@@ -38,6 +41,7 @@ type Dao struct {
 
 func New(c config.Config, plugin1 plugin.StoryPlugin, plugin2 plugin.PersonalChannelPlugin, plugin3 plugin.WallpaperPlugin) *Dao {
 	return &Dao{
+		KV:                    storeOrNone(c.KV),
 		UserClient:            user_client.NewUserClient(rpcx.GetCachedRpcClient(c.UserClient)),
 		ChatClient:            chat_client.NewChatClient(rpcx.GetCachedRpcClient(c.ChatClient)),
 		DialogClient:          dialog_client.NewDialogClient(rpcx.GetCachedRpcClient(c.DialogClient)),
@@ -45,4 +49,14 @@ func New(c config.Config, plugin1 plugin.StoryPlugin, plugin2 plugin.PersonalCha
 		PersonalChannelPlugin: plugin2,
 		WallpaperPlugin:       plugin3,
 	}
+}
+
+// storeOrNone is the store, or nothing when the config names no node: the
+// lookup count then lets everything through and says so, rather than the
+// whole bff dying at start over a counter.
+func storeOrNone(c kv.KvConf) kv.Store {
+	if len(c) == 0 {
+		return nil
+	}
+	return kv.NewStore(c)
 }

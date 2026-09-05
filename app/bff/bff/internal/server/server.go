@@ -303,6 +303,10 @@ func (s *Server) Initialize() error {
 					UserClient:    c.BizServiceClient,
 					ChatClient:    c.BizServiceClient,
 					DialogClient:  c.BizServiceClient,
+					// For the count of phone lookups (#170). Left out once, and
+					// kv.NewStore with nothing to connect to took the whole bff
+					// down at start - found in the install-check machine.
+					KV: c.KV,
 				},
 				nil,
 				nil,

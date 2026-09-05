@@ -207,17 +207,32 @@ func (n *Notifier) send(ctx context.Context, d devices.DeviceDO, badge int, from
 // the biz layer, but a network call per message is expensive and the table is
 // simple.
 func (n *Notifier) muted(ctx context.Context, userId int64, peerType int32, peerId int64) bool {
+	now := time.Now().Unix()
 	var muteUntil int32
 	query := "select mute_until from user_notify_settings where user_id = ? and peer_type = ? and peer_id = ? and deleted = 0"
-
-	if err := n.db.QueryRow(ctx, &muteUntil, query, userId, peerType, peerId); err != nil {
-		// No row means the chat is not muted, which is the common case.
-		return false
+	// No row means the chat is not muted, which is the common case. -1 means
+	// "not configured", 0 "sound on", a large value muted for a long time.
+	if err := n.db.QueryRow(ctx, &muteUntil, query, userId, peerType, peerId); err == nil && int64(muteUntil) > now {
+		return true
 	}
 
-	// -1 means "not configured", 0 means "sound on", a large value means muted
-	// for a long time.
-	return int64(muteUntil) > time.Now().Unix()
+	// And the whole kind: "mute all private chats" or "mute all groups" is a
+	// row of its own, under PEER_USERS or PEER_CHATS, and until it was asked
+	// here a phone that had muted everything was still woken (#173).
+	var kind int32
+	switch peerType {
+	case int32(mtproto.PEER_USER):
+		kind = int32(mtproto.PEER_USERS)
+	case int32(mtproto.PEER_CHAT):
+		kind = int32(mtproto.PEER_CHATS)
+	default:
+		return false
+	}
+	query = "select mute_until from user_notify_settings where user_id = ? and peer_type = ? and deleted = 0 order by mute_until desc limit 1"
+	if err := n.db.QueryRow(ctx, &muteUntil, query, userId, kind); err != nil {
+		return false
+	}
+	return int64(muteUntil) > now
 }
 
 // unreadCount is the total number of unread messages. iOS puts this number on

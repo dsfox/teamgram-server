@@ -19,6 +19,8 @@
 package core
 
 import (
+	"time"
+
 	"github.com/teamgram/proto/mtproto"
 	userpb "github.com/teamgram/teamgram-server/app/service/biz/user/user"
 )
@@ -26,6 +28,16 @@ import (
 // ContactsResolvePhone
 // contacts.resolvePhone#8af94344 phone:string = contacts.ResolvedPeer;
 func (c *UsersCore) ContactsResolvePhone(in *mtproto.TLContactsResolvePhone) (*mtproto.Contacts_ResolvedPeer, error) {
+	// Sixty an hour per account (#170): enough to invite by number, too few to
+	// learn who is here by walking the numbers.
+	ok, wait, err := lookupAllowed(c.ctx, c.svcCtx.Dao.KV, c.MD.UserId, time.Now())
+	if err != nil {
+		c.Logger.Errorf("contacts.resolvePhone - cannot count lookups, letting this one through: %v", err)
+	}
+	if !ok {
+		c.Logger.Infof("contacts.resolvePhone - refused: user %d is over %d lookups this hour", c.MD.UserId, lookupsPerHour)
+		return nil, mtproto.NewErrFloodWaitX(wait)
+	}
 	id, err := c.svcCtx.Dao.UserClient.UserGetUserIdByPhone(c.ctx, &userpb.TLUserGetUserIdByPhone{
 		Phone: in.GetPhone(),
 	})

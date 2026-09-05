@@ -19,6 +19,7 @@
 package config
 
 import (
+	"github.com/zeromicro/go-zero/core/stores/kv"
 	"github.com/zeromicro/go-zero/zrpc"
 )
 
@@ -27,4 +28,6 @@ type Config struct {
 	UserClient   zrpc.RpcClientConf
 	ChatClient   zrpc.RpcClientConf
 	DialogClient zrpc.RpcClientConf
+	// For the count of phone lookups per account (#170).
+	KV kv.KvConf
 }
