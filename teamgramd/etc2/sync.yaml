@@ -33,6 +33,9 @@ Routine:
   Size: 100
 
 Mysql:
+  # Statements are not logged with their values: a value can be a phone's push
+  # secret, the relay's key or an invitation code, none of which belongs in a log.
+  DisableStmtLog: true
   DSN: teamgram:${MYSQL_PASSWORD}@tcp(mysql:3306)/teamgram?charset=utf8mb4&parseTime=true
   Active: 64
   Idle: 64
