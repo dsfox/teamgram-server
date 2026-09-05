@@ -11,13 +11,12 @@ import (
 	"errors"
 	"os"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/proto/mtproto"
-	"github.com/teamgram/teamgram-server/pkg/apns"
 	"github.com/teamgram/teamgram-server/pkg/devices"
-	"github.com/teamgram/teamgram-server/pkg/fcm"
 	"github.com/teamgram/teamgram-server/pkg/pushrelay"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/threading"
@@ -26,21 +25,30 @@ import (
 // Notifier sends notifications about new messages.
 //
 // It is always created, and each platform switches on when its own credentials
-// are present: Apple with a key, Android with a Firebase service account. Either
-// missing costs only that platform's notifications - the server stays fully
-// functional and nothing else notices.
+// is: a relay that holds the Apple and Google keys (#167), reached with the
+// key it gave this server. Without one the server stays fully functional and
+// nothing else notices.
 type Notifier struct {
-	registry *devices.Registry
-	sender   *apns.Sender
-	fcm      *fcm.Sender
+	registry deviceRegistry
 	db       *sqlx.DB
 	title    string
 	body     string
+	relayURL string
+	// The relay's client once this server has a key: set at start from the
+	// database, or by the registration that runs until the relay answers.
+	relay atomic.Pointer[pushrelay.Client]
 }
 
-// New builds the sender from the environment settings. The two platforms are
-// switched on separately: a missing Apple key must not cost Android its
-// notifications, which is exactly what a single early return used to do.
+// deviceRegistry is what the notifier needs of pkg/devices, so that a test
+// can hand it a fake.
+type deviceRegistry interface {
+	ListByUser(ctx context.Context, userId int64) ([]devices.DeviceDO, error)
+	Forget(ctx context.Context, tokenType int32, token string) error
+}
+
+// New builds the sender from the environment settings: the relay's URL is
+// the whole of it. The words are still this server's, sealed into the
+// envelope; the relay carries its own for the banner.
 func New(db *sqlx.DB) *Notifier {
 	n := &Notifier{
 		registry: devices.NewRegistry(db),
@@ -52,47 +60,7 @@ func New(db *sqlx.DB) *Notifier {
 		body: envOr("APNS_BODY", "New message"),
 	}
 
-	return n.withApple().withFirebase()
-}
-
-// withApple turns on the iOS half, if it is configured.
-func (n *Notifier) withApple() *Notifier {
-	cfg, ok := apns.ConfigFromEnv()
-	if !ok {
-		logx.Info("apple notifications disabled: no key configured (APNS_KEY_PATH and the rest)")
-		return n
-	}
-
-	sender, err := apns.New(cfg)
-	if err != nil {
-		logx.Errorf("apple notifications disabled: %v", err)
-		return n
-	}
-
-	n.sender = sender
-	logx.Infof("apple notifications enabled for app %s", cfg.Topic)
-
-	return n
-}
-
-// withFirebase turns on the Android half, if it is configured.
-func (n *Notifier) withFirebase() *Notifier {
-	cfg, ok := fcm.ConfigFromEnv()
-	if !ok {
-		logx.Info("android notifications disabled: no Firebase service account (FCM_SERVICE_ACCOUNT, FCM_PROJECT_ID)")
-		return n
-	}
-
-	sender, err := fcm.New(context.Background(), cfg)
-	if err != nil {
-		logx.Errorf("android notifications disabled: %v", err)
-		return n
-	}
-
-	n.fcm = sender
-	logx.Infof("android notifications enabled for project %s", cfg.ProjectId)
-
-	return n
+	return n.withRelay()
 }
 
 func envOr(name, fallback string) string {
@@ -103,9 +71,10 @@ func envOr(name, fallback string) string {
 	return fallback
 }
 
-// Enabled reports whether anything can be sent at all.
+// Enabled reports whether anything can be sent at all: a relay, and a key
+// from it.
 func (n *Notifier) Enabled() bool {
-	return n != nil && (n.sender != nil || n.fcm != nil)
+	return n != nil && n.relay.Load() != nil
 }
 
 // NewMessage notifies the recipient about a new message.
@@ -195,48 +164,38 @@ func (n *Notifier) send(ctx context.Context, d devices.DeviceDO, badge int, from
 	}
 	logx.WithContext(ctx).Infof("notification for user %d, device %d: %s", d.UserId, d.AuthKeyId, carrying)
 
-	switch {
-	case d.IsAPNs() && n.sender != nil:
-		// Sealed here, with the secret the device registered, so that what
-		// goes on from here carries no key. An envelope that cannot be sealed
-		// does not stop the push: the alert alone still says a message came.
-		envelope := ""
-		if d.Secret != "" {
-			envelope, _ = pushrelay.SealForApple(d.Secret, n.title, n.body, badge, peerType, peerId, msgId)
-		}
-		err = n.sender.Send(ctx, d.Token, apns.Notify{
-			Title:    n.title,
-			Body:     n.body,
-			Badge:    badge,
-			Sandbox:  d.AppSandbox,
-			FromId:   fromId,
-			Envelope: envelope,
-		})
-	case d.IsFCM() && n.fcm != nil:
-		// The secret is the key the device registered; without it the app
-		// cannot open the envelope and the push is wasted, so an old row with
-		// none falls back to the banner Firebase draws.
-		envelope := ""
-		if d.Secret != "" {
-			envelope, _ = pushrelay.SealForGoogle(d.Secret, badge, fromId)
-		}
-		err = n.fcm.Send(ctx, d.Token, fcm.Notify{
-			Title:    n.title,
-			Body:     n.body,
-			Badge:    badge,
-			FromId:   fromId,
-			Envelope: envelope,
-		})
-	default:
-		// A device of a kind we cannot reach, or whose platform is switched off.
-		// Not an error, and not worth a line per message.
+	relay := n.relay.Load()
+	if relay == nil {
 		return
 	}
+
+	// Sealed here, with the secret the device registered, so that what goes
+	// on from here - to the relay, and through it to Apple or Google - carries
+	// no key and no words of ours. An envelope that cannot be sealed does not
+	// stop the push: the alert alone still says a message came.
+	push := pushrelay.Push{Token: d.Token, Sandbox: d.AppSandbox, Badge: badge, FromId: fromId}
+	switch {
+	case d.IsAPNs():
+		push.Platform = pushrelay.PlatformApple
+		if d.Secret != "" {
+			push.P, _ = pushrelay.SealForApple(d.Secret, n.title, n.body, badge, peerType, peerId, msgId)
+		}
+	case d.IsFCM():
+		push.Platform = pushrelay.PlatformGoogle
+		if d.Secret != "" {
+			push.P, _ = pushrelay.SealForGoogle(d.Secret, badge, fromId)
+		}
+	default:
+		// A device of a kind we cannot reach. Not an error, and not worth a
+		// line per message.
+		return
+	}
+	err = relay.Send(ctx, push)
 
 	switch {
 	case err == nil:
 		logx.WithContext(ctx).Infof("notification sent: user %d, device %d", d.UserId, d.AuthKeyId)
-	case errors.Is(err, apns.ErrTokenGone), errors.Is(err, fcm.ErrTokenGone):
+	case errors.Is(err, pushrelay.ErrTokenGone):
 		logx.WithContext(ctx).Infof("token is gone, forgetting it: user %d, device %d", d.UserId, d.AuthKeyId)
 		_ = n.registry.Forget(ctx, d.TokenType, d.Token)
 	default:
