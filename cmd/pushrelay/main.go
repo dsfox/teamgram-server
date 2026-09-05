@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"net/http"
 	"os"
@@ -37,6 +38,19 @@ func envOr(name, fallback string) string {
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.LUTC)
+	block := flag.String("block", "", "block this server id and exit: its pushes answer 403 from then on")
+	flag.Parse()
+	if *block != "" {
+		store, err := pushrelay.OpenSQLite(envOr("PUSH_RELAY_DB", "/app/data/pushrelay.sqlite"))
+		if err != nil {
+			log.Fatalf("cannot open the store: %v", err)
+		}
+		if err := store.Block(*block); err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("server %s blocked", *block)
+		return
+	}
 	title := envOr("PUSH_RELAY_TITLE", "ice9")
 	body := envOr("PUSH_RELAY_BODY", "New message")
 
