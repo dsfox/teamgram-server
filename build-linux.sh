@@ -62,7 +62,7 @@ done
 # The tools live outside app/, so they are built separately: alert turns a
 # finding in the health check into a notification on the owner's phone, and
 # invite mints the code somebody types to get in.
-for tool in alert invite; do
+for tool in alert invite pushrelay; do
   printf '%-14s ' "$tool"
   (cd "$PWD/cmd/$tool" && eval go build -ldflags=\"$LDFLAGS\" -o "$INSTALL/bin/$tool" .)
   echo "done"

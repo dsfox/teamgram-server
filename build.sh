@@ -69,6 +69,10 @@ echo "build invite ..."
 cd ${ROOT}/cmd/invite
 go build -ldflags="-s -w" -o ${INSTALL}/bin/invite
 
+echo "build pushrelay ..."
+cd ${ROOT}/cmd/pushrelay
+go build -ldflags="-s -w" -o ${INSTALL}/bin/pushrelay
+
 #echo "build httpserver ..."
 #cd ${TEAMGRAMAPP}/interface/httpserver/cmd/httpserver
 #go build -o ${INSTALL}/bin/httpserver
