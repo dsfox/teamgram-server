@@ -17,12 +17,9 @@ import (
 	"github.com/sideshow/apns2"
 	"github.com/sideshow/apns2/payload"
 	"github.com/sideshow/apns2/token"
-	"github.com/teamgram/proto/mtproto"
-	"github.com/teamgram/teamgram-server/pkg/fcm"
 	"golang.org/x/net/http2"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 )
 
@@ -124,30 +121,12 @@ type Notify struct {
 	// whatever it opens by default, which is not the conversation somebody was
 	// told about.
 	FromId string
-	// The chat the message is in and the message itself, for the envelope
-	// (#42): the extension polls the difference and then looks this message
-	// up by id to read its words, under `from_id`, `chat_id` or `channel_id`
-	// by the kind of peer - the keys the extension was written to read.
-	PeerType int32
-	PeerId   int64
-	MsgId    int32
-	// The device's registered push secret, hex as the database holds it. With
-	// it the push carries the envelope the notification extension opens (#42);
-	// without it the alert alone, which is what a build without the extension
-	// shows either way.
-	Secret string
-}
-
-// peerKey is the key the extension reads a chat's id under.
-func peerKey(peerType int32) string {
-	switch peerType {
-	case int32(mtproto.PEER_CHAT):
-		return "chat_id"
-	case int32(mtproto.PEER_CHANNEL):
-		return "channel_id"
-	default:
-		return "from_id"
-	}
+	// The envelope the phone's extension opens (#42), already sealed with the
+	// phone's own registered secret - by pushrelay.SealForApple, on the
+	// server, so that whoever sends this never holds the secret. Empty means
+	// the alert alone, which is what a build without the extension shows
+	// either way.
+	Envelope string
 }
 
 // buildPayload is the payload as sent, on its own so a test can read it.
@@ -155,8 +134,7 @@ func peerKey(peerType int32) string {
 // The alert is the fallback: what the phone shows when the extension does not
 // answer in time, or is not there. mutable-content is what makes the extension
 // run at all, and p is the envelope it opens - the same one the FCM path
-// builds, with from_id and no text. An envelope that cannot be built does not
-// stop the push: the alert still says a message came.
+// carries, with from_id and no text.
 func buildPayload(n Notify) *payload.Payload {
 	p := payload.NewPayload().
 		AlertTitle(n.Title).
@@ -168,23 +146,8 @@ func buildPayload(n Notify) *payload.Payload {
 	if n.FromId != "" {
 		p = p.Custom("from_id", n.FromId)
 	}
-	if n.Secret != "" {
-		// The shape upstream's extension reads: the alert again, so the
-		// extension starts from the same words the phone would show, and the
-		// ids as decimal strings at the top level.
-		inside := map[string]any{
-			"aps": map[string]any{
-				"alert": map[string]any{"title": n.Title, "body": n.Body},
-				"sound": "default",
-				"badge": n.Badge,
-			},
-			peerKey(n.PeerType): strconv.FormatInt(n.PeerId, 10),
-			"msg_id":            strconv.FormatInt(int64(n.MsgId), 10),
-		}
-		envelope, err := fcm.Envelope(n.Secret, inside)
-		if err == nil {
-			p = p.MutableContent().Custom("p", envelope)
-		}
+	if n.Envelope != "" {
+		p = p.MutableContent().Custom("p", n.Envelope)
 	}
 	return p
 }

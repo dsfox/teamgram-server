@@ -76,10 +76,21 @@ func TestAShortKeyIsRefusedRatherThanSentGarbled(t *testing.T) {
 	}
 }
 
+// sealedForTest is the envelope the server seals with the device's key before
+// handing the notification on; here it is sealed in place.
+func sealedForTest(t *testing.T) string {
+	t.Helper()
+	envelope, err := Envelope(testKey(), map[string]any{"badge": 1, "custom": map[string]any{"from_id": "42"}, "loc_key": ""})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return envelope
+}
+
 func TestWithoutAKeyTheBannerIsSentInstead(t *testing.T) {
 	s := &Sender{projectId: "p"}
 
-	withKey, err := s.compose("token", Notify{Badge: 1, Secret: testKey()})
+	withKey, err := s.compose("token", Notify{Badge: 1, Envelope: sealedForTest(t)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +115,7 @@ func TestWithoutAKeyTheBannerIsSentInstead(t *testing.T) {
 func TestTheTextIsNowhereInTheMessage(t *testing.T) {
 	s := &Sender{projectId: "p"}
 	message, err := s.compose("token", Notify{
-		Badge: 1, FromId: "42", Secret: testKey(),
+		Badge: 1, FromId: "42", Envelope: sealedForTest(t),
 		Title: "ice9", Body: "New message",
 	})
 	if err != nil {

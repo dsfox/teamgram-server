@@ -18,6 +18,7 @@ import (
 	"github.com/teamgram/teamgram-server/pkg/apns"
 	"github.com/teamgram/teamgram-server/pkg/devices"
 	"github.com/teamgram/teamgram-server/pkg/fcm"
+	"github.com/teamgram/teamgram-server/pkg/pushrelay"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/threading"
 )
@@ -196,27 +197,35 @@ func (n *Notifier) send(ctx context.Context, d devices.DeviceDO, badge int, from
 
 	switch {
 	case d.IsAPNs() && n.sender != nil:
+		// Sealed here, with the secret the device registered, so that what
+		// goes on from here carries no key. An envelope that cannot be sealed
+		// does not stop the push: the alert alone still says a message came.
+		envelope := ""
+		if d.Secret != "" {
+			envelope, _ = pushrelay.SealForApple(d.Secret, n.title, n.body, badge, peerType, peerId, msgId)
+		}
 		err = n.sender.Send(ctx, d.Token, apns.Notify{
 			Title:    n.title,
 			Body:     n.body,
 			Badge:    badge,
 			Sandbox:  d.AppSandbox,
 			FromId:   fromId,
-			PeerType: peerType,
-			PeerId:   peerId,
-			MsgId:    msgId,
-			Secret:   d.Secret,
+			Envelope: envelope,
 		})
 	case d.IsFCM() && n.fcm != nil:
 		// The secret is the key the device registered; without it the app
 		// cannot open the envelope and the push is wasted, so an old row with
 		// none falls back to the banner Firebase draws.
+		envelope := ""
+		if d.Secret != "" {
+			envelope, _ = pushrelay.SealForGoogle(d.Secret, badge, fromId)
+		}
 		err = n.fcm.Send(ctx, d.Token, fcm.Notify{
-			Title:  n.title,
-			Body:   n.body,
-			Badge:  badge,
-			FromId: fromId,
-			Secret: d.Secret,
+			Title:    n.title,
+			Body:     n.body,
+			Badge:    badge,
+			FromId:   fromId,
+			Envelope: envelope,
 		})
 	default:
 		// A device of a kind we cannot reach, or whose platform is switched off.

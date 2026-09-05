@@ -3,10 +3,11 @@ package apns
 import (
 	"encoding/hex"
 	"encoding/json"
-	"github.com/teamgram/proto/mtproto"
 	"testing"
 
+	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/pkg/fcm"
+	"github.com/teamgram/teamgram-server/pkg/pushrelay"
 )
 
 // A key of the size a device registers, not all zeroes: a wrong offset in the
@@ -17,6 +18,17 @@ func testKey() string {
 		key[i] = byte(i*7 + 3)
 	}
 	return hex.EncodeToString(key)
+}
+
+// sealed is what the server hands the relay: the envelope, already sealed
+// with the phone's secret by pushrelay.SealForApple.
+func sealed(t *testing.T, secret string, peerType int32, peerId int64, msgId int32) string {
+	t.Helper()
+	envelope, err := pushrelay.SealForApple(secret, "ice9", "New message", 3, peerType, peerId, msgId)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return envelope
 }
 
 func sent(t *testing.T, n Notify) map[string]any {
@@ -40,7 +52,7 @@ func sent(t *testing.T, n Notify) map[string]any {
 func TestPayloadWithSecretWakesTheExtension(t *testing.T) {
 	secret := testKey()
 	got := sent(t, Notify{Title: "ice9", Body: "New message", Badge: 3, FromId: "136908607",
-		PeerType: int32(mtproto.PEER_USER), PeerId: 136908607, MsgId: 790, Secret: secret})
+		Envelope: sealed(t, secret, int32(mtproto.PEER_USER), 136908607, 790)})
 
 	aps := got["aps"].(map[string]any)
 	if aps["mutable-content"] != float64(1) {
@@ -78,7 +90,7 @@ func TestTheEnvelopeNamesTheChatByItsKind(t *testing.T) {
 		int32(mtproto.PEER_CHAT):    "chat_id",
 		int32(mtproto.PEER_CHANNEL): "channel_id",
 	} {
-		got := sent(t, Notify{Title: "ice9", Body: "New message", PeerType: kind, PeerId: 120062, MsgId: 5, Secret: secret})
+		got := sent(t, Notify{Title: "ice9", Body: "New message", Envelope: sealed(t, secret, kind, 120062, 5)})
 		inside, err := fcm.OpenEnvelope(secret, got["p"].(string))
 		if err != nil {
 			t.Fatal(err)
@@ -104,17 +116,5 @@ func TestPayloadWithoutSecretIsTodays(t *testing.T) {
 	}
 	if got["from_id"] != "1" {
 		t.Fatalf("from_id went missing: %v", got)
-	}
-}
-
-// A secret that cannot key anything does not stop the push: the alert alone
-// still says a message came, which is what an old build shows anyway.
-func TestABrokenSecretStillSendsTheAlert(t *testing.T) {
-	got := sent(t, Notify{Title: "ice9", Body: "New message", Badge: 1, FromId: "1", Secret: "not hex"})
-	if _, there := got["p"]; there {
-		t.Fatal("an envelope was built from a key that is not one")
-	}
-	if got["aps"].(map[string]any)["alert"].(map[string]any)["body"] != "New message" {
-		t.Fatal("the alert went missing with the envelope")
 	}
 }

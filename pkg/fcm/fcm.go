@@ -81,10 +81,11 @@ type Notify struct {
 	Badge int
 	// Who the message is from, so that a tap opens that conversation.
 	FromId string
-	// The device's push key, hex, as it registered it. With one the app is
-	// woken and draws the notification itself; without one Firebase draws a
-	// bare banner and the app never runs (#94).
-	Secret string
+	// The envelope the app opens, already sealed with the device's own key by
+	// pushrelay.SealForGoogle on the server. With one the app is woken and
+	// draws the notification itself; without one Firebase draws a bare banner
+	// and the app never runs (#94).
+	Envelope string
 }
 
 // compose builds the message Google is asked to deliver.
@@ -98,7 +99,7 @@ type Notify struct {
 // Without a key there is nothing the app could open, so the old banner is sent
 // instead: "New message", drawn by Firebase, better than silence.
 func (s *Sender) compose(deviceToken string, n Notify) (map[string]any, error) {
-	if n.Secret == "" {
+	if n.Envelope == "" {
 		return map[string]any{
 			"message": map[string]any{
 				"token": deviceToken,
@@ -117,24 +118,13 @@ func (s *Sender) compose(deviceToken string, n Notify) (map[string]any, error) {
 		}, nil
 	}
 
-	// No loc_key the client knows: it is not being told what to draw, only that
-	// something arrived. Everything it shows afterwards it fetches itself.
-	envelope, err := Envelope(n.Secret, map[string]any{
-		"badge":   n.Badge,
-		"custom":  map[string]any{"from_id": n.FromId},
-		"loc_key": "",
-	})
-	if err != nil {
-		return nil, err
-	}
-
 	return map[string]any{
 		"message": map[string]any{
 			"token": deviceToken,
 			// High priority is what buys the app a moment of network while the
 			// phone is dozing; without it a data-only message can wait hours.
 			"android": map[string]any{"priority": "high"},
-			"data":    map[string]any{"p": envelope},
+			"data":    map[string]any{"p": n.Envelope},
 		},
 	}, nil
 }
