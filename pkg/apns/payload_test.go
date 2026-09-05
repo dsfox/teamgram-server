@@ -3,11 +3,11 @@ package apns
 import (
 	"encoding/hex"
 	"encoding/json"
+	"strconv"
 	"testing"
 
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/pkg/fcm"
-	"github.com/teamgram/teamgram-server/pkg/pushrelay"
 )
 
 // A key of the size a device registers, not all zeroes: a wrong offset in the
@@ -20,11 +20,20 @@ func testKey() string {
 	return hex.EncodeToString(key)
 }
 
-// sealed is what the server hands the relay: the envelope, already sealed
-// with the phone's secret by pushrelay.SealForApple.
+// sealed is what the server hands on: the envelope, already sealed with the
+// phone's secret - here in the shape pushrelay.SealForApple seals it (that
+// package imports this one, so the shape is repeated rather than imported).
 func sealed(t *testing.T, secret string, peerType int32, peerId int64, msgId int32) string {
 	t.Helper()
-	envelope, err := pushrelay.SealForApple(secret, "ice9", "New message", 3, peerType, peerId, msgId)
+	key := map[int32]string{int32(mtproto.PEER_CHAT): "chat_id", int32(mtproto.PEER_CHANNEL): "channel_id"}[peerType]
+	if key == "" {
+		key = "from_id"
+	}
+	envelope, err := fcm.Envelope(secret, map[string]any{
+		"aps":    map[string]any{"alert": map[string]any{"title": "ice9", "body": "New message"}, "sound": "default", "badge": 3},
+		key:      strconv.FormatInt(peerId, 10),
+		"msg_id": strconv.FormatInt(int64(msgId), 10),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
