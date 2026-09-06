@@ -80,7 +80,6 @@ type Store interface {
 	// Devices lists the devices of a person that have published anything.
 	Devices(ctx context.Context, userId int64) ([]int64, error)
 	CountDevices(ctx context.Context, userId int64) (int, error)
-
 }
 
 // LowWaterMark is the count below which a device should publish more. It is
@@ -235,7 +234,6 @@ func (d *Directory) DeviceCount(ctx context.Context, userId int64) (int, error) 
 	}
 	return count, nil
 }
-
 
 // Claim takes one package for every device of a person - which is what starting
 // a conversation with them needs, since each device is a member of its own.

@@ -46,5 +46,5 @@ type Config struct {
 	StatusClient     zrpc.RpcClientConf
 	ChatClient       zrpc.RpcClientConf
 	PushClient       *queue.Conf `json:",optional"`
-	UseStreamSession bool                     `json:",default=false"`
+	UseStreamSession bool        `json:",default=false"`
 }

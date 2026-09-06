@@ -244,7 +244,7 @@ func (c *SyncCore) pushUpdatesToSession(syncType SyncType, userId, permAuthKeyId
 			// app is certainly open. The difference matters for notifications,
 			// see below.
 			activeKeyIdList = make([]int64, 0)
-			now         = time.Now().Unix()
+			now             = time.Now().Unix()
 		)
 
 		statusList, _ := c.svcCtx.Dao.StatusClient.StatusGetUserOnlineSessions(c.ctx, &status.TLStatusGetUserOnlineSessions{

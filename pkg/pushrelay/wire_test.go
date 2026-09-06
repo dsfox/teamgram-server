@@ -32,3 +32,13 @@ func TestDecodeAcceptsExactlyTheSixFields(t *testing.T) {
 		t.Error("a push without a token was accepted")
 	}
 }
+
+func TestASilentPushIsAcceptedAndCarriesNoWords(t *testing.T) {
+	p, err := Decode(strings.NewReader(`{"platform":"apns","token":"t","silent":true,"badge":0}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.Silent || p.Badge != 0 {
+		t.Fatalf("decoded wrong: %+v", p)
+	}
+}

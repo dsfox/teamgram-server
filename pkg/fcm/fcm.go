@@ -86,6 +86,10 @@ type Notify struct {
 	// draws the notification itself; without one Firebase draws a bare banner
 	// and the app never runs (#94).
 	Envelope string
+	// The badge alone (#173). On Android the app draws its own badge from
+	// what it fetches, so this only wakes it: a data message whose envelope
+	// carries the count and names nobody.
+	Silent bool
 }
 
 // compose builds the message Google is asked to deliver.

@@ -37,6 +37,8 @@ type Notifier struct {
 	// The relay's client once this server has a key: set at start from the
 	// database, or by the registration that runs until the relay answers.
 	relay atomic.Pointer[pushrelay.Client]
+	// One badge push per user per quiet moment, for reads elsewhere (#173).
+	badges *later
 }
 
 // deviceRegistry is what the notifier needs of pkg/devices, so that a test
@@ -53,6 +55,7 @@ func New(db *sqlx.DB) *Notifier {
 	n := &Notifier{
 		registry: devices.NewRegistry(db),
 		db:       db,
+		badges:   newLater(badgeQuiet),
 		title:    envOr("APNS_TITLE", "ice9"),
 		// The message text never reaches the notification and cannot: showing it
 		// in the banner would mean handing the text to Apple, or to Google. This
@@ -104,6 +107,46 @@ func (n *Notifier) NewMessage(ctx context.Context, userId int64, peerType int32,
 // all of their devices included.
 const sendTimeout = 30 * time.Second
 
+// badgeQuiet is how long a burst of read marks is left to settle before the
+// phones that are asleep are told the new count, once.
+const badgeQuiet = 5 * time.Second
+
+// ReadElsewhere tells the user's devices that are asleep the new number of
+// unread messages, after the user read a chat on a device that is awake
+// (#173). Without it the badge on the sleeping phone stayed as the last
+// message left it until the next message came.
+func (n *Notifier) ReadElsewhere(ctx context.Context, userId int64, onlineAuthKeyIds []int64) {
+	if !n.Enabled() {
+		return
+	}
+	online := append([]int64(nil), onlineAuthKeyIds...)
+	n.badges.after(userId, func() {
+		threading.GoSafe(func() {
+			sendCtx, cancel := context.WithTimeout(context.Background(), sendTimeout)
+			defer cancel()
+			n.badgeOnly(sendCtx, userId, online)
+		})
+	})
+}
+
+func (n *Notifier) badgeOnly(ctx context.Context, userId int64, onlineAuthKeyIds []int64) {
+	list, err := n.registry.ListByUser(ctx, userId)
+	if err != nil {
+		return
+	}
+	targets := offlineTargets(list, onlineAuthKeyIds)
+	if len(targets) == 0 {
+		return
+	}
+	badge := n.unreadCount(ctx, userId)
+	if badge < 0 {
+		return
+	}
+	for _, d := range targets {
+		n.sendPush(ctx, d, badge, "", 0, 0, 0, true)
+	}
+}
+
 func (n *Notifier) notify(ctx context.Context, userId int64, peerType int32, peerId int64, msgId int32, onlineAuthKeyIds []int64) {
 	if n.muted(ctx, userId, peerType, peerId) {
 		return
@@ -153,6 +196,12 @@ func offlineTargets(list []devices.DeviceDO, onlineAuthKeyIds []int64) []devices
 }
 
 func (n *Notifier) send(ctx context.Context, d devices.DeviceDO, badge int, fromId string, peerType int32, peerId int64, msgId int32) {
+	n.sendPush(ctx, d, badge, fromId, peerType, peerId, msgId, false)
+}
+
+// sendPush is send with one more choice: the badge alone (#173), which
+// carries no words and, on an iPhone, nothing for the extension to open.
+func (n *Notifier) sendPush(ctx context.Context, d devices.DeviceDO, badge int, fromId string, peerType int32, peerId int64, msgId int32, silent bool) {
 	var err error
 
 	// Said before the attempt, whatever Apple or Google then answer: whether
@@ -162,7 +211,10 @@ func (n *Notifier) send(ctx context.Context, d devices.DeviceDO, badge int, from
 	if d.Secret != "" {
 		carrying = "envelope"
 	}
-	logx.WithContext(ctx).Infof("notification for user %d, device %d: %s", d.UserId, d.AuthKeyId, carrying)
+	if silent {
+		carrying = "badge only"
+	}
+	logx.WithContext(ctx).Infof("notification for user %d, device %d: %s (badge %d)", d.UserId, d.AuthKeyId, carrying, badge)
 
 	relay := n.relay.Load()
 	if relay == nil {
@@ -173,15 +225,18 @@ func (n *Notifier) send(ctx context.Context, d devices.DeviceDO, badge int, from
 	// on from here - to the relay, and through it to Apple or Google - carries
 	// no key and no words of ours. An envelope that cannot be sealed does not
 	// stop the push: the alert alone still says a message came.
-	push := pushrelay.Push{Token: d.Token, Sandbox: d.AppSandbox, Badge: badge, FromId: fromId}
+	push := pushrelay.Push{Token: d.Token, Sandbox: d.AppSandbox, Badge: badge, FromId: fromId, Silent: silent}
 	switch {
 	case d.IsAPNs():
 		push.Platform = pushrelay.PlatformApple
-		if d.Secret != "" {
+		// A badge-only push names no message, so there is nothing to seal.
+		if d.Secret != "" && !silent {
 			push.P, _ = pushrelay.SealForApple(d.Secret, n.title, n.body, badge, peerType, peerId, msgId)
 		}
 	case d.IsFCM():
 		push.Platform = pushrelay.PlatformGoogle
+		// Android's app draws its own badge from what it fetches; the
+		// envelope wakes it, and a badge-only one names nobody.
 		if d.Secret != "" {
 			push.P, _ = pushrelay.SealForGoogle(d.Secret, badge, fromId)
 		}

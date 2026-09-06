@@ -15,11 +15,31 @@ func (c *SyncCore) notifyOfflineDevices(userId int64, onlineAuthKeyIds []int64, 
 	}
 
 	peer, msgId := incomingMessagePeer(userId, ups)
-	if peer == nil {
+	if peer != nil {
+		c.svcCtx.Dao.Notifier.NewMessage(c.ctx, userId, peer.PeerType, peer.PeerId, msgId, onlineAuthKeyIds)
 		return
 	}
 
-	c.svcCtx.Dao.Notifier.NewMessage(c.ctx, userId, peer.PeerType, peer.PeerId, msgId, onlineAuthKeyIds)
+	// A read mark of this user's own: the devices that are asleep get the
+	// new badge, once the burst settles (#173).
+	if readSomething(userId, ups) {
+		c.svcCtx.Dao.Notifier.ReadElsewhere(c.ctx, userId, onlineAuthKeyIds)
+	}
+}
+
+// readSomething reports whether these updates carry a read mark of the
+// user's own - the inbox of a chat or a channel marked read.
+func readSomething(userId int64, ups *mtproto.Updates) bool {
+	read := false
+	mtproto.VisitUpdates(userId, ups, map[string]mtproto.UpdateVisitedFunc{
+		mtproto.Predicate_updateReadHistoryInbox: func(int64, *mtproto.Update, []*mtproto.User, []*mtproto.Chat, int32) {
+			read = true
+		},
+		mtproto.Predicate_updateReadChannelInbox: func(int64, *mtproto.Update, []*mtproto.User, []*mtproto.Chat, int32) {
+			read = true
+		},
+	})
+	return read
 }
 
 // incomingMessagePeer returns the chat that received someone else's message and

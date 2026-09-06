@@ -165,3 +165,14 @@ func TestABlockedServerIs403(t *testing.T) {
 		t.Fatalf("got %d", code)
 	}
 }
+
+func TestASilentPushReachesTheForwarderSilent(t *testing.T) {
+	apple := &recording{}
+	srv, key := relayForTest(t, apple, &recording{})
+	if code := push(t, srv.URL, key, `{"platform":"apns","token":"tok","silent":true,"badge":2}`); code != 200 {
+		t.Fatalf("answered %d", code)
+	}
+	if len(apple.got) != 1 || !apple.got[0].Silent || apple.got[0].Badge != 2 {
+		t.Fatalf("apple got %+v", apple.got)
+	}
+}

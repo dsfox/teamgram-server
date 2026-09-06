@@ -127,3 +127,22 @@ func TestPayloadWithoutSecretIsTodays(t *testing.T) {
 		t.Fatalf("from_id went missing: %v", got)
 	}
 }
+
+// A badge-only push (#173): the number on the icon and nothing else - no
+// banner, no sound, nothing for the extension to open. What a phone gets
+// when the person read the chat somewhere else.
+func TestASilentPayloadIsTheBadgeAlone(t *testing.T) {
+	got := sent(t, Notify{Title: "ice9", Body: "New message", Badge: 0, Silent: true})
+	aps := got["aps"].(map[string]any)
+	if aps["badge"] != float64(0) {
+		t.Fatalf("the badge is %v, not 0", aps["badge"])
+	}
+	for _, key := range []string{"alert", "sound", "mutable-content"} {
+		if _, there := aps[key]; there {
+			t.Fatalf("a silent push carries %q", key)
+		}
+	}
+	if _, there := got["p"]; there {
+		t.Fatal("a silent push carries an envelope")
+	}
+}

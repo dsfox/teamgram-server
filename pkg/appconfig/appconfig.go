@@ -26,7 +26,7 @@ func Value() *mtproto.JSONValue {
 	values := make([]*mtproto.JSONObjectValue, 0, len(flags))
 	for key, enabled := range flags {
 		values = append(values, mtproto.MakeTLJsonObjectValue(&mtproto.JSONObjectValue{
-			Key:   key,
+			Key: key,
 			Value: mtproto.MakeTLJsonBool(&mtproto.JSONValue{
 				Value_BOOL: mtproto.ToBool(enabled),
 			}).To_JSONValue(),

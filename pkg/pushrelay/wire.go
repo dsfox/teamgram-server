@@ -30,6 +30,10 @@ type Push struct {
 	// The envelope the phone's own secret opens, sealed by the server. The
 	// relay forwards it and cannot read it.
 	P string `json:"p,omitempty"`
+	// Only the badge: no banner, no sound, nothing to open. Sent when the
+	// person read the chat somewhere else, so the number on the icon of the
+	// phone that is asleep comes down (#173).
+	Silent bool `json:"silent,omitempty"`
 }
 
 var ErrBadPush = errors.New("pushrelay: not a push")

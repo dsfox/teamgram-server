@@ -127,6 +127,9 @@ type Notify struct {
 	// the alert alone, which is what a build without the extension shows
 	// either way.
 	Envelope string
+	// The badge alone: no alert, no sound, no envelope. The number on the
+	// icon changes and the phone shows nothing (#173).
+	Silent bool
 }
 
 // buildPayload is the payload as sent, on its own so a test can read it.
@@ -136,6 +139,11 @@ type Notify struct {
 // run at all, and p is the envelope it opens - the same one the FCM path
 // carries, with from_id and no text.
 func buildPayload(n Notify) *payload.Payload {
+	if n.Silent {
+		// Apple takes a payload with a badge and nothing else as a change to
+		// the number on the icon, drawn without a banner.
+		return payload.NewPayload().Badge(n.Badge)
+	}
 	p := payload.NewPayload().
 		AlertTitle(n.Title).
 		AlertBody(n.Body).
