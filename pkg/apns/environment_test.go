@@ -73,6 +73,13 @@ func TestKeyEnvironments(t *testing.T) {
 func findKey(t *testing.T) (path, keyId string) {
 	t.Helper()
 
+	// A key named outright wins: with two keys in the folder - the one the
+	// live machine had, and the one that serves both environments - the glob
+	// below cannot choose, and the check is about one key at a time.
+	if named := os.Getenv("APNS_KEY_PATH"); named != "" {
+		return named, os.Getenv("APNS_KEY_ID")
+	}
+
 	matches, _ := filepath.Glob("../../../secrets/AuthKey_*.p8")
 	switch len(matches) {
 	case 0:
