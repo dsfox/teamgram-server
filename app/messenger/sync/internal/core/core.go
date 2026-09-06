@@ -306,6 +306,12 @@ func (c *SyncCore) pushUpdatesToSession(syncType SyncType, userId, permAuthKeyId
 			// The notification goes to devices where the app is not open. Only a
 			// session that has not expired counts as open.
 			c.notifyOfflineDevices(userId, activeKeyIdList, pushData)
+		} else if syncType == syncTypeUserNotMe && readSomething(userId, pushData) {
+			// A read mark travels to the user's other sessions - "not me" -
+			// and the devices that are asleep get the new badge (#173). The
+			// reader's own session is awake whatever the status list says of
+			// it, so it is counted as online here.
+			c.svcCtx.Dao.Notifier.ReadElsewhere(c.ctx, userId, append(activeKeyIdList, permAuthKeyId))
 		}
 	}
 }

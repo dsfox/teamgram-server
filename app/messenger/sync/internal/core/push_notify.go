@@ -20,8 +20,8 @@ func (c *SyncCore) notifyOfflineDevices(userId int64, onlineAuthKeyIds []int64, 
 		return
 	}
 
-	// A read mark of this user's own: the devices that are asleep get the
-	// new badge, once the burst settles (#173).
+	// A read mark of this user's own, when it comes this way: the devices
+	// that are asleep get the new badge, once the burst settles (#173).
 	if readSomething(userId, ups) {
 		c.svcCtx.Dao.Notifier.ReadElsewhere(c.ctx, userId, onlineAuthKeyIds)
 	}
