@@ -12,10 +12,11 @@ import (
 )
 
 func TestRPCErrorForAuthStateUsesRestartForTransientStates(t *testing.T) {
+	// Only the states where the transport key is not initialised yet: the
+	// client redoes the handshake without losing its account.
 	for _, state := range []int{
 		mtproto.AuthStateNew,
 		mtproto.AuthStateWaitInit,
-		mtproto.AuthStateUnauthorized,
 	} {
 		err := rpcErrorForAuthState(state)
 		if !errors.Is(err, mtproto.ErrAuthRestart) {
@@ -25,7 +26,11 @@ func TestRPCErrorForAuthStateUsesRestartForTransientStates(t *testing.T) {
 }
 
 func TestRPCErrorForAuthStateUsesAuthKeyUnregisteredForTerminalStates(t *testing.T) {
+	// Unauthorized joins these (#179): a key with a session but no user is a
+	// deleted or revoked account, and the client must sign out, not loop the
+	// handshake as AUTH_RESTART made the A15 do.
 	for _, state := range []int{
+		mtproto.AuthStateUnauthorized,
 		mtproto.AuthStateUnknown,
 		mtproto.AuthStateLogout,
 		mtproto.AuthStateDeleted,
