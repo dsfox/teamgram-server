@@ -323,8 +323,12 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, md *metadat
 			Datas: []*mtproto.EmojiLanguage{},
 		}, nil
 
-	// reports
+	// reports. The answer the client wants is a plain success; the substance is
+	// the record left for the operator (recordReport), since the content is
+	// end-to-end encrypted and the server can only say who reported whom.
 	case "TLAccountReportPeer":
+		in := object.(*mtproto.TLAccountReportPeer)
+		recordReport(md, in.GetPeer().GetUserId(), "account.reportPeer", nil, in.GetMessage())
 		return mtproto.BoolTrue, nil
 	case "TLAccountReportProfilePhoto":
 		return mtproto.BoolTrue, nil
@@ -333,11 +337,17 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, md *metadat
 	// Same story as getWebPage: the older version answers Bool, the newer one a
 	// ReportResult. Found by the type gate, not by a person.
 	case "TLMessagesReport8953AB4E":
+		in := object.(*mtproto.TLMessagesReport8953AB4E)
+		recordReport(md, in.GetPeer().GetUserId(), "messages.report", in.GetId(), in.GetMessage())
 		return mtproto.BoolTrue, nil
 
 	case "TLMessagesReportFC78AF9B":
+		in := object.(*mtproto.TLMessagesReportFC78AF9B)
+		recordReport(md, in.GetPeer().GetUserId(), "messages.report", in.GetId(), in.GetMessage())
 		return mtproto.MakeTLReportResultReported(nil).To_ReportResult(), nil
 	case "TLMessagesReportSpam":
+		in := object.(*mtproto.TLMessagesReportSpam)
+		recordReport(md, in.GetPeer().GetUserId(), "messages.reportSpam", nil, "")
 		return mtproto.BoolTrue, nil
 
 	// phone
@@ -639,4 +649,20 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, md *metadat
 
 	logx.WithContext(ctx).Errorf("%s blocked, License key from https://teamgram.net required to unlock enterprise features.", rt.Name())
 	return nil, mtproto.ErrEnterpriseIsBlocked
+}
+
+// recordReport writes a moderation report where the operator will find it. The
+// message content is end-to-end encrypted and never reaches the server, so the
+// report can only name who reported whom and, for a message report, which
+// message ids - enough to lock or ban the target by hand. It is a tagged log
+// line on purpose: the operator watches the server log, and a durable table can
+// follow if the volume ever asks for one (#181). The client is answered either
+// way, which is all it waits for.
+func recordReport(md *metadata.RpcMetadata, target int64, via string, messageIds []int32, note string) {
+	var reporter int64
+	if md != nil {
+		reporter = md.UserId
+	}
+	logx.Infof("MODERATION_REPORT reporter=%d target=%d via=%s messages=%v note=%q",
+		reporter, target, via, messageIds, note)
 }

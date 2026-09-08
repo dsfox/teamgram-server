@@ -5,9 +5,12 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/teamgram/proto/mtproto"
+	"github.com/teamgram/proto/mtproto/rpc/metadata"
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 // Every stub answer must survive encoding, not merely compile.
@@ -229,4 +232,36 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// A report has to reach the operator, not merely return success to the client.
+// The message content is end-to-end encrypted, so the report can only name who
+// reported whom - which is enough to lock or ban the target by hand. Before
+// this the stub answered BoolTrue and dropped the report on the floor. The
+// operator watches the server log, so the report is a tagged line there; this
+// proves the line is written and names both sides, and that the client is still
+// answered.
+func TestReportReachesTheOperator(t *testing.T) {
+	var proxy *BFFProxyClient
+	var buf strings.Builder
+	logx.Reset()
+	logx.SetWriter(logx.NewWriter(&buf))
+	logx.SetLevel(logx.InfoLevel)
+	defer logx.Reset()
+
+	const reporter, target = int64(1001), int64(2002)
+	peer := mtproto.MakeTLInputPeerUser(&mtproto.InputPeer{UserId: target}).To_InputPeer()
+	md := &metadata.RpcMetadata{UserId: reporter}
+	request := &mtproto.TLAccountReportPeer{Peer: peer, Message: "abuse"}
+
+	answer, err := proxy.TryReturnFakeRpcResult(context.Background(), md, request)
+	if err != nil || answer == nil {
+		t.Fatalf("the report must still answer the client: answer=%v err=%v", answer, err)
+	}
+	line := buf.String()
+	if !strings.Contains(line, "MODERATION_REPORT") ||
+		!strings.Contains(line, "reporter=1001") ||
+		!strings.Contains(line, "target=2002") {
+		t.Fatalf("the report did not reach the operator log: %q", line)
+	}
 }
