@@ -9808,7 +9808,7 @@
     "InviteLink.Title": "Пригласительные ссылки",
     "InviteLink.UsageLimitReached": "достигнут лимит",
     "InviteLinks.InviteLinkExpired": "Срок действия ссылки истёк.",
-    "InviteText.SingleContact": "Привет, я использую ice9 для переписки. Присоединяйся! Скачать его можно здесь: %@",
+    "InviteText.SingleContact": "Привет! Скачай себе %@\nЯ оставил тебе там сообщение.",
     "InviteText.URL": "https://ice9.app",
     "Items.NOfM": "%1$@ из %2$@",
     "Join.ChannelsTooMuch": "У Вас максимальное число групп и каналов. Пожалуйста, сперва покиньте какую-нибудь группу или канал.",
