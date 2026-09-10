@@ -80,7 +80,7 @@ func findKey(t *testing.T) (path, keyId string) {
 		return named, os.Getenv("APNS_KEY_ID")
 	}
 
-	matches, _ := filepath.Glob("../../../secrets/AuthKey_*.p8")
+	matches, _ := filepath.Glob("../../../.secrets/AuthKey_*.p8")
 	switch len(matches) {
 	case 0:
 		t.Skip("no key in secrets, nothing to check")
