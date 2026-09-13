@@ -19,12 +19,12 @@ func (c *PhoneCore) PhoneSendSignalingData(in *mtproto.TLPhoneSendSignalingData)
 	now := time.Now()
 	call, err := c.find(in.GetPeer(), now)
 	if err != nil {
-		return nil, err
+		return nil, rpcError(err, mtproto.ErrCallPeerInvalid)
 	}
 	otherLeg, err := call.Other(c.MD.UserId)
 	if err != nil {
 		c.Logger.Errorf("phone.sendSignalingData - %d is not in call %d: %v", c.MD.UserId, call.Id, err)
-		return nil, err
+		return nil, rpcError(err, mtproto.ErrCallPeerInvalid)
 	}
 
 	update := mtproto.MakeTLUpdatePhoneCallSignalingData(&mtproto.Update{

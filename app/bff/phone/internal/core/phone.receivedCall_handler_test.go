@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/teamgram/proto/mtproto"
-	"github.com/teamgram/teamgram-server/pkg/calls"
 )
 
 // The callee's phone says "it is ringing here" - and both phones give up the
@@ -56,7 +55,7 @@ func TestOnlyTheCalleeMaySayItIsRinging(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			s := newStand(t)
 			_, err := s.as(who).PhoneReceivedCall(&mtproto.TLPhoneReceivedCall{Peer: s.peer()})
-			if !errors.Is(err, calls.ErrWrongParty) {
+			if !errors.Is(err, mtproto.ErrCallPeerInvalid) {
 				t.Fatalf("%s was answered with %v", name, err)
 			}
 			if len(s.sync.pushes) != 0 {

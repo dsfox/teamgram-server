@@ -19,11 +19,11 @@ func (c *PhoneCore) PhoneConfirmCall(in *mtproto.TLPhoneConfirmCall) (*mtproto.P
 	now := time.Now()
 	call, err := c.find(in.GetPeer(), now)
 	if err != nil {
-		return nil, err
+		return nil, rpcError(err, mtproto.ErrCallPeerInvalid)
 	}
 	if err = call.Confirm(c.MD.UserId, in.GetGA(), in.GetKeyFingerprint(), now); err != nil {
 		c.Logger.Errorf("phone.confirmCall - %d cannot confirm %d: %v", c.MD.UserId, call.Id, err)
-		return nil, err
+		return nil, rpcError(err, mtproto.ErrCallPeerInvalid)
 	}
 
 	connections, err := c.connectionsFor(true, now)

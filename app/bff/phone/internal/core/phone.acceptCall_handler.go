@@ -18,11 +18,11 @@ func (c *PhoneCore) PhoneAcceptCall(in *mtproto.TLPhoneAcceptCall) (*mtproto.Pho
 	now := time.Now()
 	call, err := c.find(in.GetPeer(), now)
 	if err != nil {
-		return nil, err
+		return nil, rpcError(err, mtproto.ErrCallAlreadyAccepted)
 	}
 	if err = call.Accept(c.MD.UserId, in.GetGB(), now); err != nil {
 		c.Logger.Errorf("phone.acceptCall - %d cannot accept %d: %v", c.MD.UserId, call.Id, err)
-		return nil, err
+		return nil, rpcError(err, mtproto.ErrCallAlreadyAccepted)
 	}
 
 	accepted := mtproto.MakeTLPhoneCallAccepted(&mtproto.PhoneCall{

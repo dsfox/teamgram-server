@@ -18,11 +18,11 @@ func (c *PhoneCore) PhoneReceivedCall(in *mtproto.TLPhoneReceivedCall) (*mtproto
 	now := time.Now()
 	call, err := c.find(in.GetPeer(), now)
 	if err != nil {
-		return nil, err
+		return nil, rpcError(err, mtproto.ErrCallAlreadyAccepted)
 	}
 	if err = call.Receive(c.MD.UserId, now); err != nil {
 		c.Logger.Errorf("phone.receivedCall - %d cannot acknowledge %d: %v", c.MD.UserId, call.Id, err)
-		return nil, err
+		return nil, rpcError(err, mtproto.ErrCallAlreadyAccepted)
 	}
 
 	c.ring(call.Admin, c.waiting(call, now), now)

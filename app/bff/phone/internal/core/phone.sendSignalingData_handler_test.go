@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/teamgram/proto/mtproto"
-	"github.com/teamgram/teamgram-server/pkg/calls"
 )
 
 func signalling(peer *mtproto.InputPhoneCall, data []byte) *mtproto.TLPhoneSendSignalingData {
@@ -64,7 +63,7 @@ func TestSignalingDataFromOutsideTheCallGoesNowhere(t *testing.T) {
 		s := newStand(t)
 
 		_, err := s.as(carol).PhoneSendSignalingData(signalling(s.peer(), []byte("x")))
-		if !errors.Is(err, calls.ErrWrongParty) {
+		if !errors.Is(err, mtproto.ErrCallPeerInvalid) {
 			t.Fatalf("a stranger was answered with %v", err)
 		}
 		if len(s.sync.pushes) != 0 {
@@ -78,7 +77,7 @@ func TestSignalingDataFromOutsideTheCallGoesNowhere(t *testing.T) {
 		peer.AccessHash++
 
 		_, err := s.as(alice).PhoneSendSignalingData(signalling(peer, []byte("x")))
-		if !errors.Is(err, calls.ErrNoCall) {
+		if !errors.Is(err, mtproto.ErrCallPeerInvalid) {
 			t.Fatalf("a wrong hash was answered with %v", err)
 		}
 		if len(s.sync.pushes) != 0 {
@@ -94,7 +93,7 @@ func TestSignalingDataFromOutsideTheCallGoesNowhere(t *testing.T) {
 		s.sync.pushes = nil
 
 		_, err := s.as(alice).PhoneSendSignalingData(signalling(s.peer(), []byte("x")))
-		if !errors.Is(err, calls.ErrNoCall) {
+		if !errors.Is(err, mtproto.ErrCallPeerInvalid) {
 			t.Fatalf("a dead call was answered with %v", err)
 		}
 		if len(s.sync.pushes) != 0 {

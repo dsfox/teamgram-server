@@ -26,7 +26,7 @@ func (c *PhoneCore) PhoneRequestCall(in *mtproto.TLPhoneRequestCall) (*mtproto.P
 		// Busy, or a call to oneself. Mapping these onto the errors the client
 		// draws as "busy" comes with the rest of the lifecycle.
 		c.Logger.Errorf("phone.requestCall - %d cannot call %d: %v", c.MD.UserId, callee, err)
-		return nil, err
+		return nil, rpcError(err, mtproto.ErrCallOccupyFailed)
 	}
 	// Nobody else can find the call before the ring below goes out.
 	call.Protocol = in.GetProtocol()

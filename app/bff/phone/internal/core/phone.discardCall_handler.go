@@ -15,15 +15,15 @@ func (c *PhoneCore) PhoneDiscardCall(in *mtproto.TLPhoneDiscardCall) (*mtproto.U
 	now := time.Now()
 	call, err := c.find(in.GetPeer(), now)
 	if err != nil {
-		return nil, err
+		return nil, rpcError(err, mtproto.ErrCallAlreadyDeclined)
 	}
 	otherLeg, err := call.Other(c.MD.UserId)
 	if err != nil {
-		return nil, err
+		return nil, rpcError(err, mtproto.ErrCallAlreadyDeclined)
 	}
 	if err = call.Discard(c.MD.UserId, now); err != nil {
 		c.Logger.Errorf("phone.discardCall - %d cannot discard %d: %v", c.MD.UserId, call.Id, err)
-		return nil, err
+		return nil, rpcError(err, mtproto.ErrCallAlreadyDeclined)
 	}
 
 	discarded := mtproto.MakeTLPhoneCallDiscarded(&mtproto.PhoneCall{

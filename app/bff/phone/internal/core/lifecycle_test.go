@@ -75,7 +75,7 @@ func TestACallFromRingToHangUp(t *testing.T) {
 	// While it rings, neither of them can be called or call.
 	if _, err := s.as(carol).PhoneRequestCall(&mtproto.TLPhoneRequestCall{
 		UserId: inputUser(bob), GAHash: []byte("x"), Protocol: protocol(),
-	}); !errors.Is(err, calls.ErrBusy) {
+	}); !errors.Is(err, mtproto.ErrCallOccupyFailed) {
 		t.Errorf("a second call to a ringing phone was answered with %v", err)
 	}
 
@@ -125,7 +125,7 @@ func TestACallFromRingToHangUp(t *testing.T) {
 	if ended.GetPredicateName() != mtproto.Predicate_phoneCallDiscarded || ended.GetId() != waiting.GetId() {
 		t.Fatalf("alice was sent %s for call %d", ended.GetPredicateName(), ended.GetId())
 	}
-	if _, err := s.as(alice).PhoneSendSignalingData(signalling(peer, []byte("late"))); !errors.Is(err, calls.ErrNoCall) {
+	if _, err := s.as(alice).PhoneSendSignalingData(signalling(peer, []byte("late"))); !errors.Is(err, mtproto.ErrCallPeerInvalid) {
 		t.Errorf("the call is still findable after hang-up: %v", err)
 	}
 
@@ -142,13 +142,13 @@ func TestACallFromRingToHangUp(t *testing.T) {
 func TestTheHandlersRefuseWhatTheCallRefuses(t *testing.T) {
 	s := newStand(t)
 
-	if _, err := s.as(alice).PhoneAcceptCall(&mtproto.TLPhoneAcceptCall{Peer: s.peer(), GB: []byte("g_b"), Protocol: protocol()}); !errors.Is(err, calls.ErrWrongParty) {
+	if _, err := s.as(alice).PhoneAcceptCall(&mtproto.TLPhoneAcceptCall{Peer: s.peer(), GB: []byte("g_b"), Protocol: protocol()}); !errors.Is(err, mtproto.ErrCallPeerInvalid) {
 		t.Errorf("the caller accepting their own call: %v", err)
 	}
-	if _, err := s.as(alice).PhoneConfirmCall(&mtproto.TLPhoneConfirmCall{Peer: s.peer(), GA: []byte("g_a"), Protocol: protocol()}); !errors.Is(err, calls.ErrWrongState) {
+	if _, err := s.as(alice).PhoneConfirmCall(&mtproto.TLPhoneConfirmCall{Peer: s.peer(), GA: []byte("g_a"), Protocol: protocol()}); !errors.Is(err, mtproto.ErrCallPeerInvalid) {
 		t.Errorf("confirming before the answer: %v", err)
 	}
-	if _, err := s.as(carol).PhoneDiscardCall(&mtproto.TLPhoneDiscardCall{Peer: s.peer()}); !errors.Is(err, calls.ErrWrongParty) {
+	if _, err := s.as(carol).PhoneDiscardCall(&mtproto.TLPhoneDiscardCall{Peer: s.peer()}); !errors.Is(err, mtproto.ErrCallPeerInvalid) {
 		t.Errorf("a stranger hanging up: %v", err)
 	}
 	if len(s.sync.pushes) != 0 {
