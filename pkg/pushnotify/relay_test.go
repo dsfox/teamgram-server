@@ -18,10 +18,12 @@ import (
 type fakeRegistry struct {
 	mu        sync.Mutex
 	forgotten []string
+	// What ListByUser answers, for the paths that start from the list.
+	list []devices.DeviceDO
 }
 
 func (f *fakeRegistry) ListByUser(context.Context, int64) ([]devices.DeviceDO, error) {
-	return nil, nil
+	return f.list, nil
 }
 
 func (f *fakeRegistry) Forget(_ context.Context, tokenType int32, token string) error {
