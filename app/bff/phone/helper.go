@@ -18,3 +18,8 @@ type Config = config.Config
 func New(c Config) *service.Service {
 	return service.New(svc.NewServiceContext(c))
 }
+
+// Calls is the section of the bff config this service reads: the STUN and
+// relay endpoints a phone is told to try, and the secret behind the
+// short-lived relay credentials.
+type Calls = config.Calls

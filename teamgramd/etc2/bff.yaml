@@ -38,6 +38,25 @@ Code:
   Secret: ""
   RegionId: ""
 
+# 1-1 calls (#14): what the two phones are told to try. STUN first, always,
+# because the media is meant to go device to device; a relay (Turn: true) is
+# the fallback for a symmetric NAT on both sides and the "hide my IP" setting,
+# and needs RelaySecret set to the same value the relay checks credentials
+# against. Both address families on every entry: two phones on carrier IPv6
+# connect with no NAT in the way at all. Nothing listens on 3478 until the STUN
+# responder is deployed beside the server (plan, Part 4).
+Calls:
+  Servers:
+    - Id: 1
+      Host: 5.23.53.210
+      HostV6: 2a03:6f01:1:2::4d23
+      Port: 3478
+      Stun: true
+      Turn: false
+      Tcp: false
+  RelaySecret: ""
+  RelayTTLSeconds: 3600
+
 BizServiceClient:
   Etcd:
     Hosts:

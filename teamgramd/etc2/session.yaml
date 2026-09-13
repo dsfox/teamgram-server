@@ -68,7 +68,10 @@ BFFProxyClients:
     #"/mtproto.RPCTsf": "bff.bff"
     #"/mtproto.RPCTwoFa": "bff.bff"
     #"/mtproto.RPCSeamless": "bff.bff"
-    #"/mtproto.RPCVoipCalls": "bff.bff"
+    # 1-1 calls (#14): the matchmaker for two phones. Only the ten phone.*
+    # methods of a one-to-one call live under this prefix; group and
+    # conference calls are other services and stay off.
+    "/mtproto.RPCVoipCalls": "bff.bff"
     #"/mtproto.RPCChannels": "bff.bff"
     "/mtproto.RPCChatInvites": "bff.bff"
     "/mtproto.RPCChats": "bff.bff"

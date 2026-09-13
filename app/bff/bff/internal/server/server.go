@@ -41,6 +41,7 @@ import (
 	nsfw_helper "github.com/teamgram/teamgram-server/app/bff/nsfw"
 	passkeyhelper "github.com/teamgram/teamgram-server/app/bff/passkey"
 	passport_helper "github.com/teamgram/teamgram-server/app/bff/passport"
+	phone_helper "github.com/teamgram/teamgram-server/app/bff/phone"
 	premium_helper "github.com/teamgram/teamgram-server/app/bff/premium"
 	privacysettingshelper "github.com/teamgram/teamgram-server/app/bff/privacysettings"
 	qrcode_helper "github.com/teamgram/teamgram-server/app/bff/qrcode"
@@ -118,6 +119,17 @@ func (s *Server) Initialize() error {
 				Mysql:         c.Mysql,
 				UserClient:    c.BizServiceClient,
 				ChatClient:    c.BizServiceClient,
+			}))
+
+		// phone_helper: the matchmaker for 1-1 calls (#14). It carries the key
+		// exchange and the candidates between two phones and tells them which
+		// STUN to try; the media never comes here.
+		mtproto.RegisterRPCVoipCallsServer(
+			grpcServer,
+			phone_helper.New(phone_helper.Config{
+				RpcServerConf: c.RpcServerConf,
+				SyncClient:    c.SyncClient,
+				Calls:         c.Calls,
 			}))
 
 		// qrcode_helper

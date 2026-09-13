@@ -20,8 +20,9 @@ package config
 
 import (
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
-	"github.com/teamgram/teamgram-server/pkg/queue"
+	phone_helper "github.com/teamgram/teamgram-server/app/bff/phone"
 	"github.com/teamgram/teamgram-server/pkg/code/conf"
+	"github.com/teamgram/teamgram-server/pkg/queue"
 	"github.com/zeromicro/go-zero/core/stores/kv"
 	"github.com/zeromicro/go-zero/zrpc"
 )
@@ -45,4 +46,8 @@ type Config struct {
 	StatusClient              zrpc.RpcClientConf
 	SignInServiceNotification []conf.MessageEntityConfig `json:",optional"`
 	SignInMessage             []conf.MessageEntityConfig `json:",optional"`
+	// What a phone is told to try for a 1-1 call (#14). Optional so a
+	// config without it still starts; a call is then refused at confirm
+	// with a logged error rather than the whole process refusing to boot.
+	Calls phone_helper.Calls `json:",optional"`
 }
