@@ -39,5 +39,5 @@ type Config struct {
 	UserClient        zrpc.RpcClientConf
 	ChatClient        zrpc.RpcClientConf
 	AuthsessionClient zrpc.RpcClientConf
-	Calls             CallRecaller `json:",optional"`
+	Calls             CallRecaller
 }
