@@ -89,6 +89,13 @@ func TestACallFromRingToHangUp(t *testing.T) {
 	if accepted.GetPredicateName() != mtproto.Predicate_phoneCallAccepted || !bytes.Equal(accepted.GetGB(), []byte("g_b")) {
 		t.Fatalf("alice was sent %s with g_b %q", accepted.GetPredicateName(), accepted.GetGB())
 	}
+	// From here on the two devices in the call are known, and what they
+	// trade goes to them by key: a push by user looks the session up in the
+	// status list, which a phone woken a moment ago is not yet in - seen live,
+	// the confirmed call never reached the callee that way.
+	if n := len(s.sync.me); n != 1 || toDevice(s.sync.me[0]) != [2]int64{alice, deviceOf(alice)} {
+		t.Fatalf("the answer was not addressed to the caller's device: %d addressed pushes, %v", n, s.sync.me)
+	}
 
 	// alice confirms with g_a and the fingerprint: bob gets both, and both
 	// get the connections, STUN before any relay.
@@ -113,6 +120,21 @@ func TestACallFromRingToHangUp(t *testing.T) {
 		if conns[0].GetIpv6() == "" || conns[1].GetUsername() == "" || conns[1].GetPassword() == "" {
 			t.Errorf("%s: STUN without IPv6 or relay without credentials", who)
 		}
+	}
+
+	if n := len(s.sync.me); n != 2 || toDevice(s.sync.me[1]) != [2]int64{bob, deviceOf(bob)} {
+		t.Fatalf("the confirmed call was not addressed to the device that answered: %v", s.sync.me)
+	}
+
+	// Candidates go device to device, both ways.
+	if _, err := s.as(alice).PhoneSendSignalingData(signalling(peer, []byte("from alice"))); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.as(bob).PhoneSendSignalingData(signalling(peer, []byte("from bob"))); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(s.sync.me); n != 4 || toDevice(s.sync.me[2]) != [2]int64{bob, deviceOf(bob)} || toDevice(s.sync.me[3]) != [2]int64{alice, deviceOf(alice)} {
+		t.Fatalf("candidates were not addressed to the two devices: %v", s.sync.me)
 	}
 
 	// bob hangs up: alice is told, and the call is gone.

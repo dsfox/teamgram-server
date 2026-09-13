@@ -31,6 +31,7 @@ func (c *PhoneCore) PhoneRequestCall(in *mtproto.TLPhoneRequestCall) (*mtproto.P
 	// Nobody else can find the call before the ring below goes out.
 	call.Protocol = in.GetProtocol()
 	call.Video = in.GetVideo()
+	call.AdminKey = c.MD.PermAuthKeyId
 
 	// The whole reason the server is in this at all: the other phone has to
 	// hear about the call. Everything after this is the two of them talking.
@@ -83,15 +84,33 @@ func (c *PhoneCore) waiting(call *calls.Call, now time.Time) *mtproto.PhoneCall 
 	return mtproto.MakeTLPhoneCallWaiting(pc).To_PhoneCall()
 }
 
-// ring tells one person's devices about a call. A failure here is logged, not
-// returned: the caller's own leg is already set up, and a phone that missed the
-// update will still see the call when it next syncs.
+// ring tells every device of a person about a call. A failure here is
+// logged, not returned: the caller's own leg is already set up, and a phone
+// that missed the update will still see the call when it next syncs.
 func (c *PhoneCore) ring(userId int64, pc *mtproto.PhoneCall, now time.Time) {
-	if _, err := c.svcCtx.SyncClient.SyncPushUpdates(c.ctx, &sync.TLSyncPushUpdates{
-		UserId:  userId,
-		Updates: c.updatesFor(pc, now),
-	}); err != nil {
-		c.Logger.Errorf("phone: could not ring %d: %v", userId, err)
+	c.tell(userId, 0, c.updatesFor(pc, now))
+}
+
+// tell delivers updates to a person - to one device of theirs when the key is
+// known, which is how everything after the answer travels: the push by person
+// goes through the status list, and a phone woken by the call a moment ago is
+// not in it yet, so the confirmed call would never reach it.
+func (c *PhoneCore) tell(userId, permAuthKeyId int64, updates *mtproto.Updates) {
+	var err error
+	if permAuthKeyId != 0 {
+		_, err = c.svcCtx.SyncClient.SyncUpdatesMe(c.ctx, &sync.TLSyncUpdatesMe{
+			UserId:        userId,
+			PermAuthKeyId: permAuthKeyId,
+			Updates:       updates,
+		})
+	} else {
+		_, err = c.svcCtx.SyncClient.SyncPushUpdates(c.ctx, &sync.TLSyncPushUpdates{
+			UserId:  userId,
+			Updates: updates,
+		})
+	}
+	if err != nil {
+		c.Logger.Errorf("phone: could not reach %d (device %d): %v", userId, permAuthKeyId, err)
 	}
 }
 

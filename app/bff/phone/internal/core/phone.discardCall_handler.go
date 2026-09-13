@@ -33,7 +33,12 @@ func (c *PhoneCore) PhoneDiscardCall(in *mtproto.TLPhoneDiscardCall) (*mtproto.U
 		Video:    in.GetVideo(),
 	}).To_PhoneCall()
 
-	// The other phone has to stop ringing, or stop talking.
+	// The other phone has to stop ringing, or stop talking: the device in the
+	// call by its key, and every device of theirs besides, in case more than
+	// one was ringing.
+	if otherKey := call.KeyOf(otherLeg); otherKey != 0 {
+		c.tell(otherLeg, otherKey, c.updatesFor(discarded, now))
+	}
 	c.ring(otherLeg, discarded, now)
 
 	return c.updatesFor(discarded, now), nil

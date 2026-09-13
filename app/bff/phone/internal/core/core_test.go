@@ -152,15 +152,24 @@ func standConfig() config.Config {
 	}}
 }
 
-// as returns the core the way the gRPC layer builds it, for one person.
+// deviceOf is the permanent auth key each person's phone speaks from.
+func deviceOf(user int64) int64 { return user*10 + 1 }
+
+// as returns the core the way the gRPC layer builds it, for one person on
+// their phone.
 func (s *stand) as(user int64) *PhoneCore {
 	ctx := context.Background()
 	return &PhoneCore{
 		ctx:    ctx,
 		svcCtx: s.svcCtx,
 		Logger: logx.WithContext(ctx),
-		MD:     &metadata.RpcMetadata{UserId: user},
+		MD:     &metadata.RpcMetadata{UserId: user, PermAuthKeyId: deviceOf(user)},
 	}
+}
+
+// toDevice says which device a sync.updatesMe push was addressed to.
+func toDevice(push *sync.TLSyncUpdatesMe) [2]int64 {
+	return [2]int64{push.GetUserId(), push.GetPermAuthKeyId()}
 }
 
 func (s *stand) peer() *mtproto.InputPhoneCall {

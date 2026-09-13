@@ -32,15 +32,20 @@ func (c *PhoneCore) PhoneSendSignalingData(in *mtproto.TLPhoneSendSignalingData)
 		Data_FLAGBYTES: in.GetData(),
 	}).To_Update()
 
-	// Unlike a ring, a lost candidate is a lost candidate: the phone does not
-	// resend it, so the caller is told when the push failed.
-	if _, err = c.svcCtx.SyncClient.SyncPushUpdates(c.ctx, &sync.TLSyncPushUpdates{
-		UserId: otherLeg,
-		Updates: mtproto.MakeTLUpdateShort(&mtproto.Updates{
-			Update: update,
-			Date:   int32(now.Unix()),
-		}).To_Updates(),
-	}); err != nil {
+	updates := mtproto.MakeTLUpdateShort(&mtproto.Updates{
+		Update: update,
+		Date:   int32(now.Unix()),
+	}).To_Updates()
+
+	// To the device on the other leg when it is known - after the answer it
+	// always is. Unlike a ring, a lost candidate is a lost candidate: the
+	// phone does not resend it, so the caller is told when the push failed.
+	if otherKey := call.KeyOf(otherLeg); otherKey != 0 {
+		_, err = c.svcCtx.SyncClient.SyncUpdatesMe(c.ctx, &sync.TLSyncUpdatesMe{UserId: otherLeg, PermAuthKeyId: otherKey, Updates: updates})
+	} else {
+		_, err = c.svcCtx.SyncClient.SyncPushUpdates(c.ctx, &sync.TLSyncPushUpdates{UserId: otherLeg, Updates: updates})
+	}
+	if err != nil {
 		c.Logger.Errorf("phone.sendSignalingData - could not reach %d for call %d: %v", otherLeg, call.Id, err)
 		return nil, err
 	}

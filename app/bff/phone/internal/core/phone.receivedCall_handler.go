@@ -25,7 +25,7 @@ func (c *PhoneCore) PhoneReceivedCall(in *mtproto.TLPhoneReceivedCall) (*mtproto
 		return nil, rpcError(err, mtproto.ErrCallAlreadyAccepted)
 	}
 
-	c.ring(call.Admin, c.waiting(call, now), now)
+	c.tell(call.Admin, call.AdminKey, c.updatesFor(c.waiting(call, now), now))
 
 	return mtproto.BoolTrue, nil
 }

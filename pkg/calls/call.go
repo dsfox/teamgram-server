@@ -83,6 +83,14 @@ type Call struct {
 	Protocol *mtproto.PhoneCallProtocol
 	Video    bool
 
+	// The two devices in the call, as permanent auth keys: the caller's from
+	// the moment it asks, the callee's from the moment one of their phones
+	// answers. What the two trade after that is addressed to these, not to
+	// the person: a push by person looks the session up in the status list,
+	// which a phone woken a moment ago is not yet in. Zero means unknown.
+	AdminKey       int64
+	ParticipantKey int64
+
 	// The devices (permanent auth keys) already told about the call. Told
 	// twice, an Android answers the second phoneCallRequested with "busy" and
 	// the call is over - so a device that comes back later is rung only if
@@ -194,6 +202,17 @@ func (c *Call) Other(user int64) (int64, error) {
 		return c.Admin, nil
 	}
 	return 0, ErrWrongParty
+}
+
+// KeyOf is the device of one of the two in the call, or zero while unknown.
+func (c *Call) KeyOf(user int64) int64 {
+	switch user {
+	case c.Admin:
+		return c.AdminKey
+	case c.Participant:
+		return c.ParticipantKey
+	}
+	return 0
 }
 
 // Expired says the ringing gave up. Only an unanswered call expires; one being
