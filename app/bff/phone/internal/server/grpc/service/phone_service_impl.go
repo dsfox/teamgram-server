@@ -70,3 +70,14 @@ func (s *Service) PhoneReceivedCall(ctx context.Context, request *mtproto.TLPhon
 	c.Logger.Debugf("phone.receivedCall - metadata: {%s}, request: {%s}", c.MD, request)
 	return c.PhoneReceivedCall(request)
 }
+
+// PhoneSetCallRating takes the stars a person gave a finished call (#14).
+//
+// phone.setCallRating flags:# user_initiative:flags.0?true peer:InputPhoneCall
+//
+//	rating:int comment:string = Updates;
+func (s *Service) PhoneSetCallRating(ctx context.Context, request *mtproto.TLPhoneSetCallRating) (*mtproto.Updates, error) {
+	c := core.New(ctx, s.svcCtx)
+	c.Logger.Debugf("phone.setCallRating - metadata: {%s}, request: {%s}", c.MD, request)
+	return c.PhoneSetCallRating(request)
+}

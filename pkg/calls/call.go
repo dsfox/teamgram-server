@@ -5,8 +5,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/teamgram/proto/mtproto"
 	"time"
+
+	"github.com/teamgram/proto/mtproto"
 )
 
 // RingingFor is how long a placed call keeps ringing before it gives up. A call
