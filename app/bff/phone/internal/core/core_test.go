@@ -7,6 +7,7 @@ import (
 
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/proto/mtproto/rpc/metadata"
+	"github.com/teamgram/teamgram-server/app/bff/phone/internal/config"
 	"github.com/teamgram/teamgram-server/app/bff/phone/internal/svc"
 	"github.com/teamgram/teamgram-server/app/messenger/sync/sync"
 	"github.com/teamgram/teamgram-server/pkg/calls"
@@ -71,10 +72,26 @@ func newStand(t *testing.T) *stand {
 		LibraryVersions: []string{"4.0.0"},
 	}).To_PhoneCallProtocol()
 	return &stand{
-		svcCtx: &svc.ServiceContext{SyncClient: recorder, Registry: registry},
-		sync:   recorder,
-		call:   call,
+		svcCtx: &svc.ServiceContext{
+			Config:     standConfig(),
+			SyncClient: recorder,
+			Registry:   registry,
+		},
+		sync: recorder,
+		call: call,
 	}
+}
+
+// standConfig is one STUN and one relay, the shape of the production config,
+// so confirmCall has something to hand out and the order can be checked.
+func standConfig() config.Config {
+	return config.Config{Calls: config.Calls{
+		Servers: []config.Server{
+			{Id: 2, Host: "198.51.100.2", HostV6: "2001:db8::2", Port: 3478, Turn: true},
+			{Id: 1, Host: "198.51.100.1", HostV6: "2001:db8::1", Port: 3478, Stun: true},
+		},
+		RelaySecret: "stand-secret",
+	}}
 }
 
 // as returns the core the way the gRPC layer builds it, for one person.
