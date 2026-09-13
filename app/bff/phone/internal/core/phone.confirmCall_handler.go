@@ -26,13 +26,19 @@ func (c *PhoneCore) PhoneConfirmCall(in *mtproto.TLPhoneConfirmCall) (*mtproto.P
 		return nil, rpcError(err, mtproto.ErrCallPeerInvalid)
 	}
 
-	connections, err := c.connectionsFor(true, now)
+	// Direct by default: the "hide my IP" setting (Part 3 of the plan) is
+	// what turns this off. The flag travels with the connections, because
+	// both engines read it before gathering a single candidate - without it
+	// they wait for a relay, and with none configured the call fails.
+	p2pAllowed := true
+	connections, err := c.connectionsFor(p2pAllowed, now)
 	if err != nil {
 		c.Logger.Errorf("phone.confirmCall - nothing to offer for %d: %v", call.Id, err)
 		return nil, err
 	}
 
 	active := mtproto.MakeTLPhoneCall(&mtproto.PhoneCall{
+		P2PAllowed:     p2pAllowed,
 		Id:             call.Id,
 		AccessHash:     call.AccessHash,
 		Date:           int32(now.Unix()),

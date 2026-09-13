@@ -113,6 +113,12 @@ func TestACallFromRingToHangUp(t *testing.T) {
 		if !bytes.Equal(pc.GetGAOrB(), []byte("g_a")) || pc.GetKeyFingerprint() != 0x0badcafe {
 			t.Errorf("%s carries g_a %q and fingerprint %x", who, pc.GetGAOrB(), pc.GetKeyFingerprint())
 		}
+		// The flag both engines read before they gather a single host or
+		// server-reflexive candidate: without it they wait for a relay, and
+		// with none configured the call fails after a timeout - seen live.
+		if !pc.GetP2PAllowed() {
+			t.Errorf("%s does not allow p2p, so the phones would never try a direct path", who)
+		}
 		conns := pc.GetConnections()
 		if len(conns) != 2 || !conns[0].GetStun() || !conns[1].GetTurn() {
 			t.Fatalf("%s lists %d connections, wanted STUN then relay: %v", who, len(conns), conns)
