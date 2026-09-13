@@ -81,3 +81,42 @@ func TestASecretThatIsNotOneIsRefused(t *testing.T) {
 		t.Error("an envelope was sealed with a key that is not one")
 	}
 }
+
+// The call envelopes: for an iPhone the TL update itself, base64url under
+// "updates", because the app reports the call to CallKit from the push and
+// creates the session from that update without asking the server; for an
+// Android the wake-up shape its listener reads, with the account it is for.
+// Neither carries a name or a word.
+func TestSealForAppleCallCarriesTheUpdateAndNothingElse(t *testing.T) {
+	secret := testSecret()
+	p, err := SealForAppleCall(secret, []byte{0x74, 0xae, 0x8f, 0x1b, 1, 2, 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inside, err := fcm.OpenEnvelope(secret, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inside["updates"] != "dK6PGwECAw" {
+		t.Fatalf("the update is not there as base64url without padding: %v", inside)
+	}
+	if len(inside) != 1 {
+		t.Fatalf("the envelope carries more than the update: %v", inside)
+	}
+}
+
+func TestSealForGoogleCallIsTheWakeUpTheAppReads(t *testing.T) {
+	secret := testSecret()
+	p, err := SealForGoogleCall(secret, 1002, 1001, 777)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inside, err := fcm.OpenEnvelope(secret, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	custom, _ := inside["custom"].(map[string]any)
+	if inside["user_id"] != "1002" || inside["loc_key"] != "PHONE_CALL_REQUEST" || custom["from_id"] != "1001" || custom["call_id"] != "777" {
+		t.Fatalf("not the shape the app reads: %v", inside)
+	}
+}

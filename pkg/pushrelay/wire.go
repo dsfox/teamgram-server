@@ -1,5 +1,5 @@
 // Package pushrelay is the wire between a server and the relay that holds the
-// Apple and Google keys (#167). A notification crosses it as six fields and no
+// Apple and Google keys (#167). A notification crosses it as seven fields and no
 // words: the relay's own title and body are the only text a phone ever sees,
 // so a caller cannot put a name, a message, an advertisement or a link into a
 // push, whatever it sends.
@@ -34,6 +34,10 @@ type Push struct {
 	// person read the chat somewhere else, so the number on the icon of the
 	// phone that is asleep comes down (#173).
 	Silent bool `json:"silent,omitempty"`
+	// A call (#14): Apple is asked for a VoIP push, which rings a closed app
+	// and must carry the call inside the envelope; Google is told not to hold
+	// the message past the ringing. A flag, no words.
+	Call bool `json:"call,omitempty"`
 }
 
 var ErrBadPush = errors.New("pushrelay: not a push")

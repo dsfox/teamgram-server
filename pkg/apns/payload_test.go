@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/sideshow/apns2"
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/pkg/fcm"
 )
@@ -42,7 +43,7 @@ func sealed(t *testing.T, secret string, peerType int32, peerId int64, msgId int
 
 func sent(t *testing.T, n Notify) map[string]any {
 	t.Helper()
-	raw, err := buildPayload(n).MarshalJSON()
+	raw, err := json.Marshal(buildPayload(n))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,5 +145,36 @@ func TestASilentPayloadIsTheBadgeAlone(t *testing.T) {
 	}
 	if _, there := got["p"]; there {
 		t.Fatal("a silent push carries an envelope")
+	}
+}
+
+// A call is a VoIP push: the envelope alone, no alert and no badge, because
+// the app reports the call to CallKit itself the moment it opens the envelope;
+// on the VoIP topic, with the voip push type, and never held for later - a
+// call delivered ten minutes on is a phone ringing for nobody.
+func TestACallIsAVoipPushCarryingOnlyTheEnvelope(t *testing.T) {
+	got := sent(t, Notify{Call: true, Envelope: "QUJD", Title: "ice9", Body: "New message", Badge: 3})
+	if got["p"] != "QUJD" {
+		t.Fatalf("the envelope is not there: %v", got)
+	}
+	if _, there := got["aps"]; there {
+		t.Fatalf("a call push carries aps, so it would be drawn as a banner: %v", got)
+	}
+
+	s := &Sender{topic: "app.twobytes.ios"}
+	n := s.notification("tok", Notify{Call: true, Envelope: "QUJD"})
+	if n.PushType != apns2.PushTypeVOIP || n.Topic != "app.twobytes.ios.voip" {
+		t.Fatalf("sent as %q on %q", n.PushType, n.Topic)
+	}
+	if !n.Expiration.IsZero() {
+		t.Fatalf("a call push may be held until %v", n.Expiration)
+	}
+	if n.Priority != apns2.PriorityHigh {
+		t.Fatalf("priority %d", n.Priority)
+	}
+
+	message := s.notification("tok", Notify{Title: "ice9", Body: "New message"})
+	if message.PushType != apns2.PushTypeAlert || message.Topic != "app.twobytes.ios" || message.Expiration.IsZero() {
+		t.Fatalf("a message push changed: %q on %q until %v", message.PushType, message.Topic, message.Expiration)
 	}
 }

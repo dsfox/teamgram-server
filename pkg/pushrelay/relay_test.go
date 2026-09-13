@@ -176,3 +176,17 @@ func TestASilentPushReachesTheForwarderSilent(t *testing.T) {
 		t.Fatalf("apple got %+v", apple.got)
 	}
 }
+
+func TestACallPushReachesTheForwarderAsACall(t *testing.T) {
+	apple, google := &recording{}, &recording{}
+	srv, key := relayForTest(t, apple, google)
+	if code := push(t, srv.URL, key, `{"platform":"apns","token":"tok","sandbox":true,"call":true,"p":"QUJD"}`); code != 200 {
+		t.Fatalf("apple call push answered %d", code)
+	}
+	if code := push(t, srv.URL, key, `{"platform":"fcm","token":"tok2","call":true,"p":"QUJD"}`); code != 200 {
+		t.Fatalf("google call push answered %d", code)
+	}
+	if len(apple.got) != 1 || !apple.got[0].Call || len(google.got) != 1 || !google.got[0].Call {
+		t.Fatalf("apple %+v, google %+v", apple.got, google.got)
+	}
+}

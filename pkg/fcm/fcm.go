@@ -90,6 +90,9 @@ type Notify struct {
 	// what it fetches, so this only wakes it: a data message whose envelope
 	// carries the count and names nobody.
 	Silent bool
+	// A call (#14): the same data-only wake-up, but not worth delivering
+	// late - Google is told to drop it once the ringing would be over.
+	Call bool
 }
 
 // compose builds the message Google is asked to deliver.
@@ -122,12 +125,16 @@ func (s *Sender) compose(deviceToken string, n Notify) (map[string]any, error) {
 		}, nil
 	}
 
+	// High priority is what buys the app a moment of network while the
+	// phone is dozing; without it a data-only message can wait hours.
+	android := map[string]any{"priority": "high"}
+	if n.Call {
+		android["ttl"] = "90s"
+	}
 	return map[string]any{
 		"message": map[string]any{
-			"token": deviceToken,
-			// High priority is what buys the app a moment of network while the
-			// phone is dozing; without it a data-only message can wait hours.
-			"android": map[string]any{"priority": "high"},
+			"token":   deviceToken,
+			"android": android,
 			"data":    map[string]any{"p": n.Envelope},
 		},
 	}, nil

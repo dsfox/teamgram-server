@@ -1,6 +1,7 @@
 package pushrelay
 
 import (
+	"encoding/base64"
 	"strconv"
 
 	"github.com/teamgram/proto/mtproto"
@@ -33,6 +34,32 @@ func SealForGoogle(secretHex string, badge int, fromId string) (string, error) {
 		"badge":   badge,
 		"custom":  map[string]any{"from_id": fromId},
 		"loc_key": "",
+	})
+}
+
+// SealForAppleCall is the envelope an iPhone opens on a VoIP push (#14): the
+// TL update of the call itself, base64url without padding under "updates" -
+// the app reports the call to CallKit from it and creates the session from
+// it, and asks the server for nothing. The update names the caller; it is
+// sealed with the phone's own secret, so the relay carries a name it cannot
+// read.
+func SealForAppleCall(secretHex string, updates []byte) (string, error) {
+	return fcm.Envelope(secretHex, map[string]any{
+		"updates": base64.RawURLEncoding.EncodeToString(updates),
+	})
+}
+
+// SealForGoogleCall is the wake-up an Android reads (#14): which account, that
+// it is a call, and from whom. The app draws nothing from it; it reconnects
+// and rings on the update it then receives.
+func SealForGoogleCall(secretHex string, userId, fromId, callId int64) (string, error) {
+	return fcm.Envelope(secretHex, map[string]any{
+		"user_id": strconv.FormatInt(userId, 10),
+		"loc_key": "PHONE_CALL_REQUEST",
+		"custom": map[string]any{
+			"from_id": strconv.FormatInt(fromId, 10),
+			"call_id": strconv.FormatInt(callId, 10),
+		},
 	})
 }
 

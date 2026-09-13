@@ -42,3 +42,16 @@ func TestASilentPushIsAcceptedAndCarriesNoWords(t *testing.T) {
 		t.Fatalf("decoded wrong: %+v", p)
 	}
 }
+
+// A call is the seventh field: a flag, no words. It changes how Apple is
+// asked (a VoIP push, which rings a closed app) and how long Google may hold
+// the message.
+func TestACallPushIsAcceptedAsAFlag(t *testing.T) {
+	p, err := Decode(strings.NewReader(`{"platform":"apns","token":"t","sandbox":true,"call":true,"p":"AAAA"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.Call || !p.Sandbox || p.P != "AAAA" {
+		t.Fatalf("decoded wrong: %+v", p)
+	}
+}

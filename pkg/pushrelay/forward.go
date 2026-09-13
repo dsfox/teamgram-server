@@ -16,7 +16,7 @@ type AppleForwarder struct {
 
 func (f AppleForwarder) Send(ctx context.Context, p Push) error {
 	return f.Sender.Send(ctx, p.Token, apns.Notify{
-		Title: f.Title, Body: f.Body, Badge: p.Badge, Sandbox: p.Sandbox, FromId: p.FromId, Envelope: p.P, Silent: p.Silent,
+		Title: f.Title, Body: f.Body, Badge: p.Badge, Sandbox: p.Sandbox, FromId: p.FromId, Envelope: p.P, Silent: p.Silent, Call: p.Call,
 	})
 }
 
@@ -28,7 +28,7 @@ type GoogleForwarder struct {
 
 func (f GoogleForwarder) Send(ctx context.Context, p Push) error {
 	return f.Sender.Send(ctx, p.Token, fcm.Notify{
-		Title: f.Title, Body: f.Body, Badge: p.Badge, FromId: p.FromId, Envelope: p.P, Silent: p.Silent,
+		Title: f.Title, Body: f.Body, Badge: p.Badge, FromId: p.FromId, Envelope: p.P, Silent: p.Silent, Call: p.Call,
 	})
 }
 

@@ -130,6 +130,11 @@ type Notify struct {
 	// The badge alone: no alert, no sound, no envelope. The number on the
 	// icon changes and the phone shows nothing (#173).
 	Silent bool
+	// A call (#14): sent as a VoIP push on the app's .voip topic, which wakes
+	// a closed app and has it report the call to CallKit from the envelope -
+	// so the envelope is all there is, no alert and no badge, and it is never
+	// held for later.
+	Call bool
 }
 
 // buildPayload is the payload as sent, on its own so a test can read it.
@@ -138,7 +143,12 @@ type Notify struct {
 // answer in time, or is not there. mutable-content is what makes the extension
 // run at all, and p is the envelope it opens - the same one the FCM path
 // carries, with from_id and no text.
-func buildPayload(n Notify) *payload.Payload {
+func buildPayload(n Notify) any {
+	if n.Call {
+		// Not an aps payload at all: a VoIP push is opened by the app, never
+		// drawn, and the envelope is the whole of it.
+		return map[string]any{"p": n.Envelope}
+	}
 	if n.Silent {
 		// Apple takes a payload with a badge and nothing else as a change to
 		// the number on the icon, drawn without a banner.
@@ -160,27 +170,40 @@ func buildPayload(n Notify) *payload.Payload {
 	return p
 }
 
-// Send delivers the notification. It returns ErrTokenGone when the token should
-// be forgotten.
-func (s *Sender) Send(ctx context.Context, deviceToken string, n Notify) error {
-	p := buildPayload(n)
-
-	client := s.production
-	if n.Sandbox {
-		client = s.sandbox
-	}
-
-	res, err := client.PushWithContext(ctx, &apns2.Notification{
+// notification is the request as Apple sees it, on its own so a test can read
+// the headers: a call goes as a VoIP push on the .voip topic and is not held;
+// a message goes as an alert and may wait for the phone.
+func (s *Sender) notification(deviceToken string, n Notify) *apns2.Notification {
+	out := &apns2.Notification{
 		DeviceToken: deviceToken,
 		Topic:       s.topic,
-		Payload:     p,
+		Payload:     buildPayload(n),
 		Priority:    apns2.PriorityHigh,
 		PushType:    apns2.PushTypeAlert,
 		// A notification about an unread message goes stale: if the phone stayed
 		// off for a day, showing it at power-on is pointless — the person will
 		// see the conversation anyway.
 		Expiration: time.Now().Add(24 * time.Hour),
-	})
+	}
+	if n.Call {
+		out.Topic = s.topic + ".voip"
+		out.PushType = apns2.PushTypeVOIP
+		// Zero means "now or never": a call that could not be delivered while
+		// it rang is not delivered at all.
+		out.Expiration = time.Time{}
+	}
+	return out
+}
+
+// Send delivers the notification. It returns ErrTokenGone when the token should
+// be forgotten.
+func (s *Sender) Send(ctx context.Context, deviceToken string, n Notify) error {
+	client := s.production
+	if n.Sandbox {
+		client = s.sandbox
+	}
+
+	res, err := client.PushWithContext(ctx, s.notification(deviceToken, n))
 	if err != nil {
 		return fmt.Errorf("apns: delivery failed: %w", err)
 	}

@@ -133,3 +133,30 @@ func TestTheTextIsNowhereInTheMessage(t *testing.T) {
 		}
 	}
 }
+
+// A call wakes the app the same way a message does - data only, high priority
+// - and is not worth delivering late: Google is told to drop it after the
+// ringing time.
+func TestACallIsNotHeldPastTheRinging(t *testing.T) {
+	s := &Sender{projectId: "p"}
+	got, err := s.compose("token", Notify{Call: true, Envelope: sealedForTest(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	message := got["message"].(map[string]any)
+	android := message["android"].(map[string]any)
+	if android["priority"] != "high" || android["ttl"] != "90s" {
+		t.Fatalf("android block is %v", android)
+	}
+	if _, drawn := message["notification"]; drawn {
+		t.Error("a call push asks Firebase to draw a banner")
+	}
+	if _, carried := message["data"].(map[string]any)["p"]; !carried {
+		t.Error("the envelope is missing")
+	}
+
+	plain, _ := s.compose("token", Notify{Envelope: sealedForTest(t)})
+	if _, ttl := plain["message"].(map[string]any)["android"].(map[string]any)["ttl"]; ttl {
+		t.Error("a message push got a ttl it did not have")
+	}
+}
