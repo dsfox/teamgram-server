@@ -32,16 +32,31 @@ func (c *PhoneCore) PhoneRequestCall(in *mtproto.TLPhoneRequestCall) (*mtproto.P
 	call.Protocol = in.GetProtocol()
 	call.Video = in.GetVideo()
 
-	waiting := c.waiting(call, now)
-
 	// The whole reason the server is in this at all: the other phone has to
 	// hear about the call. Everything after this is the two of them talking.
-	c.ring(callee, waiting, now)
+	c.ring(callee, c.requested(call), now)
 
 	return mtproto.MakeTLPhonePhoneCall(&mtproto.Phone_PhoneCall{
-		PhoneCall: waiting,
+		PhoneCall: c.waiting(call, now),
 		Users:     []*mtproto.User{},
 	}).To_Phone_PhoneCall(), nil
+}
+
+// requested is the call as the callee first sees it. Both phones start
+// ringing on this constructor and on no other - a waiting call with no session
+// behind it is dropped by either client - and g_a_hash travels in it: the
+// callee checks g_a against it at the end of the exchange.
+func (c *PhoneCore) requested(call *calls.Call) *mtproto.PhoneCall {
+	return mtproto.MakeTLPhoneCallRequested(&mtproto.PhoneCall{
+		Id:            call.Id,
+		AccessHash:    call.AccessHash,
+		Date:          int32(call.Created.Unix()),
+		AdminId:       call.Admin,
+		ParticipantId: call.Participant,
+		GAHash:        call.GAHash,
+		Protocol:      call.Protocol,
+		Video:         call.Video,
+	}).To_PhoneCall()
 }
 
 // waiting is the call as the caller sees it before anyone picks up: the same

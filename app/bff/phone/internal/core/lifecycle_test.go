@@ -58,12 +58,18 @@ func TestACallFromRingToHangUp(t *testing.T) {
 	peer := mtproto.MakeTLInputPhoneCall(&mtproto.InputPhoneCall{
 		Id: waiting.GetId(), AccessHash: waiting.GetAccessHash(),
 	}).To_InputPhoneCall()
+	// Both phones start ringing only on phoneCallRequested - a waiting call
+	// with no session behind it is dropped on the floor by either client -
+	// and the callee needs g_a_hash from it to check g_a later.
 	rang := s.lastCall(t, bob)
-	if rang.GetPredicateName() != mtproto.Predicate_phoneCallWaiting || rang.GetId() != waiting.GetId() {
+	if rang.GetPredicateName() != mtproto.Predicate_phoneCallRequested || rang.GetId() != waiting.GetId() {
 		t.Fatalf("bob was sent %s for call %d", rang.GetPredicateName(), rang.GetId())
 	}
 	if rang.GetAdminId() != alice || rang.GetParticipantId() != bob {
 		t.Errorf("bob's ring says %d calls %d", rang.GetAdminId(), rang.GetParticipantId())
+	}
+	if !bytes.Equal(rang.GetGAHash(), []byte("g_a_hash")) || rang.GetProtocol() == nil || rang.GetAccessHash() != waiting.GetAccessHash() {
+		t.Errorf("bob's ring carries g_a_hash %q, protocol %v, access hash %d", rang.GetGAHash(), rang.GetProtocol(), rang.GetAccessHash())
 	}
 
 	// While it rings, neither of them can be called or call.
