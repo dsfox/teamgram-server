@@ -25,18 +25,28 @@ func (n *Notifier) withRelay() *Notifier {
 	}
 	n.relayURL = url
 
-	var row PushRelayDO
-	err := n.db.QueryRow(context.Background(), &row,
-		"select url, server_id, relay_key, registered_at from push_relay where url = ?", url)
-	if err == nil && row.RelayKey != "" {
-		n.relay.Store(&pushrelay.Client{URL: url, Key: row.RelayKey})
-		logx.Infof("notifications go through the relay %s as %s", url, row.ServerId)
+	if n.adoptKey(url) {
 		return n
 	}
 
 	logx.Infof("notifications wait for the relay %s", url)
 	threading.GoSafe(func() { n.register(url) })
 	return n
+}
+
+// adoptKey takes the key this server already holds for the relay, if any -
+// its own from an earlier start, or the one another process of this server
+// (messenger.sync for messages, the bff for calls) registered a moment ago.
+func (n *Notifier) adoptKey(url string) bool {
+	var row PushRelayDO
+	err := n.db.QueryRow(context.Background(), &row,
+		"select url, server_id, relay_key, registered_at from push_relay where url = ?", url)
+	if err != nil || row.RelayKey == "" {
+		return false
+	}
+	n.relay.Store(&pushrelay.Client{URL: url, Key: row.RelayKey})
+	logx.Infof("notifications go through the relay %s as %s", url, row.ServerId)
+	return true
 }
 
 // register keeps asking until the relay answers: at once, then soon, then
@@ -50,6 +60,11 @@ func (n *Notifier) register(url string) {
 		}
 		time.Sleep(wait)
 		if n.relay.Load() != nil {
+			return
+		}
+		// Another process of this server may have won the race to the table
+		// since the last attempt; its key is this server's key.
+		if n.adoptKey(url) {
 			return
 		}
 		address := os.Getenv("ICE9_ADDRESS")

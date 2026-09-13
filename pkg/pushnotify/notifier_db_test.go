@@ -2,8 +2,15 @@ package pushnotify
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/teamgram-server/pkg/devices"
@@ -215,5 +222,60 @@ func TestMutedForUnknownPeer(t *testing.T) {
 	n := &Notifier{db: db}
 	if n.muted(context.Background(), -424242, 2, -424243) {
 		t.Fatal("a chat without settings is treated as muted")
+	}
+}
+
+// Two processes of one server register with the relay at the same moment on
+// a fresh install - messenger.sync for messages and the bff for calls (#14).
+// The relay hands out two keys; the table keeps one per url. The loser must
+// pick up the winner's key rather than try again for ever with a key it can
+// never keep, which is how it stood: every ten minutes, a new registration,
+// the same duplicate row, and no pushes from that process.
+func TestTwoProcessesRegisteringAtOnceShareOneKey(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	var handed int32
+	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&handed, 1)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"server_id": fmt.Sprintf("server-%d", n),
+			"key":       fmt.Sprintf("key-%d", n),
+		})
+	}))
+	defer relay.Close()
+	// A url of this test's own, so the row it leaves does not touch the
+	// stand's real registration.
+	url := relay.URL
+	defer db.Exec(ctx, "delete from push_relay where url = ?", url)
+
+	first := &Notifier{db: db, registry: &fakeRegistry{}}
+	second := &Notifier{db: db, registry: &fakeRegistry{}}
+	var wg sync.WaitGroup
+	for _, n := range []*Notifier{first, second} {
+		wg.Add(1)
+		go func(n *Notifier) {
+			defer wg.Done()
+			n.register(url)
+		}(n)
+	}
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(20 * time.Second):
+		t.Fatal("a process is still trying to register after 20s")
+	}
+
+	var rows int
+	if err := db.QueryRow(ctx, &rows, "select count(*) from push_relay where url = ?", url); err != nil || rows != 1 {
+		t.Fatalf("%d rows for the url (%v), expected one", rows, err)
+	}
+	a, b := first.relay.Load(), second.relay.Load()
+	if a == nil || b == nil {
+		t.Fatalf("a process has no relay client: %v %v", a, b)
+	}
+	if a.Key != b.Key {
+		t.Fatalf("the two processes hold different keys: %q %q", a.Key, b.Key)
 	}
 }
