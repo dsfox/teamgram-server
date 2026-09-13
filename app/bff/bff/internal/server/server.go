@@ -124,13 +124,15 @@ func (s *Server) Initialize() error {
 		// phone_helper: the matchmaker for 1-1 calls (#14). It carries the key
 		// exchange and the candidates between two phones and tells them which
 		// STUN to try; the media never comes here.
-		mtproto.RegisterRPCVoipCallsServer(
-			grpcServer,
-			phone_helper.New(phone_helper.Config{
-				RpcServerConf: c.RpcServerConf,
-				SyncClient:    c.SyncClient,
-				Calls:         c.Calls,
-			}))
+		phone := phone_helper.New(phone_helper.Config{
+			RpcServerConf: c.RpcServerConf,
+			SyncClient:    c.SyncClient,
+			StatusClient:  c.StatusClient,
+			UserClient:    c.BizServiceClient,
+			Mysql:         c.Mysql,
+			Calls:         c.Calls,
+		}, phone_helper.NewRegistry())
+		mtproto.RegisterRPCVoipCallsServer(grpcServer, phone)
 
 		// qrcode_helper
 		mtproto.RegisterRPCQrCodeServer(
@@ -235,6 +237,9 @@ func (s *Server) Initialize() error {
 				UserClient:        c.BizServiceClient,
 				ChatClient:        c.BizServiceClient,
 				AuthsessionClient: c.AuthSessionClient,
+				// A device that comes back while a call rings for it is rung
+				// when it asks for its difference (#14).
+				Calls: phone,
 			}))
 
 		// contacts_helper

@@ -34,7 +34,12 @@ func (c *PhoneCore) PhoneRequestCall(in *mtproto.TLPhoneRequestCall) (*mtproto.P
 
 	// The whole reason the server is in this at all: the other phone has to
 	// hear about the call. Everything after this is the two of them talking.
+	// The devices connected now hear it over their session and are marked
+	// so; the rest are woken by a push, and one that comes back while the
+	// call still rings is rung then, once (RecallRinging).
+	call.MarkRung(c.connectedDevices(callee)...)
 	c.ring(callee, c.requested(call), now)
+	c.pushCall(call, now)
 
 	return mtproto.MakeTLPhonePhoneCall(&mtproto.Phone_PhoneCall{
 		PhoneCall: c.waiting(call, now),

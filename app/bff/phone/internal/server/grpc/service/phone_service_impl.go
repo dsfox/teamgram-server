@@ -81,3 +81,13 @@ func (s *Service) PhoneSetCallRating(ctx context.Context, request *mtproto.TLPho
 	c.Logger.Debugf("phone.setCallRating - metadata: {%s}, request: {%s}", c.MD, request)
 	return c.PhoneSetCallRating(request)
 }
+
+// RecallRinging rings one device of a person for the call still ringing for
+// them, if it was not rung yet (#14). Not an RPC: the updates service calls
+// it when that device asks for its difference, which is the first thing a
+// phone woken by a push does.
+func (s *Service) RecallRinging(ctx context.Context, userId, permAuthKeyId int64) {
+	c := core.New(ctx, s.svcCtx)
+	c.MD.UserId = userId
+	c.RecallRinging(permAuthKeyId)
+}

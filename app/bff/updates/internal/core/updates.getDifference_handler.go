@@ -40,6 +40,11 @@ func (c *UpdatesCore) UpdatesGetDifference(in *mtproto.TLUpdatesGetDifference) (
 	}
 	c.Logger.Infof("updates.getDifference - keyId: %v", keyId)
 
+	// A call still ringing for this person reaches this device now, if it
+	// was away when the call was placed: the update of a call carries no pts
+	// and is not part of the difference below (#14).
+	c.recallRinging(keyId.GetV())
+
 	updatesDiff, err := c.svcCtx.Dao.UpdatesClient.UpdatesGetDifferenceV2(c.ctx, &updates.TLUpdatesGetDifferenceV2{
 		AuthKeyId:     keyId.GetV(),
 		UserId:        c.MD.UserId,
@@ -116,4 +121,13 @@ func (c *UpdatesCore) UpdatesGetDifference(in *mtproto.TLUpdatesGetDifference) (
 		})
 
 	return rDifference, nil
+}
+
+// recallRinging asks the calls service, when there is one, to ring this
+// device for a call still ringing for this person.
+func (c *UpdatesCore) recallRinging(permAuthKeyId int64) {
+	if c.svcCtx.Config.Calls == nil {
+		return
+	}
+	c.svcCtx.Config.Calls.RecallRinging(c.ctx, c.MD.UserId, permAuthKeyId)
 }

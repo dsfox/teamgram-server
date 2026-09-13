@@ -11,12 +11,21 @@ import (
 	"github.com/teamgram/teamgram-server/app/bff/phone/internal/config"
 	"github.com/teamgram/teamgram-server/app/bff/phone/internal/server/grpc/service"
 	"github.com/teamgram/teamgram-server/app/bff/phone/internal/svc"
+	"github.com/teamgram/teamgram-server/pkg/calls"
 )
 
 type Config = config.Config
 
-func New(c Config) *service.Service {
-	return service.New(svc.NewServiceContext(c))
+// New builds the service around one registry of the calls in the air. The
+// registry is made by whoever runs the process and shared with the updates
+// service, which rings a device that comes back while a call still rings.
+func New(c Config, registry *calls.Registry) *service.Service {
+	return service.New(svc.NewServiceContext(c, registry))
+}
+
+// NewRegistry is the registry of calls in the air, one per process.
+func NewRegistry() *calls.Registry {
+	return calls.NewRegistry()
 }
 
 // Calls is the section of the bff config this service reads: the STUN and

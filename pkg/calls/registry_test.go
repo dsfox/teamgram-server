@@ -130,3 +130,26 @@ func TestARingingCallIsFoundByTheOneItRingsFor(t *testing.T) {
 		t.Errorf("an answered call still rings: %v", got)
 	}
 }
+
+// A device that comes back is rung once: the claim and the mark are one step
+// under the registry's lock, so two of its requests at the same moment cannot
+// both ring it - twice is "busy" on an Android.
+func TestADeviceThatComesBackIsRungExactlyOnce(t *testing.T) {
+	r := NewRegistry()
+	c, _ := r.Place(caller, callee, []byte("g_a_hash"), t0)
+	c.MarkRung(11)
+
+	if got, ok := r.RingOnce(callee, 11, t0); ok || got != nil {
+		t.Errorf("a device already rung was claimed again: %v %v", got, ok)
+	}
+	got, ok := r.RingOnce(callee, 12, t0)
+	if !ok || got != c {
+		t.Fatalf("a new device was not claimed: %v %v", got, ok)
+	}
+	if got, ok := r.RingOnce(callee, 12, t0); ok || got != nil {
+		t.Errorf("the same device was claimed twice: %v %v", got, ok)
+	}
+	if got, ok := r.RingOnce(caller, 13, t0); ok || got != nil {
+		t.Errorf("the caller was claimed as if rung: %v %v", got, ok)
+	}
+}

@@ -3,6 +3,7 @@ package config
 import (
 	"time"
 
+	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/teamgram-server/pkg/queue"
 	"github.com/zeromicro/go-zero/zrpc"
 )
@@ -16,7 +17,13 @@ import (
 type Config struct {
 	zrpc.RpcServerConf
 	SyncClient *queue.Conf
-	Calls      Calls
+	// Who is connected, and who the caller is as the callee sees them.
+	StatusClient zrpc.RpcClientConf
+	UserClient   zrpc.RpcClientConf
+	// The device tokens a call push goes to: the same table the message
+	// notifier reads.
+	Mysql sqlx.Config
+	Calls Calls
 }
 
 // Calls is what a phone is handed to reach the other phone.

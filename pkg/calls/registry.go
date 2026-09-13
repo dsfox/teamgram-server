@@ -85,6 +85,28 @@ func (r *Registry) RingingFor(userId int64, now time.Time) *Call {
 	return nil
 }
 
+// RingOnce claims the right to ring one device of this person for the call
+// still ringing for them: the call, and true, the first time for that device;
+// nil and false when there is no such call or the device was already rung.
+// One step under the lock, so two requests from the same device at the same
+// moment cannot both ring it.
+func (r *Registry) RingOnce(userId, permAuthKeyId int64, now time.Time) (*Call, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.sweep(now)
+
+	for _, c := range r.calls {
+		if c.Participant == userId && c.State == Waiting {
+			if c.WasRung(permAuthKeyId) {
+				return nil, false
+			}
+			c.MarkRung(permAuthKeyId)
+			return c, true
+		}
+	}
+	return nil, false
+}
+
 // Sweep drops what is over and reports how many went. Call it on a timer as
 // well: a call nobody ever answered would otherwise keep its two people busy.
 func (r *Registry) Sweep(now time.Time) int {
