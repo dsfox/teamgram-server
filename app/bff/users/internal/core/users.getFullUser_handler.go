@@ -74,12 +74,13 @@ func (c *UsersCore) UsersGetFullUser(in *mtproto.TLUsersGetFullUser) (*mtproto.U
 
 	userFull := mtproto.MakeTLUserFull(&mtproto.UserFull{
 		Blocked: false,
-		// Calls are not implemented, and these two flags are what the client uses
-		// to decide whether to draw the call buttons at all. Telling it the truth
-		// here is better than hiding the buttons in the client: no entry point
-		// appears, nothing leads to a dead end, and the day calls exist the
-		// buttons come back on their own.
-		PhoneCallsAvailable:      false,
+		// These two flags are what the client uses to decide whether to draw
+		// the call buttons at all. Voice calls exist (#14): the server matches
+		// the two phones and hands out STUN, the media goes device to device.
+		// Video goes through the same signalling and follows once voice has
+		// been walked on real phones - audio first, then video (the plan).
+		// Nobody calls themselves.
+		PhoneCallsAvailable:      c.MD.UserId != peerId,
 		VideoCallsAvailable:      false,
 		PhoneCallsPrivate:        false,
 		CanPinMessage:            true,
