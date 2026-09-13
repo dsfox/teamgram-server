@@ -83,13 +83,17 @@ type Call struct {
 	Protocol *mtproto.PhoneCallProtocol
 	Video    bool
 
-	// The two devices in the call, as permanent auth keys: the caller's from
-	// the moment it asks, the callee's from the moment one of their phones
-	// answers. What the two trade after that is addressed to these, not to
-	// the person: a push by person looks the session up in the status list,
-	// which a phone woken a moment ago is not yet in. Zero means unknown.
-	AdminKey       int64
-	ParticipantKey int64
+	// The two devices in the call - permanent auth key and the session
+	// server each is connected through: the caller's from the moment it asks,
+	// the callee's from the moment one of their phones answers. What the two
+	// trade after that is addressed to these, not to the person: a push by
+	// person looks the session up in the status list, which a phone woken a
+	// moment ago is not yet in, and so does a push by key unless it names the
+	// server. Zero and empty mean unknown.
+	AdminKey          int64
+	AdminServer       string
+	ParticipantKey    int64
+	ParticipantServer string
 
 	// The devices (permanent auth keys) already told about the call. Told
 	// twice, an Android answers the second phoneCallRequested with "busy" and
@@ -204,15 +208,16 @@ func (c *Call) Other(user int64) (int64, error) {
 	return 0, ErrWrongParty
 }
 
-// KeyOf is the device of one of the two in the call, or zero while unknown.
-func (c *Call) KeyOf(user int64) int64 {
+// DeviceOf is the device of one of the two in the call - key and session
+// server - or zero and empty while unknown.
+func (c *Call) DeviceOf(user int64) (int64, string) {
 	switch user {
 	case c.Admin:
-		return c.AdminKey
+		return c.AdminKey, c.AdminServer
 	case c.Participant:
-		return c.ParticipantKey
+		return c.ParticipantKey, c.ParticipantServer
 	}
-	return 0
+	return 0, ""
 }
 
 // Expired says the ringing gave up. Only an unanswered call expires; one being

@@ -6,6 +6,7 @@ import (
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/app/messenger/sync/sync"
 	"github.com/teamgram/teamgram-server/pkg/calls"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // PhoneRequestCall places a call and makes the other phone ring.
@@ -31,7 +32,7 @@ func (c *PhoneCore) PhoneRequestCall(in *mtproto.TLPhoneRequestCall) (*mtproto.P
 	// Nobody else can find the call before the ring below goes out.
 	call.Protocol = in.GetProtocol()
 	call.Video = in.GetVideo()
-	call.AdminKey = c.MD.PermAuthKeyId
+	call.AdminKey, call.AdminServer = c.MD.PermAuthKeyId, c.MD.ServerId
 
 	// The whole reason the server is in this at all: the other phone has to
 	// hear about the call. Everything after this is the two of them talking.
@@ -88,21 +89,23 @@ func (c *PhoneCore) waiting(call *calls.Call, now time.Time) *mtproto.PhoneCall 
 // logged, not returned: the caller's own leg is already set up, and a phone
 // that missed the update will still see the call when it next syncs.
 func (c *PhoneCore) ring(userId int64, pc *mtproto.PhoneCall, now time.Time) {
-	c.tell(userId, 0, c.updatesFor(pc, now))
+	c.tell(userId, 0, "", c.updatesFor(pc, now))
 }
 
-// tell delivers updates to a person - to one device of theirs when the key is
-// known, which is how everything after the answer travels: the push by person
+// tell delivers updates to a person - to one device of theirs when it is
+// known, which is how everything after the answer travels. The push by person
 // goes through the status list, and a phone woken by the call a moment ago is
-// not in it yet, so the confirmed call would never reach it.
-func (c *PhoneCore) tell(userId, permAuthKeyId int64, updates *mtproto.Updates) {
+// not in it yet; naming the device's session server lets sync deliver without
+// that list, straight to the server holding the session. Seen live: without
+// the server the confirmed call never reached the phone that had answered.
+func (c *PhoneCore) tell(userId, permAuthKeyId int64, server string, updates *mtproto.Updates) {
 	var err error
 	if permAuthKeyId != 0 {
-		_, err = c.svcCtx.SyncClient.SyncUpdatesMe(c.ctx, &sync.TLSyncUpdatesMe{
-			UserId:        userId,
-			PermAuthKeyId: permAuthKeyId,
-			Updates:       updates,
-		})
+		push := &sync.TLSyncUpdatesMe{UserId: userId, PermAuthKeyId: permAuthKeyId, Updates: updates}
+		if server != "" {
+			push.ServerId = wrapperspb.String(server)
+		}
+		_, err = c.svcCtx.SyncClient.SyncUpdatesMe(c.ctx, push)
 	} else {
 		_, err = c.svcCtx.SyncClient.SyncPushUpdates(c.ctx, &sync.TLSyncPushUpdates{
 			UserId:  userId,

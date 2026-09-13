@@ -45,7 +45,7 @@ func (c *PhoneCore) PhoneConfirmCall(in *mtproto.TLPhoneConfirmCall) (*mtproto.P
 		StartDate:      int32(now.Unix()),
 	}).To_PhoneCall()
 
-	c.tell(call.Participant, call.ParticipantKey, c.updatesFor(active, now))
+	c.tell(call.Participant, call.ParticipantKey, call.ParticipantServer, c.updatesFor(active, now))
 
 	return mtproto.MakeTLPhonePhoneCall(&mtproto.Phone_PhoneCall{
 		PhoneCall: active,

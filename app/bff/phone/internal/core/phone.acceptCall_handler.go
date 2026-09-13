@@ -25,7 +25,7 @@ func (c *PhoneCore) PhoneAcceptCall(in *mtproto.TLPhoneAcceptCall) (*mtproto.Pho
 		return nil, rpcError(err, mtproto.ErrCallAlreadyAccepted)
 	}
 	// The device that answered is the callee's leg from here on.
-	call.ParticipantKey = c.MD.PermAuthKeyId
+	call.ParticipantKey, call.ParticipantServer = c.MD.PermAuthKeyId, c.MD.ServerId
 
 	accepted := mtproto.MakeTLPhoneCallAccepted(&mtproto.PhoneCall{
 		Id:            call.Id,
@@ -38,7 +38,7 @@ func (c *PhoneCore) PhoneAcceptCall(in *mtproto.TLPhoneAcceptCall) (*mtproto.Pho
 	}).To_PhoneCall()
 
 	// The caller is waiting on g_b to finish the exchange.
-	c.tell(call.Admin, call.AdminKey, c.updatesFor(accepted, now))
+	c.tell(call.Admin, call.AdminKey, call.AdminServer, c.updatesFor(accepted, now))
 
 	return mtproto.MakeTLPhonePhoneCall(&mtproto.Phone_PhoneCall{
 		PhoneCall: accepted,

@@ -80,6 +80,9 @@ func TestADeviceThatComesBackIsRungOnceOverItsSession(t *testing.T) {
 	if len(s.sync.me) != 1 || s.sync.me[0].GetUserId() != bob || s.sync.me[0].GetPermAuthKeyId() != 502 {
 		t.Fatalf("the ring went to %v", s.sync.me)
 	}
+	if s.sync.me[0].GetServerId().GetValue() != serverOf(bob) {
+		t.Fatalf("the ring does not name the device's session server: %v", s.sync.me[0].GetServerId())
+	}
 	update := onlyUpdate(t, s.sync.pushes[0])
 	if update.GetPhoneCall().GetPredicateName() != mtproto.Predicate_phoneCallRequested || update.GetPhoneCall().GetId() != s.call.Id {
 		t.Fatalf("device 502 was sent %s for call %d", update.GetPhoneCall().GetPredicateName(), update.GetPhoneCall().GetId())

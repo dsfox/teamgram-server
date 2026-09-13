@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -163,12 +164,20 @@ func (s *stand) as(user int64) *PhoneCore {
 		ctx:    ctx,
 		svcCtx: s.svcCtx,
 		Logger: logx.WithContext(ctx),
-		MD:     &metadata.RpcMetadata{UserId: user, PermAuthKeyId: deviceOf(user)},
+		MD:     &metadata.RpcMetadata{UserId: user, PermAuthKeyId: deviceOf(user), ServerId: serverOf(user)},
 	}
 }
 
-// toDevice says which device a sync.updatesMe push was addressed to.
+// serverOf is the session server each person's phone is connected through.
+func serverOf(user int64) string { return fmt.Sprintf("session-%d", user) }
+
+// toDevice says which device a sync.updatesMe push was addressed to - and
+// checks it names the device's session server, which is what lets sync
+// deliver without the status list a freshly woken phone is not yet in.
 func toDevice(push *sync.TLSyncUpdatesMe) [2]int64 {
+	if push.GetServerId().GetValue() != serverOf(push.GetUserId()) {
+		return [2]int64{-1, -1}
+	}
 	return [2]int64{push.GetUserId(), push.GetPermAuthKeyId()}
 }
 

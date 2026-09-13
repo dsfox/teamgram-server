@@ -5,6 +5,7 @@ import (
 
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/app/messenger/sync/sync"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // PhoneSendSignalingData carries a blob from one leg of a call to the other.
@@ -40,8 +41,12 @@ func (c *PhoneCore) PhoneSendSignalingData(in *mtproto.TLPhoneSendSignalingData)
 	// To the device on the other leg when it is known - after the answer it
 	// always is. Unlike a ring, a lost candidate is a lost candidate: the
 	// phone does not resend it, so the caller is told when the push failed.
-	if otherKey := call.KeyOf(otherLeg); otherKey != 0 {
-		_, err = c.svcCtx.SyncClient.SyncUpdatesMe(c.ctx, &sync.TLSyncUpdatesMe{UserId: otherLeg, PermAuthKeyId: otherKey, Updates: updates})
+	if otherKey, otherServer := call.DeviceOf(otherLeg); otherKey != 0 {
+		push := &sync.TLSyncUpdatesMe{UserId: otherLeg, PermAuthKeyId: otherKey, Updates: updates}
+		if otherServer != "" {
+			push.ServerId = wrapperspb.String(otherServer)
+		}
+		_, err = c.svcCtx.SyncClient.SyncUpdatesMe(c.ctx, push)
 	} else {
 		_, err = c.svcCtx.SyncClient.SyncPushUpdates(c.ctx, &sync.TLSyncPushUpdates{UserId: otherLeg, Updates: updates})
 	}

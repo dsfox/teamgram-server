@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/teamgram/proto/mtproto"
-	"github.com/teamgram/teamgram-server/app/messenger/sync/sync"
 	userpb "github.com/teamgram/teamgram-server/app/service/biz/user/user"
 	"github.com/teamgram/teamgram-server/app/service/status/status"
 	"github.com/teamgram/teamgram-server/pkg/calls"
@@ -77,14 +76,10 @@ func (c *PhoneCore) RecallRinging(permAuthKeyId int64) {
 		return
 	}
 	c.Logger.Infof("phone: device %d of %d came back while call %d rings, ringing it", permAuthKeyId, c.MD.UserId, call.Id)
-	if _, err := c.svcCtx.SyncClient.SyncUpdatesMe(c.ctx, &sync.TLSyncUpdatesMe{
-		UserId:        c.MD.UserId,
-		PermAuthKeyId: permAuthKeyId,
-		Updates: mtproto.MakeTLUpdateShort(&mtproto.Updates{
-			Update: c.updateFor(call),
-			Date:   int32(now.Unix()),
-		}).To_Updates(),
-	}); err != nil {
-		c.Logger.Errorf("phone: could not ring device %d of %d for call %d: %v", permAuthKeyId, c.MD.UserId, call.Id, err)
-	}
+	// The device is the one asking, so its session server is in the metadata:
+	// named, so the ring does not depend on a status list it is not yet in.
+	c.tell(c.MD.UserId, permAuthKeyId, c.MD.ServerId, mtproto.MakeTLUpdateShort(&mtproto.Updates{
+		Update: c.updateFor(call),
+		Date:   int32(now.Unix()),
+	}).To_Updates())
 }
