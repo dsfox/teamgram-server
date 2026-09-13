@@ -29,12 +29,14 @@ type DeviceDO struct {
 	State        int32  `db:"state" json:"state"`
 }
 
-// Token types from account.registerDevice. Two of them reach a phone of ours:
-// Apple's, and Firebase's, which the Android client registers. We do not request
-// VoIP tokens.
+// Token types from account.registerDevice. Three of them reach a phone of
+// ours: Apple's and Firebase's for messages, and Apple's VoIP token, which the
+// iPhone registers on its own beside the first (#14) and which only a call may
+// use - iOS kills an app that receives a VoIP push and reports no call.
 const (
-	TokenTypeAPNs = 1
-	TokenTypeFCM  = 2
+	TokenTypeAPNs     = 1
+	TokenTypeFCM      = 2
+	TokenTypeAPNsVoIP = 9
 )
 
 // IsAPNs reports whether a notification can be sent to this token through Apple.
@@ -47,7 +49,13 @@ func (d *DeviceDO) IsFCM() bool {
 	return d.TokenType == TokenTypeFCM && d.Token != ""
 }
 
-// Reachable reports whether we know how to wake this device at all.
+// IsVoIP reports whether this token rings an iPhone for a call. Never a
+// message: Reachable() leaves it out on purpose.
+func (d *DeviceDO) IsVoIP() bool {
+	return d.TokenType == TokenTypeAPNsVoIP && d.Token != ""
+}
+
+// Reachable reports whether we know how to wake this device with a message.
 func (d *DeviceDO) Reachable() bool {
 	return d.IsAPNs() || d.IsFCM()
 }
