@@ -52,3 +52,12 @@ func (s *Service) PhoneSendSignalingData(ctx context.Context, request *mtproto.T
 	c.Logger.Debugf("phone.sendSignalingData - metadata: {%s}, call: %d, %d bytes", c.MD, request.GetPeer().GetId(), len(request.GetData()))
 	return c.PhoneSendSignalingData(request)
 }
+
+// PhoneGetCallConfig is the engine tuning both phones poll (#14).
+//
+// phone.getCallConfig = DataJSON;
+func (s *Service) PhoneGetCallConfig(ctx context.Context, request *mtproto.TLPhoneGetCallConfig) (*mtproto.DataJSON, error) {
+	c := core.New(ctx, s.svcCtx)
+	c.Logger.Debugf("phone.getCallConfig - metadata: {%s}", c.MD)
+	return c.PhoneGetCallConfig(request)
+}
