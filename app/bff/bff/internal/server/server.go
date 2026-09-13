@@ -133,6 +133,10 @@ func (s *Server) Initialize() error {
 			Calls:         c.Calls,
 		}, phone_helper.NewRegistry())
 		mtproto.RegisterRPCVoipCallsServer(grpcServer, phone)
+		// The group a phone derives the call key in lives under the
+		// secret-chats prefix in the schema; the one method is served, the
+		// rest of that prefix stays unimplemented (secret chats are not offered).
+		mtproto.RegisterRPCSecretChatsServer(grpcServer, phone_helper.NewDhService())
 
 		// qrcode_helper
 		mtproto.RegisterRPCQrCodeServer(

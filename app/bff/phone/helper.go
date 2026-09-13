@@ -23,6 +23,13 @@ func New(c Config, registry *calls.Registry) *service.Service {
 	return service.New(svc.NewServiceContext(c, registry))
 }
 
+// NewDhService answers messages.getDhConfig, the group a phone asks for before
+// a call; it is registered as the RPCSecretChats server, that being where the
+// schema keeps the method.
+func NewDhService() *service.DhService {
+	return service.NewDhService()
+}
+
 // NewRegistry is the registry of calls in the air, one per process.
 func NewRegistry() *calls.Registry {
 	return calls.NewRegistry()

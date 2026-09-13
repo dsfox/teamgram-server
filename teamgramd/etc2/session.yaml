@@ -78,7 +78,10 @@ BFFProxyClients:
     #"/mtproto.RPCDeepLinks": "bff.bff"
     "/mtproto.RPCFiles": "bff.bff"
     #"/mtproto.RPCWebPage": "bff.bff"
-    #"/mtproto.RPCSecretChats": "bff.bff"
+    # messages.getDhConfig lives under this prefix in the schema, and a call
+    # asks for it before anything else (#14). Only that one method is served;
+    # the rest of secret chats stays unimplemented.
+    "/mtproto.RPCSecretChats": "bff.bff"
     "/mtproto.RPCPassport": "bff.bff"
     "/mtproto.RPCUpdates": "bff.bff"
     #"/mtproto.RPCInlineBot": "bff.bff"

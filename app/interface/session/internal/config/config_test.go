@@ -32,6 +32,10 @@ func TestEveryCallMethodHasAClientInTheSessionConfig(t *testing.T) {
 		"TLPhoneConfirmCall",
 		"TLPhoneDiscardCall",
 		"TLPhoneSendSignalingData",
+		// The group a phone asks for before it places or answers a call. It
+		// lives under the secret-chats prefix in the schema, so that prefix
+		// needs a client too, or the call stops at "Requesting" for ever.
+		"TLMessagesGetDhConfig",
 	} {
 		tuple, ok := mtproto.GetRPCContextRegisters()[request]
 		if !ok {
