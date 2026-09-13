@@ -52,15 +52,18 @@ func (c *PhoneCore) PhoneRequestCall(in *mtproto.TLPhoneRequestCall) (*mtproto.P
 // returned: the caller's own leg is already set up, and a phone that missed the
 // update will still see the call when it next syncs.
 func (c *PhoneCore) ring(userId int64, pc *mtproto.PhoneCall, now time.Time) {
-	updates := mtproto.MakeTLUpdateShort(&mtproto.Updates{
-		Update: mtproto.MakeTLUpdatePhoneCall(&mtproto.Update{PhoneCall: pc}).To_Update(),
-		Date:   int32(now.Unix()),
-	}).To_Updates()
-
 	if _, err := c.svcCtx.SyncClient.SyncPushUpdates(c.ctx, &sync.TLSyncPushUpdates{
 		UserId:  userId,
-		Updates: updates,
+		Updates: c.updatesFor(pc, now),
 	}); err != nil {
 		c.Logger.Errorf("phone: could not ring %d: %v", userId, err)
 	}
+}
+
+// updatesFor wraps one phone-call update the way the clients expect it.
+func (c *PhoneCore) updatesFor(pc *mtproto.PhoneCall, now time.Time) *mtproto.Updates {
+	return mtproto.MakeTLUpdateShort(&mtproto.Updates{
+		Update: mtproto.MakeTLUpdatePhoneCall(&mtproto.Update{PhoneCall: pc}).To_Update(),
+		Date:   int32(now.Unix()),
+	}).To_Updates()
 }

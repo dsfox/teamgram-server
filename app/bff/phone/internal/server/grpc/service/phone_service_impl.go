@@ -22,3 +22,24 @@ func (s *Service) PhoneRequestCall(ctx context.Context, request *mtproto.TLPhone
 	c.Logger.Debugf("phone.requestCall - reply: {%s}", r)
 	return r, err
 }
+
+// PhoneAcceptCall answers a ringing call (#14).
+func (s *Service) PhoneAcceptCall(ctx context.Context, request *mtproto.TLPhoneAcceptCall) (*mtproto.Phone_PhoneCall, error) {
+	c := core.New(ctx, s.svcCtx)
+	c.Logger.Debugf("phone.acceptCall - metadata: {%s}, request: {%s}", c.MD, request)
+	return c.PhoneAcceptCall(request)
+}
+
+// PhoneConfirmCall closes the key exchange and hands over the connections (#14).
+func (s *Service) PhoneConfirmCall(ctx context.Context, request *mtproto.TLPhoneConfirmCall) (*mtproto.Phone_PhoneCall, error) {
+	c := core.New(ctx, s.svcCtx)
+	c.Logger.Debugf("phone.confirmCall - metadata: {%s}, request: {%s}", c.MD, request)
+	return c.PhoneConfirmCall(request)
+}
+
+// PhoneDiscardCall hangs up (#14).
+func (s *Service) PhoneDiscardCall(ctx context.Context, request *mtproto.TLPhoneDiscardCall) (*mtproto.Updates, error) {
+	c := core.New(ctx, s.svcCtx)
+	c.Logger.Debugf("phone.discardCall - metadata: {%s}, request: {%s}", c.MD, request)
+	return c.PhoneDiscardCall(request)
+}
