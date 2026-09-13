@@ -212,3 +212,17 @@ func TestAcknowledgingAnAnsweredOrEndedCallIsRefused(t *testing.T) {
 		t.Errorf("a discarded call cannot ring, got %v", err)
 	}
 }
+
+// Which devices were already told rings twice otherwise - and an Android
+// that hears phoneCallRequested twice for one call answers the second with
+// "busy" and kills it. So the call remembers who was rung.
+func TestACallRemembersWhichKeysWereRung(t *testing.T) {
+	c := placed(t)
+	if c.WasRung(11) {
+		t.Fatal("a fresh call says a key was rung")
+	}
+	c.MarkRung(11, 12)
+	if !c.WasRung(11) || !c.WasRung(12) || c.WasRung(13) {
+		t.Errorf("rung: 11=%v 12=%v 13=%v", c.WasRung(11), c.WasRung(12), c.WasRung(13))
+	}
+}

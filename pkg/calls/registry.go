@@ -69,6 +69,22 @@ func (r *Registry) Get(id, accessHash int64, now time.Time) (*Call, error) {
 	return c, nil
 }
 
+// RingingFor is the call still ringing for this person, if any: placed for
+// them, not yet answered, not yet given up. What a device that was away asks
+// when it comes back.
+func (r *Registry) RingingFor(userId int64, now time.Time) *Call {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.sweep(now)
+
+	for _, c := range r.calls {
+		if c.Participant == userId && c.State == Waiting {
+			return c
+		}
+	}
+	return nil
+}
+
 // Sweep drops what is over and reports how many went. Call it on a timer as
 // well: a call nobody ever answered would otherwise keep its two people busy.
 func (r *Registry) Sweep(now time.Time) int {

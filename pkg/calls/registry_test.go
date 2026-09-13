@@ -101,3 +101,32 @@ func TestTheRegistryIsSafeToShare(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// A phone that was not connected when the call was placed asks for its
+// difference once it wakes; the registry has to say whether a call is still
+// ringing for that person - and only while it rings.
+func TestARingingCallIsFoundByTheOneItRingsFor(t *testing.T) {
+	r := NewRegistry()
+	c, _ := r.Place(caller, callee, []byte("g_a_hash"), t0)
+
+	if got := r.RingingFor(callee, t0); got != c {
+		t.Fatalf("the callee's ringing call is %v, expected %v", got, c)
+	}
+	if got := r.RingingFor(caller, t0); got != nil {
+		t.Errorf("the caller is not being rung, got %v", got)
+	}
+	if got := r.RingingFor(other, t0); got != nil {
+		t.Errorf("a stranger has no ringing call, got %v", got)
+	}
+	if got := r.RingingFor(callee, t0.Add(RingingFor+time.Second)); got != nil {
+		t.Errorf("a call that gave up still rings: %v", got)
+	}
+
+	c2, _ := r.Place(caller, callee, []byte("g_a_hash"), t0)
+	if err := c2.Accept(callee, []byte("g_b"), t0); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.RingingFor(callee, t0); got != nil {
+		t.Errorf("an answered call still rings: %v", got)
+	}
+}

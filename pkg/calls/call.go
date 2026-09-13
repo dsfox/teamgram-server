@@ -82,6 +82,28 @@ type Call struct {
 	// by whoever places the call, before anyone else can see it.
 	Protocol *mtproto.PhoneCallProtocol
 	Video    bool
+
+	// The devices (permanent auth keys) already told about the call. Told
+	// twice, an Android answers the second phoneCallRequested with "busy" and
+	// the call is over - so a device that comes back later is rung only if
+	// it is not in here.
+	rung map[int64]struct{}
+}
+
+// MarkRung records that these devices were told about the call.
+func (c *Call) MarkRung(permAuthKeyIds ...int64) {
+	if c.rung == nil {
+		c.rung = make(map[int64]struct{}, len(permAuthKeyIds))
+	}
+	for _, id := range permAuthKeyIds {
+		c.rung[id] = struct{}{}
+	}
+}
+
+// WasRung says whether this device was already told.
+func (c *Call) WasRung(permAuthKeyId int64) bool {
+	_, ok := c.rung[permAuthKeyId]
+	return ok
 }
 
 // Request places a call. The caller has committed to a secret by sending only
