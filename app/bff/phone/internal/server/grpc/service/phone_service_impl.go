@@ -43,3 +43,12 @@ func (s *Service) PhoneDiscardCall(ctx context.Context, request *mtproto.TLPhone
 	c.Logger.Debugf("phone.discardCall - metadata: {%s}, request: {%s}", c.MD, request)
 	return c.PhoneDiscardCall(request)
 }
+
+// PhoneSendSignalingData forwards a candidate blob to the other leg (#14).
+//
+// phone.sendSignalingData peer:InputPhoneCall data:bytes = Bool;
+func (s *Service) PhoneSendSignalingData(ctx context.Context, request *mtproto.TLPhoneSendSignalingData) (*mtproto.Bool, error) {
+	c := core.New(ctx, s.svcCtx)
+	c.Logger.Debugf("phone.sendSignalingData - metadata: {%s}, call: %d, %d bytes", c.MD, request.GetPeer().GetId(), len(request.GetData()))
+	return c.PhoneSendSignalingData(request)
+}
