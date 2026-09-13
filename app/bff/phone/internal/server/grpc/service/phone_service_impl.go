@@ -61,3 +61,12 @@ func (s *Service) PhoneGetCallConfig(ctx context.Context, request *mtproto.TLPho
 	c.Logger.Debugf("phone.getCallConfig - metadata: {%s}", c.MD)
 	return c.PhoneGetCallConfig(request)
 }
+
+// PhoneReceivedCall is the callee's phone saying it is ringing (#14).
+//
+// phone.receivedCall peer:InputPhoneCall = Bool;
+func (s *Service) PhoneReceivedCall(ctx context.Context, request *mtproto.TLPhoneReceivedCall) (*mtproto.Bool, error) {
+	c := core.New(ctx, s.svcCtx)
+	c.Logger.Debugf("phone.receivedCall - metadata: {%s}, request: {%s}", c.MD, request)
+	return c.PhoneReceivedCall(request)
+}

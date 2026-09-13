@@ -168,3 +168,47 @@ func TestAnActiveCallDoesNotExpireWhileItIsSpoken(t *testing.T) {
 		t.Error("a call in progress is not an unanswered one")
 	}
 }
+
+// The callee's phone says "it is ringing here" before anyone picks up; the
+// caller's screen goes from waiting to ringing on it. Only the callee may say
+// it, only while the call is still ringing, and saying it twice - two devices
+// of the same person - keeps the first time.
+func TestOnlyTheOneCalledMaySayItIsRinging(t *testing.T) {
+	c := placed(t)
+	if !c.Received.IsZero() {
+		t.Fatal("a call nobody has seen yet must not count as received")
+	}
+
+	for who, name := range map[int64]string{caller: "the caller", other: "a stranger"} {
+		if err := c.Receive(who, t0); !errors.Is(err, ErrWrongParty) {
+			t.Errorf("%s must not be able to acknowledge the call, got %v", name, err)
+		}
+	}
+
+	if err := c.Receive(callee, t0.Add(time.Second)); err != nil {
+		t.Fatalf("the callee cannot acknowledge: %v", err)
+	}
+	if !c.Received.Equal(t0.Add(time.Second)) {
+		t.Errorf("received at %v, expected %v", c.Received, t0.Add(time.Second))
+	}
+	if err := c.Receive(callee, t0.Add(2*time.Second)); err != nil {
+		t.Fatalf("a second device of the callee was refused: %v", err)
+	}
+	if !c.Received.Equal(t0.Add(time.Second)) {
+		t.Errorf("the second acknowledgement moved the time to %v", c.Received)
+	}
+}
+
+func TestAcknowledgingAnAnsweredOrEndedCallIsRefused(t *testing.T) {
+	c := accepted(t)
+	if err := c.Receive(callee, t0); !errors.Is(err, ErrWrongState) {
+		t.Errorf("an accepted call is past ringing, got %v", err)
+	}
+	c = placed(t)
+	if err := c.Discard(callee, t0); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Receive(callee, t0); !errors.Is(err, ErrWrongState) {
+		t.Errorf("a discarded call cannot ring, got %v", err)
+	}
+}

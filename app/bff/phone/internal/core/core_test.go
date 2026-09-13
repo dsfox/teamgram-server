@@ -65,6 +65,11 @@ func newStand(t *testing.T) *stand {
 	if err != nil {
 		t.Fatalf("cannot place the call: %v", err)
 	}
+	// As requestCall leaves it: the caller's protocol travels with the call.
+	call.Protocol = mtproto.MakeTLPhoneCallProtocol(&mtproto.PhoneCallProtocol{
+		UdpP2P: true, UdpReflector: true, MinLayer: 65, MaxLayer: 92,
+		LibraryVersions: []string{"4.0.0"},
+	}).To_PhoneCallProtocol()
 	return &stand{
 		svcCtx: &svc.ServiceContext{SyncClient: recorder, Registry: registry},
 		sync:   recorder,

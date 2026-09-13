@@ -5,6 +5,7 @@ import (
 
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/app/messenger/sync/sync"
+	"github.com/teamgram/teamgram-server/pkg/calls"
 )
 
 // PhoneRequestCall places a call and makes the other phone ring.
@@ -27,16 +28,11 @@ func (c *PhoneCore) PhoneRequestCall(in *mtproto.TLPhoneRequestCall) (*mtproto.P
 		c.Logger.Errorf("phone.requestCall - %d cannot call %d: %v", c.MD.UserId, callee, err)
 		return nil, err
 	}
+	// Nobody else can find the call before the ring below goes out.
+	call.Protocol = in.GetProtocol()
+	call.Video = in.GetVideo()
 
-	waiting := mtproto.MakeTLPhoneCallWaiting(&mtproto.PhoneCall{
-		Id:            call.Id,
-		AccessHash:    call.AccessHash,
-		Date:          int32(now.Unix()),
-		AdminId:       call.Admin,
-		ParticipantId: call.Participant,
-		Protocol:      in.GetProtocol(),
-		Video:         in.GetVideo(),
-	}).To_PhoneCall()
+	waiting := c.waiting(call, now)
 
 	// The whole reason the server is in this at all: the other phone has to
 	// hear about the call. Everything after this is the two of them talking.
@@ -46,6 +42,25 @@ func (c *PhoneCore) PhoneRequestCall(in *mtproto.TLPhoneRequestCall) (*mtproto.P
 		PhoneCall: waiting,
 		Users:     []*mtproto.User{},
 	}).To_Phone_PhoneCall(), nil
+}
+
+// waiting is the call as the caller sees it before anyone picks up: the same
+// object at requestCall and again, with receive_date, once the callee's phone
+// says it is ringing.
+func (c *PhoneCore) waiting(call *calls.Call, now time.Time) *mtproto.PhoneCall {
+	pc := &mtproto.PhoneCall{
+		Id:            call.Id,
+		AccessHash:    call.AccessHash,
+		Date:          int32(call.Created.Unix()),
+		AdminId:       call.Admin,
+		ParticipantId: call.Participant,
+		Protocol:      call.Protocol,
+		Video:         call.Video,
+	}
+	if !call.Received.IsZero() {
+		pc.ReceiveDate = mtproto.MakeFlagsInt32(int32(call.Received.Unix()))
+	}
+	return mtproto.MakeTLPhoneCallWaiting(pc).To_PhoneCall()
 }
 
 // ring tells one person's devices about a call. A failure here is logged, not

@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/teamgram/proto/mtproto"
 	"time"
 )
 
@@ -71,6 +72,15 @@ type Call struct {
 
 	Created time.Time
 	Changed time.Time
+	// Received is when the callee's phone first said it was ringing; zero
+	// until then. The caller's screen turns from waiting to ringing on it.
+	Received time.Time
+
+	// What the caller asked for, echoed back in every "waiting" the caller is
+	// shown. Opaque here: the phones negotiate it, the server carries it. Set
+	// by whoever places the call, before anyone else can see it.
+	Protocol *mtproto.PhoneCallProtocol
+	Video    bool
 }
 
 // Request places a call. The caller has committed to a secret by sending only
@@ -89,6 +99,22 @@ func Request(admin, participant int64, gAHash []byte, now time.Time) (*Call, err
 		Created:     now,
 		Changed:     now,
 	}, nil
+}
+
+// Receive is the callee's phone saying it is ringing, before anyone picks up.
+// Only the callee may say it, only while the call still rings; a second device
+// of the same person saying it again keeps the first time.
+func (c *Call) Receive(by int64, now time.Time) error {
+	if by != c.Participant {
+		return ErrWrongParty
+	}
+	if c.State != Waiting || c.Expired(now) {
+		return ErrWrongState
+	}
+	if c.Received.IsZero() {
+		c.Received = now
+	}
+	return nil
 }
 
 // Accept answers the call with g_b. Only the person who was called may do it,
