@@ -50,8 +50,13 @@ func (c *PhoneCore) PhoneAcceptCall(in *mtproto.TLPhoneAcceptCall) (*mtproto.Pho
 		Video:  call.Video,
 	}).To_PhoneCall(), now))
 
+	// The callee is answered with the call as the callee sees it: still
+	// waiting, for the caller's confirm. phoneCallAccepted is the caller's
+	// object; iOS answered with it reads "failed" and hangs up within a
+	// moment (CallSessionManager.swift:1626) - the first real Android ->
+	// iPhone call ended that way.
 	return mtproto.MakeTLPhonePhoneCall(&mtproto.Phone_PhoneCall{
-		PhoneCall: accepted,
+		PhoneCall: c.waiting(call, now),
 		Users:     []*mtproto.User{},
 	}).To_Phone_PhoneCall(), nil
 }

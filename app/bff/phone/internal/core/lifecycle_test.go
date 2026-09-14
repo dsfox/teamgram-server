@@ -79,11 +79,19 @@ func TestACallFromRingToHangUp(t *testing.T) {
 		t.Errorf("a second call to a ringing phone was answered with %v", err)
 	}
 
-	// bob answers with g_b: alice gets it.
-	if _, err := s.as(bob).PhoneAcceptCall(&mtproto.TLPhoneAcceptCall{
+	// bob answers with g_b: alice gets it. bob himself is answered with the
+	// call as he sees it - still waiting, for alice's confirm; an
+	// acceptCall answered with phoneCallAccepted is read by iOS as failed
+	// and dropped within a moment (CallSessionManager.swift:1626) - seen on
+	// the first real Android -> iPhone call.
+	accepting, err := s.as(bob).PhoneAcceptCall(&mtproto.TLPhoneAcceptCall{
 		Peer: peer, GB: []byte("g_b"), Protocol: protocol(),
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("bob cannot accept: %v", err)
+	}
+	if got := accepting.GetPhoneCall().GetPredicateName(); got != mtproto.Predicate_phoneCallWaiting {
+		t.Fatalf("bob's acceptCall was answered with %s, which iOS reads as failed", got)
 	}
 	accepted := s.lastCall(t, alice)
 	if accepted.GetPredicateName() != mtproto.Predicate_phoneCallAccepted || !bytes.Equal(accepted.GetGB(), []byte("g_b")) {
