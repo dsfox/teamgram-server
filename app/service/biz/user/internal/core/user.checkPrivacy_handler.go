@@ -24,12 +24,26 @@ func (c *UserCore) UserCheckPrivacy(in *user.TLUserCheckPrivacy) (*mtproto.Bool,
 
 	if err != nil {
 		return mtproto.BoolFalse, nil
-	} else if len(rules.GetDatas()) == 0 {
-		return mtproto.BoolTrue, nil
 	}
 
-	// TODO(@benqi): check allow
-	// return rulesData2.IsAllow(peerId, isContact)
-	return mtproto.BoolTrue, nil
+	// Answered from the rules rather than always yes: a call's p2p_allowed
+	// rests on this (#14) - "who may connect to me directly", and a person
+	// who chose nobody is handed the relay and nothing else.
+	allowed := privacyAllows(in.GetUserId(), rules.GetDatas(), in.GetPeerId(), func(id, peer int64) bool {
+		return c.svcCtx.Dao.GetUserContact(c.ctx, id, peer) != nil
+	})
+	return mtproto.ToBool(allowed), nil
 
+}
+
+// privacyAllows applies a person's rules for one key to one peer. No rules
+// means everybody, as the phones assume. Rules about chat participants are
+// not evaluated here - this service does not hold chat membership - and so
+// count as "not a participant": they neither allow nor forbid.
+func privacyAllows(selfId int64, rules []*mtproto.PrivacyRule, peerId int64, isContact func(id, peer int64) bool) bool {
+	if len(rules) == 0 {
+		return true
+	}
+	return mtproto.CheckPrivacyIsAllow(selfId, rules, peerId, isContact,
+		func(int64, []int64) bool { return false })
 }
