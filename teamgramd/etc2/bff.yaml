@@ -39,12 +39,15 @@ Code:
   RegionId: ""
 
 # 1-1 calls (#14): what the two phones are told to try. STUN first, always,
-# because the media is meant to go device to device; a relay (Turn: true) is
-# the fallback for a symmetric NAT on both sides and the "hide my IP" setting,
-# and needs RelaySecret set to the same value the relay checks credentials
-# against. Both address families on every entry: two phones on carrier IPv6
-# connect with no NAT in the way at all. Nothing listens on 3478 until the STUN
-# responder is deployed beside the server (plan, Part 4).
+# because the media is meant to go device to device; the relay is the fallback
+# for a symmetric NAT on both sides (seen on the first live calls) and the
+# "hide my IP" setting. Both are the one coturn beside the server, as two
+# entries with ids of their own. Both address families on every entry: two
+# phones on carrier IPv6 connect with no NAT in the way at all.
+#
+# RelaySecret mints the short-lived relay credentials (TURN REST) and has to
+# be the value coturn was started with; it comes from the environment, never
+# this file. Empty means no relay is offered at all - STUN alone goes out.
 Calls:
   Servers:
     - Id: 1
@@ -54,7 +57,14 @@ Calls:
       Stun: true
       Turn: false
       Tcp: false
-  RelaySecret: ""
+    - Id: 2
+      Host: 5.23.53.210
+      HostV6: 2a03:6f01:1:2::4d23
+      Port: 3478
+      Stun: false
+      Turn: true
+      Tcp: false
+  RelaySecret: ${CALLS_RELAY_SECRET}
   RelayTTLSeconds: 3600
 
 BizServiceClient:

@@ -1,6 +1,7 @@
 package calls
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -111,5 +112,22 @@ func TestAServerWithoutIpv6IsStillUsable(t *testing.T) {
 	}
 	if got[0].Ipv6 != "" {
 		t.Error("an IPv4-only relay must not invent an IPv6 address")
+	}
+}
+
+// A relay entry with credentials minted from an empty secret is a relay the
+// phone will be refused by - worse than none, because the engine waits on it.
+// No secret, no relay: STUN alone goes out, and the relay-only case is an
+// honest ErrNoRelay.
+func TestWithoutASecretNoRelayIsOffered(t *testing.T) {
+	out, err := Connections([]Server{stunOnly, relay}, true, "", time.Hour, when)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out) != 1 || !out[0].GetStun() {
+		t.Fatalf("offered %v, expected STUN alone", out)
+	}
+	if _, err := Connections([]Server{relay}, false, "", time.Hour, when); !errors.Is(err, ErrNoRelay) {
+		t.Fatalf("relay-only with no secret answered %v", err)
 	}
 }

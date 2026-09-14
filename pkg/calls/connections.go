@@ -81,10 +81,14 @@ func Connections(servers []Server, p2pAllowed bool, secret string, ttl time.Dura
 		}
 	}
 
-	creds := TurnCredentials(secret, ttl, now)
-	for _, s := range servers {
-		if s.Turn {
-			out = append(out, descriptor(s, false, true, creds))
+	// No secret, no relay: credentials minted from nothing are credentials
+	// the relay refuses, and an engine waits on a relay it was handed.
+	if secret != "" {
+		creds := TurnCredentials(secret, ttl, now)
+		for _, s := range servers {
+			if s.Turn {
+				out = append(out, descriptor(s, false, true, creds))
+			}
 		}
 	}
 

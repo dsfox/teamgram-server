@@ -13,6 +13,7 @@ import (
 // address families - two phones on carrier IPv6 connect with no NAT at all.
 func TestTheBffConfigHandsOutAStunEndpoint(t *testing.T) {
 	t.Setenv("MYSQL_PASSWORD", "unused-by-this-test")
+	t.Setenv("CALLS_RELAY_SECRET", "a-secret-for-this-test")
 
 	var c Config
 	if err := conf.Load("../../../../../teamgramd/etc2/bff.yaml", &c, conf.UseEnv()); err != nil {
@@ -37,5 +38,21 @@ func TestTheBffConfigHandsOutAStunEndpoint(t *testing.T) {
 	}
 	if stun == 0 {
 		t.Fatal("no STUN endpoint in the config, so every confirmCall would be refused")
+	}
+
+	// The relay is the fallback for a symmetric NAT on both sides - seen on
+	// the first live calls - and the "hide my IP" path. Its credentials are
+	// minted from a secret that comes from the environment, never the file.
+	turn := 0
+	for _, s := range c.Calls.Servers {
+		if s.Turn {
+			turn++
+		}
+	}
+	if turn == 0 {
+		t.Fatal("no relay in the config, so two phones behind symmetric NATs never connect")
+	}
+	if c.Calls.RelaySecret != "a-secret-for-this-test" {
+		t.Fatalf("the relay secret is %q, not the one from the environment", c.Calls.RelaySecret)
 	}
 }
