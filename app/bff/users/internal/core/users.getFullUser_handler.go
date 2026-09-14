@@ -75,13 +75,12 @@ func (c *UsersCore) UsersGetFullUser(in *mtproto.TLUsersGetFullUser) (*mtproto.U
 	userFull := mtproto.MakeTLUserFull(&mtproto.UserFull{
 		Blocked: false,
 		// These two flags are what the client uses to decide whether to draw
-		// the call buttons at all. Voice calls exist (#14): the server matches
-		// the two phones and hands out STUN, the media goes device to device.
-		// Video goes through the same signalling and follows once voice has
-		// been walked on real phones - audio first, then video (the plan).
-		// Nobody calls themselves.
+		// the call buttons at all. Calls exist (#14): the server matches the
+		// two phones and hands out STUN and a relay, the media goes device to
+		// device. Video is the same signalling with one more track; voice
+		// was walked first, then this. Nobody calls themselves.
 		PhoneCallsAvailable:      c.MD.UserId != peerId,
-		VideoCallsAvailable:      false,
+		VideoCallsAvailable:      c.MD.UserId != peerId,
 		PhoneCallsPrivate:        false,
 		CanPinMessage:            true,
 		HasScheduled:             false,
