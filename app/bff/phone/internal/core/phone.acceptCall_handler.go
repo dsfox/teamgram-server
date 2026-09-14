@@ -24,32 +24,20 @@ func (c *PhoneCore) PhoneAcceptCall(in *mtproto.TLPhoneAcceptCall) (*mtproto.Pho
 		c.Logger.Errorf("phone.acceptCall - %d cannot accept %d: %v", c.MD.UserId, call.Id, err)
 		return nil, rpcError(err, mtproto.ErrCallAlreadyAccepted)
 	}
-	// The device that answered is the callee's leg from here on.
+	// The device that answered is the callee's leg from here on, and its
+	// protocol is what the caller settles the layer against.
 	call.ParticipantKey, call.ParticipantServer = c.MD.PermAuthKeyId, c.MD.ServerId
-
-	accepted := mtproto.MakeTLPhoneCallAccepted(&mtproto.PhoneCall{
-		Id:            call.Id,
-		AccessHash:    call.AccessHash,
-		Date:          int32(now.Unix()),
-		AdminId:       call.Admin,
-		ParticipantId: call.Participant,
-		GB:            call.GB,
-		Protocol:      in.GetProtocol(),
-		Video:         call.Video,
-	}).To_PhoneCall()
+	call.ParticipantProtocol = in.GetProtocol()
 
 	// The caller is waiting on g_b to finish the exchange.
-	c.tell(call.Admin, call.AdminKey, call.AdminServer, c.updatesFor(accepted, now))
+	c.tell(call.Admin, call.AdminKey, call.AdminServer, c.updatesFor(c.accepted(call), now))
 
 	// Every other phone of the callee was ringing too. A discarded call is
 	// the one thing both clients take cleanly for "answered elsewhere"; a
 	// phoneCallAccepted reaching a phone that still rings goes down iOS's
 	// fallback branch. Busy: this person is on this call, on another device.
-	c.tellOthers(call.Participant, c.MD.PermAuthKeyId, c.updatesFor(mtproto.MakeTLPhoneCallDiscarded(&mtproto.PhoneCall{
-		Id:     call.Id,
-		Reason: mtproto.MakeTLPhoneCallDiscardReasonBusy(nil).To_PhoneCallDiscardReason(),
-		Video:  call.Video,
-	}).To_PhoneCall(), now))
+	c.tellOthers(call.Participant, c.MD.PermAuthKeyId, c.updatesFor(
+		c.discarded(call, mtproto.MakeTLPhoneCallDiscardReasonBusy(nil).To_PhoneCallDiscardReason(), nil), now))
 
 	// The callee is answered with the call as the callee sees it: still
 	// waiting, for the caller's confirm. phoneCallAccepted is the caller's

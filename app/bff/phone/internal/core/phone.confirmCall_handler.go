@@ -39,23 +39,7 @@ func (c *PhoneCore) PhoneConfirmCall(in *mtproto.TLPhoneConfirmCall) (*mtproto.P
 		return nil, err
 	}
 
-	active := mtproto.MakeTLPhoneCall(&mtproto.PhoneCall{
-		P2PAllowed:     p2pAllowed,
-		Id:             call.Id,
-		AccessHash:     call.AccessHash,
-		Date:           int32(now.Unix()),
-		AdminId:        call.Admin,
-		ParticipantId:  call.Participant,
-		GAOrB:          call.GA,
-		KeyFingerprint: call.KeyFingerprint,
-		Protocol:       in.GetProtocol(),
-		Connections:    connections,
-		StartDate:      int32(now.Unix()),
-		// What the caller asked for, on every object the caller is shown:
-		// Android reads the flag back from here and ran a video call as
-		// voice while it was missing.
-		Video: call.Video,
-	}).To_PhoneCall()
+	active := c.active(call, connections, p2pAllowed, now)
 
 	c.tell(call.Participant, call.ParticipantKey, call.ParticipantServer, c.updatesFor(active, now))
 

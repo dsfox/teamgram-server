@@ -5,7 +5,6 @@ import (
 
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/app/messenger/sync/sync"
-	"github.com/teamgram/teamgram-server/pkg/calls"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -47,42 +46,6 @@ func (c *PhoneCore) PhoneRequestCall(in *mtproto.TLPhoneRequestCall) (*mtproto.P
 		PhoneCall: c.waiting(call, now),
 		Users:     []*mtproto.User{},
 	}).To_Phone_PhoneCall(), nil
-}
-
-// requested is the call as the callee first sees it. Both phones start
-// ringing on this constructor and on no other - a waiting call with no session
-// behind it is dropped by either client - and g_a_hash travels in it: the
-// callee checks g_a against it at the end of the exchange.
-func (c *PhoneCore) requested(call *calls.Call) *mtproto.PhoneCall {
-	return mtproto.MakeTLPhoneCallRequested(&mtproto.PhoneCall{
-		Id:            call.Id,
-		AccessHash:    call.AccessHash,
-		Date:          int32(call.Created.Unix()),
-		AdminId:       call.Admin,
-		ParticipantId: call.Participant,
-		GAHash:        call.GAHash,
-		Protocol:      call.Protocol,
-		Video:         call.Video,
-	}).To_PhoneCall()
-}
-
-// waiting is the call as the caller sees it before anyone picks up: the same
-// object at requestCall and again, with receive_date, once the callee's phone
-// says it is ringing.
-func (c *PhoneCore) waiting(call *calls.Call, now time.Time) *mtproto.PhoneCall {
-	pc := &mtproto.PhoneCall{
-		Id:            call.Id,
-		AccessHash:    call.AccessHash,
-		Date:          int32(call.Created.Unix()),
-		AdminId:       call.Admin,
-		ParticipantId: call.Participant,
-		Protocol:      call.Protocol,
-		Video:         call.Video,
-	}
-	if !call.Received.IsZero() {
-		pc.ReceiveDate = mtproto.MakeFlagsInt32(int32(call.Received.Unix()))
-	}
-	return mtproto.MakeTLPhoneCallWaiting(pc).To_PhoneCall()
 }
 
 // ring tells every device of a person about a call. A failure here is

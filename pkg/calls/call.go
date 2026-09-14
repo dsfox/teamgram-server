@@ -82,6 +82,9 @@ type Call struct {
 	// by whoever places the call, before anyone else can see it.
 	Protocol *mtproto.PhoneCallProtocol
 	Video    bool
+	// The callee's protocol, from the answer: the caller reads it off the
+	// accepted call to settle the layer the two speak.
+	ParticipantProtocol *mtproto.PhoneCallProtocol
 
 	// The two devices in the call - permanent auth key and the session
 	// server each is connected through: the caller's from the moment it asks,

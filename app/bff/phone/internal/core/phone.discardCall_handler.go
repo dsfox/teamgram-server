@@ -44,16 +44,8 @@ func (c *PhoneCore) PhoneDiscardCall(in *mtproto.TLPhoneDiscardCall) (*mtproto.U
 
 	// A video call is one that was placed as video, whatever the phone that
 	// hangs up says (iOS says nothing).
-	video := call.Video || in.GetVideo()
-	discarded := mtproto.MakeTLPhoneCallDiscarded(&mtproto.PhoneCall{
-		Id:       call.Id,
-		Reason:   reason,
-		Duration: duration,
-		Video:    video,
-		// Both phones send their stats log (saveCallDebug): the one thing
-		// that says whether the media went direct or through the relay.
-		NeedDebug: true,
-	}).To_PhoneCall()
+	call.Video = call.Video || in.GetVideo()
+	discarded := c.discarded(call, reason, duration)
 
 	// The other phone has to stop ringing, or stop talking: the device in the
 	// call by its key, and every device of theirs besides, in case more than
@@ -63,7 +55,7 @@ func (c *PhoneCore) PhoneDiscardCall(in *mtproto.TLPhoneDiscardCall) (*mtproto.U
 	}
 	c.ring(otherLeg, discarded, now)
 
-	c.leaveEntry(call, reason, duration, video, now)
+	c.leaveEntry(call, reason, duration, call.Video, now)
 
 	return c.updatesFor(discarded, now), nil
 }
