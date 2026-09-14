@@ -10,6 +10,7 @@ import (
 	"github.com/teamgram/proto/mtproto/rpc/metadata"
 	"github.com/teamgram/teamgram-server/app/bff/phone/internal/config"
 	"github.com/teamgram/teamgram-server/app/bff/phone/internal/svc"
+	msgpb "github.com/teamgram/teamgram-server/app/messenger/msg/msg/msg"
 	"github.com/teamgram/teamgram-server/app/messenger/sync/sync"
 	userpb "github.com/teamgram/teamgram-server/app/service/biz/user/user"
 	"github.com/teamgram/teamgram-server/app/service/status/status"
@@ -107,9 +108,21 @@ func (f fakeUsers) UserGetMutableUsers(_ context.Context, in *userpb.TLUserGetMu
 	return out, nil
 }
 
+// recordingMsg stands in for the message service: it keeps what it was asked
+// to send, so a test can read the call's entry in the chat.
+type recordingMsg struct {
+	sent []*msgpb.TLMsgSendMessageV2
+}
+
+func (r *recordingMsg) MsgSendMessageV2(_ context.Context, in *msgpb.TLMsgSendMessageV2) (*mtproto.Updates, error) {
+	r.sent = append(r.sent, in)
+	return mtproto.MakeTLUpdates(&mtproto.Updates{Updates: []*mtproto.Update{}, Users: []*mtproto.User{}, Chats: []*mtproto.Chat{}}).To_Updates(), nil
+}
+
 // stand is a phone service with a real registry and a recording sync, plus
 // one call already in the air between alice and bob.
 type stand struct {
+	msg      *recordingMsg
 	svcCtx   *svc.ServiceContext
 	sync     *recordingSync
 	ringer   *recordingRinger
@@ -132,7 +145,9 @@ func newStand(t *testing.T) *stand {
 	if err != nil {
 		t.Fatalf("cannot place the call: %v", err)
 	}
-	// As requestCall leaves it: the caller's protocol travels with the call.
+	// As requestCall leaves it: the caller's device and protocol travel with
+	// the call.
+	call.AdminKey, call.AdminServer = deviceOf(alice), serverOf(alice)
 	call.Protocol = mtproto.MakeTLPhoneCallProtocol(&mtproto.PhoneCallProtocol{
 		UdpP2P: true, UdpReflector: true, MinLayer: 65, MaxLayer: 92,
 		LibraryVersions: []string{"4.0.0"},
@@ -140,6 +155,7 @@ func newStand(t *testing.T) *stand {
 	ringer := &recordingRinger{}
 	sessions := &fakeSessions{permKeys: map[int64][]int64{}}
 	users := &fakeUsers{hidesIP: map[int64]bool{}}
+	msg := &recordingMsg{}
 	return &stand{
 		svcCtx: &svc.ServiceContext{
 			Config:     standConfig(),
@@ -148,7 +164,9 @@ func newStand(t *testing.T) *stand {
 			Sessions:   sessions,
 			Users:      users,
 			Ringer:     ringer,
+			Msg:        msg,
 		},
+		msg:      msg,
 		users:    users,
 		sync:     recorder,
 		ringer:   ringer,

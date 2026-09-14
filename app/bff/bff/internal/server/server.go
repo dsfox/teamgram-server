@@ -129,6 +129,7 @@ func (s *Server) Initialize() error {
 			SyncClient:    c.SyncClient,
 			StatusClient:  c.StatusClient,
 			UserClient:    c.BizServiceClient,
+			MsgClient:     c.MsgClient,
 			Mysql:         c.Mysql,
 			Calls:         c.Calls,
 		}, phone_helper.NewRegistry())

@@ -8,6 +8,8 @@ import (
 	"github.com/teamgram/marmota/pkg/net/rpcx"
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/teamgram-server/app/bff/phone/internal/config"
+	msg_client "github.com/teamgram/teamgram-server/app/messenger/msg/msg/client"
+	msgpb "github.com/teamgram/teamgram-server/app/messenger/msg/msg/msg"
 	sync_client "github.com/teamgram/teamgram-server/app/messenger/sync/client"
 	user_client "github.com/teamgram/teamgram-server/app/service/biz/user/client"
 	userpb "github.com/teamgram/teamgram-server/app/service/biz/user/user"
@@ -38,6 +40,12 @@ type Ringer interface {
 	IncomingCall(ctx context.Context, calleeId, callerId, callId int64, updates []byte)
 }
 
+// Msg is where a finished call leaves its entry in the chat of the two: the
+// service message the phones build their calls list from.
+type Msg interface {
+	MsgSendMessageV2(ctx context.Context, in *msgpb.TLMsgSendMessageV2) (*mtproto.Updates, error)
+}
+
 // ServiceContext is deliberately thin: the calls in the air, and the ways of
 // telling the other phone. There is no media path here to hold.
 type ServiceContext struct {
@@ -50,6 +58,7 @@ type ServiceContext struct {
 	Sessions Sessions
 	Users    Users
 	Ringer   Ringer
+	Msg      Msg
 }
 
 func NewServiceContext(c config.Config, registry *calls.Registry) *ServiceContext {
@@ -60,5 +69,6 @@ func NewServiceContext(c config.Config, registry *calls.Registry) *ServiceContex
 		Sessions:   status_client.NewStatusClient(rpcx.GetCachedRpcClient(c.StatusClient)),
 		Users:      user_client.NewUserClient(rpcx.GetCachedRpcClient(c.UserClient)),
 		Ringer:     pushnotify.New(sqlx.NewMySQL(&c.Mysql)),
+		Msg:        msg_client.NewMsgClient(rpcx.GetCachedRpcClient(c.MsgClient)),
 	}
 }

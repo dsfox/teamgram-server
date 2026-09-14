@@ -20,6 +20,8 @@ type Config struct {
 	// Who is connected, and who the caller is as the callee sees them.
 	StatusClient zrpc.RpcClientConf
 	UserClient   zrpc.RpcClientConf
+	// Where a finished call leaves its entry in the chat of the two.
+	MsgClient zrpc.RpcClientConf
 	// The device tokens a call push goes to: the same table the message
 	// notifier reads.
 	Mysql sqlx.Config

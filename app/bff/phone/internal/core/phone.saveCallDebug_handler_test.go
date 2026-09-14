@@ -23,6 +23,7 @@ func TestAHangUpAsksForTheStatsLogAndTheLogIsTaken(t *testing.T) {
 	if pushed := s.lastCall(t, alice); !pushed.GetNeedDebug() {
 		t.Error("the other phone is not asked for the stats log")
 	}
+	pushesAfterHangUp := len(s.sync.pushes)
 
 	for name, log := range map[string]string{
 		"a stats log": `{"network":[{"t":"1","c":1,"local":"p2p","remote":"p2p","network":{"local":{"type":"host"},"remote":{"type":"srflx"}}}]}`,
@@ -37,7 +38,7 @@ func TestAHangUpAsksForTheStatsLogAndTheLogIsTaken(t *testing.T) {
 			t.Errorf("%s: answered %v, %v", name, ok, err)
 		}
 	}
-	if len(s.sync.pushes) != 1 {
-		t.Errorf("%d pushes, expected the one hang-up", len(s.sync.pushes))
+	if len(s.sync.pushes) != pushesAfterHangUp {
+		t.Errorf("taking the logs pushed %d updates", len(s.sync.pushes)-pushesAfterHangUp)
 	}
 }

@@ -4,6 +4,9 @@ import (
 	"time"
 
 	"github.com/teamgram/proto/mtproto"
+	msgpb "github.com/teamgram/teamgram-server/app/messenger/msg/msg/msg"
+	"github.com/teamgram/teamgram-server/pkg/calls"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // PhoneDiscardCall hangs up. Either side may; nobody else may.
@@ -21,15 +24,28 @@ func (c *PhoneCore) PhoneDiscardCall(in *mtproto.TLPhoneDiscardCall) (*mtproto.U
 	if err != nil {
 		return nil, rpcError(err, mtproto.ErrCallAlreadyDeclined)
 	}
+	spoken := call.State == calls.Active
 	if err = call.Discard(c.MD.UserId, now); err != nil {
 		c.Logger.Errorf("phone.discardCall - %d cannot discard %d: %v", c.MD.UserId, call.Id, err)
 		return nil, rpcError(err, mtproto.ErrCallAlreadyDeclined)
 	}
 
+	// The reason as the phone said it, with one correction: a caller who gives
+	// up before anyone answered has made a missed call, whatever button they
+	// pressed - that is the entry the callee should find.
+	reason := in.GetReason()
+	if !spoken && c.MD.UserId == call.Admin {
+		reason = mtproto.MakeTLPhoneCallDiscardReasonMissed(nil).To_PhoneCallDiscardReason()
+	}
+	var duration *wrapperspb.Int32Value
+	if spoken {
+		duration = mtproto.MakeFlagsInt32(in.GetDuration())
+	}
+
 	discarded := mtproto.MakeTLPhoneCallDiscarded(&mtproto.PhoneCall{
 		Id:       call.Id,
-		Reason:   in.GetReason(),
-		Duration: mtproto.MakeFlagsInt32(in.GetDuration()),
+		Reason:   reason,
+		Duration: duration,
 		Video:    in.GetVideo(),
 		// Both phones send their stats log (saveCallDebug): the one thing
 		// that says whether the media went direct or through the relay.
@@ -44,5 +60,42 @@ func (c *PhoneCore) PhoneDiscardCall(in *mtproto.TLPhoneDiscardCall) (*mtproto.U
 	}
 	c.ring(otherLeg, discarded, now)
 
+	c.leaveEntry(call, reason, duration, in.GetVideo(), now)
+
 	return c.updatesFor(discarded, now), nil
+}
+
+// leaveEntry writes the call into the chat of the two, from the caller: the
+// service message with messageActionPhoneCall that both phones build their
+// calls list from (the phone-calls search filter), and that reads "missed
+// call" or "outgoing call, 0:42" in the chat. Without it the list stayed
+// empty on both phones after the first real calls. A failure is logged, not
+// returned: the call is over either way.
+func (c *PhoneCore) leaveEntry(call *calls.Call, reason *mtproto.PhoneCallDiscardReason, duration *wrapperspb.Int32Value, video bool, now time.Time) {
+	seconds := int32(0)
+	if duration != nil {
+		seconds = duration.GetValue()
+	}
+	_, err := c.svcCtx.Msg.MsgSendMessageV2(c.ctx, &msgpb.TLMsgSendMessageV2{
+		UserId:    call.Admin,
+		AuthKeyId: call.AdminKey,
+		PeerType:  mtproto.PEER_USER,
+		PeerId:    call.Participant,
+		Message: []*msgpb.OutboxMessage{
+			msgpb.MakeTLOutboxMessage(&msgpb.OutboxMessage{
+				NoWebpage: true,
+				RandomId:  call.Id,
+				Message: mtproto.MakeTLMessageService(&mtproto.Message{
+					Out:    true,
+					FromId: mtproto.MakePeerUser(call.Admin),
+					PeerId: mtproto.MakePeerUser(call.Participant),
+					Date:   int32(now.Unix()),
+					Action: mtproto.MakeMessageActionPhoneCall(video, call.Id, reason, seconds),
+				}).To_Message(),
+			}).To_OutboxMessage(),
+		},
+	})
+	if err != nil {
+		c.Logger.Errorf("phone.discardCall - call %d left no entry in the chat: %v", call.Id, err)
+	}
 }
