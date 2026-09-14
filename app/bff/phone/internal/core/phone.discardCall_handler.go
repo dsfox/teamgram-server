@@ -31,6 +31,9 @@ func (c *PhoneCore) PhoneDiscardCall(in *mtproto.TLPhoneDiscardCall) (*mtproto.U
 		Reason:   in.GetReason(),
 		Duration: mtproto.MakeFlagsInt32(in.GetDuration()),
 		Video:    in.GetVideo(),
+		// Both phones send their stats log (saveCallDebug): the one thing
+		// that says whether the media went direct or through the relay.
+		NeedDebug: true,
 	}).To_PhoneCall()
 
 	// The other phone has to stop ringing, or stop talking: the device in the

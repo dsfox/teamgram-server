@@ -91,3 +91,13 @@ func (s *Service) RecallRinging(ctx context.Context, userId, permAuthKeyId int64
 	c.MD.UserId = userId
 	c.RecallRinging(permAuthKeyId)
 }
+
+// PhoneSaveCallDebug takes a phone's stats log after a call (#14): the route
+// the media took is what is kept, as one log line.
+//
+// phone.saveCallDebug peer:InputPhoneCall debug:DataJSON = Bool;
+func (s *Service) PhoneSaveCallDebug(ctx context.Context, request *mtproto.TLPhoneSaveCallDebug) (*mtproto.Bool, error) {
+	c := core.New(ctx, s.svcCtx)
+	c.Logger.Debugf("phone.saveCallDebug - metadata: {%s}, call: %d, %d bytes", c.MD, request.GetPeer().GetId(), len(request.GetDebug().GetData()))
+	return c.PhoneSaveCallDebug(request)
+}
