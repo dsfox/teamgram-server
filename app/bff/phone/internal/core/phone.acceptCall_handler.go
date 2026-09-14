@@ -35,6 +35,7 @@ func (c *PhoneCore) PhoneAcceptCall(in *mtproto.TLPhoneAcceptCall) (*mtproto.Pho
 		ParticipantId: call.Participant,
 		GB:            call.GB,
 		Protocol:      in.GetProtocol(),
+		Video:         call.Video,
 	}).To_PhoneCall()
 
 	// The caller is waiting on g_b to finish the exchange.

@@ -51,6 +51,10 @@ func (c *PhoneCore) PhoneConfirmCall(in *mtproto.TLPhoneConfirmCall) (*mtproto.P
 		Protocol:       in.GetProtocol(),
 		Connections:    connections,
 		StartDate:      int32(now.Unix()),
+		// What the caller asked for, on every object the caller is shown:
+		// Android reads the flag back from here and ran a video call as
+		// voice while it was missing.
+		Video: call.Video,
 	}).To_PhoneCall()
 
 	c.tell(call.Participant, call.ParticipantKey, call.ParticipantServer, c.updatesFor(active, now))

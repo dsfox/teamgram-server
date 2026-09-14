@@ -45,8 +45,12 @@ func TestACallFromRingToHangUp(t *testing.T) {
 	s.sync.pushes = nil
 
 	// alice calls bob: bob rings, alice gets the waiting call back.
+	// A video call: the flag has to ride every object the caller is shown
+	// afterwards. Android reads it back from the accepted and the confirmed
+	// call and ran a video call as voice when it was missing there; iOS keeps
+	// its own note from the request and never noticed.
 	reply, err := s.as(alice).PhoneRequestCall(&mtproto.TLPhoneRequestCall{
-		UserId: inputUser(bob), RandomId: 7, GAHash: []byte("g_a_hash"), Protocol: protocol(),
+		UserId: inputUser(bob), RandomId: 7, GAHash: []byte("g_a_hash"), Protocol: protocol(), Video: true,
 	})
 	if err != nil {
 		t.Fatalf("cannot place the call: %v", err)
@@ -97,6 +101,9 @@ func TestACallFromRingToHangUp(t *testing.T) {
 	if accepted.GetPredicateName() != mtproto.Predicate_phoneCallAccepted || !bytes.Equal(accepted.GetGB(), []byte("g_b")) {
 		t.Fatalf("alice was sent %s with g_b %q", accepted.GetPredicateName(), accepted.GetGB())
 	}
+	if !accepted.GetVideo() || !accepting.GetPhoneCall().GetVideo() || !rang.GetVideo() || !waiting.GetVideo() {
+		t.Errorf("the video flag was dropped somewhere: accepted=%v accepting=%v rang=%v waiting=%v", accepted.GetVideo(), accepting.GetPhoneCall().GetVideo(), rang.GetVideo(), waiting.GetVideo())
+	}
 	// From here on the two devices in the call are known, and what they
 	// trade goes to them by key: a push by user looks the session up in the
 	// status list, which a phone woken a moment ago is not yet in - seen live,
@@ -126,6 +133,9 @@ func TestACallFromRingToHangUp(t *testing.T) {
 		// with none configured the call fails after a timeout - seen live.
 		if !pc.GetP2PAllowed() {
 			t.Errorf("%s does not allow p2p, so the phones would never try a direct path", who)
+		}
+		if !pc.GetVideo() {
+			t.Errorf("%s dropped the video flag; Android runs the call as voice then", who)
 		}
 		conns := pc.GetConnections()
 		if len(conns) != 2 || !conns[0].GetStun() || !conns[1].GetTurn() {
