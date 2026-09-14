@@ -92,6 +92,18 @@ func (c *PhoneCore) ring(userId int64, pc *mtproto.PhoneCall, now time.Time) {
 	c.tell(userId, 0, "", c.updatesFor(pc, now))
 }
 
+// tellOthers delivers updates to every device of a person but one - the one
+// that just acted, which already knows.
+func (c *PhoneCore) tellOthers(userId, exceptPermAuthKeyId int64, updates *mtproto.Updates) {
+	if _, err := c.svcCtx.SyncClient.SyncUpdatesNotMe(c.ctx, &sync.TLSyncUpdatesNotMe{
+		UserId:        userId,
+		PermAuthKeyId: exceptPermAuthKeyId,
+		Updates:       updates,
+	}); err != nil {
+		c.Logger.Errorf("phone: could not reach the other devices of %d: %v", userId, err)
+	}
+}
+
 // tell delivers updates to a person - to one device of theirs when it is
 // known, which is how everything after the answer travels. The push by person
 // goes through the status list, and a phone woken by the call a moment ago is

@@ -40,6 +40,16 @@ func (c *PhoneCore) PhoneAcceptCall(in *mtproto.TLPhoneAcceptCall) (*mtproto.Pho
 	// The caller is waiting on g_b to finish the exchange.
 	c.tell(call.Admin, call.AdminKey, call.AdminServer, c.updatesFor(accepted, now))
 
+	// Every other phone of the callee was ringing too. A discarded call is
+	// the one thing both clients take cleanly for "answered elsewhere"; a
+	// phoneCallAccepted reaching a phone that still rings goes down iOS's
+	// fallback branch. Busy: this person is on this call, on another device.
+	c.tellOthers(call.Participant, c.MD.PermAuthKeyId, c.updatesFor(mtproto.MakeTLPhoneCallDiscarded(&mtproto.PhoneCall{
+		Id:     call.Id,
+		Reason: mtproto.MakeTLPhoneCallDiscardReasonBusy(nil).To_PhoneCallDiscardReason(),
+		Video:  call.Video,
+	}).To_PhoneCall(), now))
+
 	return mtproto.MakeTLPhonePhoneCall(&mtproto.Phone_PhoneCall{
 		PhoneCall: accepted,
 		Users:     []*mtproto.User{},

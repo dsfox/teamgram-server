@@ -24,6 +24,8 @@ type recordingSync struct {
 	// The rings addressed to one device (sync.updatesMe), kept beside the
 	// pushes so a test can say which device was rung.
 	me []*sync.TLSyncUpdatesMe
+	// And the ones to every device of a person but one (sync.updatesNotMe).
+	notMe []*sync.TLSyncUpdatesNotMe
 }
 
 func (r *recordingSync) SyncPushUpdates(_ context.Context, in *sync.TLSyncPushUpdates) (*mtproto.Void, error) {
@@ -36,8 +38,9 @@ func (r *recordingSync) SyncUpdatesMe(_ context.Context, in *sync.TLSyncUpdatesM
 	r.pushes = append(r.pushes, &sync.TLSyncPushUpdates{UserId: in.GetUserId(), Updates: in.GetUpdates()})
 	return mtproto.EmptyVoid, nil
 }
-func (r *recordingSync) SyncUpdatesNotMe(context.Context, *sync.TLSyncUpdatesNotMe) (*mtproto.Void, error) {
-	panic("not used by the phone service")
+func (r *recordingSync) SyncUpdatesNotMe(_ context.Context, in *sync.TLSyncUpdatesNotMe) (*mtproto.Void, error) {
+	r.notMe = append(r.notMe, in)
+	return mtproto.EmptyVoid, nil
 }
 func (r *recordingSync) SyncPushUpdatesIfNot(context.Context, *sync.TLSyncPushUpdatesIfNot) (*mtproto.Void, error) {
 	panic("not used by the phone service")
