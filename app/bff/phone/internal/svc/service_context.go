@@ -3,6 +3,8 @@ package svc
 import (
 	"context"
 
+	"github.com/teamgram/proto/mtproto"
+
 	"github.com/teamgram/marmota/pkg/net/rpcx"
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/teamgram-server/app/bff/phone/internal/config"
@@ -23,10 +25,12 @@ type Sessions interface {
 	StatusGetUserOnlineSessions(ctx context.Context, in *status.TLStatusGetUserOnlineSessions) (*status.UserSessionEntryList, error)
 }
 
-// Users is where the caller comes from, as the callee sees them: the iPhone
-// shows the name from the push before it has asked the server anything.
+// Users is where the caller comes from, as the callee sees them - the iPhone
+// shows the name from the push before it has asked the server anything - and
+// where "who may connect to me directly" is answered from.
 type Users interface {
 	UserGetMutableUsers(ctx context.Context, in *userpb.TLUserGetMutableUsers) (*userpb.Vector_ImmutableUser, error)
+	UserCheckPrivacy(ctx context.Context, in *userpb.TLUserCheckPrivacy) (*mtproto.Bool, error)
 }
 
 // Ringer wakes the phones that are not connected (#14, Part 5).

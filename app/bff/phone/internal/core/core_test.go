@@ -83,10 +83,20 @@ func (f *fakeSessions) StatusGetUserOnlineSessions(_ context.Context, in *status
 	return out, nil
 }
 
-// fakeUsers knows the three people of the stand by first name.
-type fakeUsers struct{}
+// fakeUsers knows the three people of the stand by first name, and who among
+// them chose to hide their IP (no direct path, relay only).
+type fakeUsers struct {
+	hidesIP map[int64]bool
+}
 
-func (fakeUsers) UserGetMutableUsers(_ context.Context, in *userpb.TLUserGetMutableUsers) (*userpb.Vector_ImmutableUser, error) {
+func (f fakeUsers) UserCheckPrivacy(_ context.Context, in *userpb.TLUserCheckPrivacy) (*mtproto.Bool, error) {
+	if in.GetKeyType() != mtproto.PHONE_P2P {
+		return mtproto.BoolTrue, nil
+	}
+	return mtproto.ToBool(!f.hidesIP[in.GetUserId()]), nil
+}
+
+func (f fakeUsers) UserGetMutableUsers(_ context.Context, in *userpb.TLUserGetMutableUsers) (*userpb.Vector_ImmutableUser, error) {
 	names := map[int64]string{alice: "Alice", bob: "Bob", carol: "Carol"}
 	out := &userpb.Vector_ImmutableUser{}
 	for _, id := range in.GetId() {
@@ -104,6 +114,7 @@ type stand struct {
 	sync     *recordingSync
 	ringer   *recordingRinger
 	sessions *fakeSessions
+	users    *fakeUsers
 	call     *calls.Call
 }
 
@@ -128,15 +139,17 @@ func newStand(t *testing.T) *stand {
 	}).To_PhoneCallProtocol()
 	ringer := &recordingRinger{}
 	sessions := &fakeSessions{permKeys: map[int64][]int64{}}
+	users := &fakeUsers{hidesIP: map[int64]bool{}}
 	return &stand{
 		svcCtx: &svc.ServiceContext{
 			Config:     standConfig(),
 			SyncClient: recorder,
 			Registry:   registry,
 			Sessions:   sessions,
-			Users:      fakeUsers{},
+			Users:      users,
 			Ringer:     ringer,
 		},
+		users:    users,
 		sync:     recorder,
 		ringer:   ringer,
 		sessions: sessions,
