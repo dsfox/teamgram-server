@@ -131,3 +131,21 @@ func TestWithoutASecretNoRelayIsOffered(t *testing.T) {
 		t.Fatalf("relay-only with no secret answered %v", err)
 	}
 }
+
+// An endpoint with no address is not an endpoint: a server installed without
+// CALLS_HOST in its environment reads an empty host out of its config, and a
+// STUN entry with an empty ip would be handed to the phones as it is. Skipped,
+// so such a server offers nothing rather than nonsense.
+func TestAnEndpointWithoutAnAddressIsNotOffered(t *testing.T) {
+	blank := Server{Id: 9, Host: "", HostV6: "", Port: 3478, Stun: true, Turn: true}
+	out, err := Connections([]Server{blank, stunOnly}, true, "secret", time.Hour, when)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out) != 1 || out[0].GetIp() != stunOnly.Host {
+		t.Fatalf("offered %v, expected the one endpoint with an address", out)
+	}
+	if _, err := Connections([]Server{blank}, true, "secret", time.Hour, when); !errors.Is(err, ErrNoRelay) {
+		t.Fatalf("nothing but a blank endpoint answered %v", err)
+	}
+}

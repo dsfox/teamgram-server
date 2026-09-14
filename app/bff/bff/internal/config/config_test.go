@@ -14,6 +14,10 @@ import (
 func TestTheBffConfigHandsOutAStunEndpoint(t *testing.T) {
 	t.Setenv("MYSQL_PASSWORD", "unused-by-this-test")
 	t.Setenv("CALLS_RELAY_SECRET", "a-secret-for-this-test")
+	// The addresses come from the environment, as for a server installed
+	// from the image; the file itself names none.
+	t.Setenv("CALLS_HOST", "203.0.113.10")
+	t.Setenv("CALLS_HOST_V6", "2001:db8::10")
 
 	var c Config
 	if err := conf.Load("../../../../../teamgramd/etc2/bff.yaml", &c, conf.UseEnv()); err != nil {
@@ -31,6 +35,9 @@ func TestTheBffConfigHandsOutAStunEndpoint(t *testing.T) {
 		}
 		if ip := net.ParseIP(s.HostV6); ip == nil || ip.To4() != nil {
 			t.Errorf("server %d: HostV6 %q is not an IPv6 literal", s.Id, s.HostV6)
+		}
+		if s.Host != "203.0.113.10" || s.HostV6 != "2001:db8::10" {
+			t.Errorf("server %d: %q/%q are not the addresses from the environment", s.Id, s.Host, s.HostV6)
 		}
 		if s.Port == 0 {
 			t.Errorf("server %d has no port", s.Id)

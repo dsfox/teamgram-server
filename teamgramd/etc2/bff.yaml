@@ -45,21 +45,25 @@ Code:
 # entries with ids of their own. Both address families on every entry: two
 # phones on carrier IPv6 connect with no NAT in the way at all.
 #
-# RelaySecret mints the short-lived relay credentials (TURN REST) and has to
-# be the value coturn was started with; it comes from the environment, never
-# this file. Empty means no relay is offered at all - STUN alone goes out.
+# The addresses are this machine's, from the environment (CALLS_HOST, the
+# public IPv4; CALLS_HOST_V6, the public IPv6 or empty), like ICE9_ADDRESS:
+# the same file serves every server installed from the image, and an
+# endpoint with no address is not offered at all. RelaySecret mints the
+# short-lived relay credentials (TURN REST) and has to be the value coturn
+# was started with; it comes from the environment too, never this file.
+# Empty means no relay is offered - STUN alone goes out.
 Calls:
   Servers:
     - Id: 1
-      Host: 5.23.53.210
-      HostV6: 2a03:6f01:1:2::4d23
+      Host: ${CALLS_HOST}
+      HostV6: ${CALLS_HOST_V6}
       Port: 3478
       Stun: true
       Turn: false
       Tcp: false
     - Id: 2
-      Host: 5.23.53.210
-      HostV6: 2a03:6f01:1:2::4d23
+      Host: ${CALLS_HOST}
+      HostV6: ${CALLS_HOST_V6}
       Port: 3478
       Stun: false
       Turn: true

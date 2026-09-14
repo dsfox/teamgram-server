@@ -70,6 +70,7 @@ func TurnCredentials(secret string, ttl time.Duration, now time.Time) Credential
 // entirely and only relays remain.
 func Connections(servers []Server, p2pAllowed bool, secret string, ttl time.Duration, now time.Time) ([]*mtproto.PhoneConnection, error) {
 	out := make([]*mtproto.PhoneConnection, 0, len(servers))
+	servers = withAnAddress(servers)
 
 	if p2pAllowed {
 		for _, s := range servers {
@@ -96,6 +97,19 @@ func Connections(servers []Server, p2pAllowed bool, secret string, ttl time.Dura
 		return nil, ErrNoRelay
 	}
 	return out, nil
+}
+
+// withAnAddress drops endpoints that have none: a server installed without
+// CALLS_HOST in its environment reads an empty host out of its config, and an
+// entry with an empty ip handed to the phones is worse than no entry.
+func withAnAddress(servers []Server) []Server {
+	out := servers[:0:0]
+	for _, s := range servers {
+		if s.Host != "" || s.HostV6 != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func descriptor(s Server, stun, turn bool, creds Credentials) *mtproto.PhoneConnection {
