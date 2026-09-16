@@ -1,4 +1,4 @@
-FROM golang:1.23.0 AS builder
+FROM golang:1.26.5 AS builder
 # The context is the repository root, because the server is built against our
 # fork of the schema module - the four MLS methods cannot be added from outside
 # it - and go.mod reaches it as ../proto. Copying only the server would fail with
