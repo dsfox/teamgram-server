@@ -17,7 +17,6 @@ import (
 	"github.com/sideshow/apns2"
 	"github.com/sideshow/apns2/payload"
 	"github.com/sideshow/apns2/token"
-	"golang.org/x/net/http2"
 	"net/http"
 	"os"
 	"time"
@@ -94,8 +93,12 @@ func New(c Config) (*Sender, error) {
 // connection lives. Without it the goroutine count grows: connections to Apple
 // pile up and are never closed (sideshow/apns2#238).
 func newClient(tok *token.Token) *apns2.Client {
-	transport := &http2.Transport{
-		ReadIdleTimeout: apns2.ReadIdleTimeout,
+	// The standard transport speaks HTTP/2 itself since Go 1.24; the ping
+	// that finds a dead idle connection is SendPingTimeout there, the same
+	// thing apns2's ReadIdleTimeout was on the old x/net transport.
+	transport := &http.Transport{
+		ForceAttemptHTTP2: true,
+		HTTP2:             &http.HTTP2Config{SendPingTimeout: apns2.ReadIdleTimeout},
 	}
 
 	client := apns2.NewTokenClient(tok)

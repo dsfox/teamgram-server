@@ -56,7 +56,9 @@ func New(ctx context.Context, c Config) (*Sender, error) {
 		return nil, fmt.Errorf("fcm: cannot read the service account %s: %w", c.ServiceAccountPath, err)
 	}
 
-	creds, err := google.CredentialsFromJSON(ctx, key, scope)
+	// Typed on purpose: the file is ours, and saying it is a service account
+	// key is what keeps a file of another kind from being taken for one.
+	creds, err := google.CredentialsFromJSONWithType(ctx, key, google.ServiceAccount, scope)
 	if err != nil {
 		return nil, fmt.Errorf("fcm: the service account is not usable: %w", err)
 	}
