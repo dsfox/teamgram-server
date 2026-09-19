@@ -6,7 +6,11 @@ import (
 	"github.com/teamgram/proto/mtproto"
 )
 
-func TestPatchBotUsernameFromImmutableAddsUsername(t *testing.T) {
+// users.getFullUser hands the client user.ToUnsafeUser(me) as is, so a bot's
+// username has to survive that conversion: an early ToUnsafeUser returned
+// before assigning it for bots, and the client showed a bot with no @name.
+
+func TestUnsafeUserKeepsBotUsername(t *testing.T) {
 	me := mtproto.MakeTLImmutableUser(&mtproto.ImmutableUser{
 		User: mtproto.MakeTLUserData(&mtproto.UserData{
 			Id:        1,
@@ -26,18 +30,16 @@ func TestPatchBotUsernameFromImmutableAddsUsername(t *testing.T) {
 	}).To_ImmutableUser()
 
 	unsafeBot := bot.ToUnsafeUser(me)
-	if unsafeBot.GetUsername() != nil {
-		t.Fatalf("expected bot username to be missing before patch, got %q", unsafeBot.GetUsername().GetValue())
-	}
-
-	patchBotUsernameFromImmutable(unsafeBot, bot)
 
 	if unsafeBot.GetUsername().GetValue() != "bot_username" {
-		t.Fatalf("expected patched username %q, got %v", "bot_username", unsafeBot.GetUsername())
+		t.Fatalf("expected username %q, got %v", "bot_username", unsafeBot.GetUsername())
+	}
+	if len(unsafeBot.GetUsernames()) != 0 {
+		t.Fatalf("expected no usernames vector for a single username, got %d", len(unsafeBot.GetUsernames()))
 	}
 }
 
-func TestPatchBotUsernameFromImmutableAddsUsernamesVector(t *testing.T) {
+func TestUnsafeUserKeepsBotUsernamesVector(t *testing.T) {
 	me := mtproto.MakeTLImmutableUser(&mtproto.ImmutableUser{
 		User: mtproto.MakeTLUserData(&mtproto.UserData{
 			Id:        1,
@@ -62,8 +64,6 @@ func TestPatchBotUsernameFromImmutableAddsUsernamesVector(t *testing.T) {
 
 	unsafeBot := bot.ToUnsafeUser(me)
 
-	patchBotUsernameFromImmutable(unsafeBot, bot)
-
 	if unsafeBot.GetUsername() != nil {
 		t.Fatalf("expected username field to stay nil when usernames vector exists, got %q", unsafeBot.GetUsername().GetValue())
 	}
@@ -71,6 +71,6 @@ func TestPatchBotUsernameFromImmutableAddsUsernamesVector(t *testing.T) {
 		t.Fatalf("expected 2 usernames, got %d", len(unsafeBot.GetUsernames()))
 	}
 	if unsafeBot.GetUsernames()[0].GetUsername() != "bot_one" {
-		t.Fatalf("expected first username to be patched, got %q", unsafeBot.GetUsernames()[0].GetUsername())
+		t.Fatalf("expected first username kept, got %q", unsafeBot.GetUsernames()[0].GetUsername())
 	}
 }

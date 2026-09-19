@@ -353,7 +353,6 @@ func (c *UsersCore) UsersGetFullUser(in *mtproto.TLUsersGetFullUser) (*mtproto.U
 	}
 
 	unsafeUser := user.ToUnsafeUser(me)
-	patchBotUsernameFromImmutable(unsafeUser, user)
 
 	return mtproto.MakeTLUsersUserFull(&mtproto.Users_UserFull{
 		FullUser: userFull,

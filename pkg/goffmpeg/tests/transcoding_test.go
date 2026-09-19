@@ -2,6 +2,7 @@ package test
 
 import (
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"sync"
 	"testing"
@@ -10,6 +11,15 @@ import (
 
 	"github.com/teamgram/teamgram-server/pkg/goffmpeg/transcoder"
 )
+
+// The transcoding tests read real media at /tmp/ffmpeg/<format>, which nothing
+// in the repository creates; without it the transcoder panics on a nil Mediafile.
+func requireFixture(t *testing.T, path string) {
+	t.Helper()
+	if _, err := os.Stat(path); err != nil {
+		t.Skipf("fixture is missing: %v", err)
+	}
+}
 
 func TestInputNotFound(t *testing.T) {
 
@@ -25,6 +35,7 @@ func TestInputNotFound(t *testing.T) {
 func TestTranscoding3GP(t *testing.T) {
 
 	var inputPath = "/tmp/ffmpeg/3gp"
+	requireFixture(t, inputPath)
 	var outputPath = "/tmp/ffmpeg/out/3gp.mp4"
 
 	trans := new(transcoder.Transcoder)
@@ -40,6 +51,7 @@ func TestTranscoding3GP(t *testing.T) {
 func TestTranscodingAVI(t *testing.T) {
 
 	var inputPath = "/tmp/ffmpeg/avi"
+	requireFixture(t, inputPath)
 	var outputPath = "/tmp/ffmpeg/out/avi.mp4"
 
 	trans := new(transcoder.Transcoder)
@@ -55,6 +67,7 @@ func TestTranscodingAVI(t *testing.T) {
 func TestTranscodingFLV(t *testing.T) {
 
 	var inputPath = "/tmp/ffmpeg/flv"
+	requireFixture(t, inputPath)
 	var outputPath = "/tmp/ffmpeg/out/flv.mp4"
 
 	trans := new(transcoder.Transcoder)
@@ -70,6 +83,7 @@ func TestTranscodingFLV(t *testing.T) {
 func TestTranscodingMKV(t *testing.T) {
 
 	var inputPath = "/tmp/ffmpeg/mkv"
+	requireFixture(t, inputPath)
 	var outputPath = "/tmp/ffmpeg/out/mkv.mp4"
 
 	trans := new(transcoder.Transcoder)
@@ -85,6 +99,7 @@ func TestTranscodingMKV(t *testing.T) {
 func TestTranscodingMOV(t *testing.T) {
 
 	var inputPath = "/tmp/ffmpeg/mov"
+	requireFixture(t, inputPath)
 	var outputPath = "/tmp/ffmpeg/out/mov.mp4"
 
 	trans := new(transcoder.Transcoder)
@@ -100,6 +115,7 @@ func TestTranscodingMOV(t *testing.T) {
 func TestTranscodingMPEG(t *testing.T) {
 
 	var inputPath = "/tmp/ffmpeg/mpeg"
+	requireFixture(t, inputPath)
 	var outputPath = "/tmp/ffmpeg/out/mpeg.mp4"
 
 	trans := new(transcoder.Transcoder)
@@ -115,6 +131,7 @@ func TestTranscodingMPEG(t *testing.T) {
 func TestTranscodingOGG(t *testing.T) {
 
 	var inputPath = "/tmp/ffmpeg/ogg"
+	requireFixture(t, inputPath)
 	var outputPath = "/tmp/ffmpeg/out/ogg.mp4"
 
 	trans := new(transcoder.Transcoder)
@@ -130,6 +147,7 @@ func TestTranscodingOGG(t *testing.T) {
 func TestTranscodingWAV(t *testing.T) {
 
 	var inputPath = "/tmp/ffmpeg/wav"
+	requireFixture(t, inputPath)
 	var outputPath = "/tmp/ffmpeg/out/wav.mp4"
 
 	trans := new(transcoder.Transcoder)
@@ -145,6 +163,7 @@ func TestTranscodingWAV(t *testing.T) {
 func TestTranscodingWEBM(t *testing.T) {
 
 	var inputPath = "/tmp/ffmpeg/webm"
+	requireFixture(t, inputPath)
 	var outputPath = "/tmp/ffmpeg/out/webm.mp4"
 
 	trans := new(transcoder.Transcoder)
@@ -160,6 +179,7 @@ func TestTranscodingWEBM(t *testing.T) {
 func TestTranscodingWMV(t *testing.T) {
 
 	var inputPath = "/tmp/ffmpeg/wmv"
+	requireFixture(t, inputPath)
 	var outputPath = "/tmp/ffmpeg/out/wmv.mp4"
 
 	trans := new(transcoder.Transcoder)
@@ -175,6 +195,7 @@ func TestTranscodingWMV(t *testing.T) {
 func TestTranscodingProgress(t *testing.T) {
 
 	var inputPath = "/tmp/ffmpeg/avi"
+	requireFixture(t, inputPath)
 	var outputPath = "/tmp/ffmpeg/out/avi.mp4"
 
 	trans := new(transcoder.Transcoder)
@@ -194,6 +215,7 @@ func TestTranscodingProgress(t *testing.T) {
 }
 
 func TestTranscodePipes(t *testing.T) {
+	requireFixture(t, "/tmp/ffmpeg/mkv")
 	c1 := exec.Command("cat", "/tmp/ffmpeg/mkv")
 
 	trans := new(transcoder.Transcoder)
