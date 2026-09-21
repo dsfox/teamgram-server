@@ -126,6 +126,12 @@ func (h *handler) push(w http.ResponseWriter, r *http.Request) {
 	}
 	h.say(server.Id, p, status)
 	if status != http.StatusOK {
+		if status == http.StatusBadGateway {
+			// A 502 with no reason is a day of guessing: the wrong topic, a
+			// bad token and Apple being down all look the same from the
+			// server. The error names which; it never carries the body.
+			log.Printf("push %s %s %s not delivered: %v", server.Id, p.Platform, KeyHash(p.Token)[:8], err)
+		}
 		http.Error(w, http.StatusText(status), status)
 		return
 	}

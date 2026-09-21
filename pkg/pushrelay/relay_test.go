@@ -1,11 +1,15 @@
 package pushrelay
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -100,6 +104,19 @@ func TestADeadTokenIs410(t *testing.T) {
 	srv, key := relayForTest(t, &recording{err: apns.ErrTokenGone}, &recording{})
 	if code := push(t, srv.URL, key, `{"platform":"apns","token":"tok"}`); code != 410 {
 		t.Fatalf("got %d", code)
+	}
+}
+
+func TestAFailedDeliveryIs502AndTheLogSaysWhy(t *testing.T) {
+	var captured bytes.Buffer
+	log.SetOutput(&captured)
+	defer log.SetOutput(os.Stderr)
+	srv, key := relayForTest(t, &recording{err: errors.New("apns: rejected 400 TopicDisallowed")}, &recording{})
+	if code := push(t, srv.URL, key, `{"platform":"apns","token":"tok"}`); code != 502 {
+		t.Fatalf("got %d", code)
+	}
+	if !strings.Contains(captured.String(), "TopicDisallowed") {
+		t.Fatalf("the log does not say why: %q", captured.String())
 	}
 }
 
