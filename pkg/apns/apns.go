@@ -19,6 +19,7 @@ import (
 	"github.com/sideshow/apns2/token"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"time"
 )
 
@@ -68,6 +69,10 @@ type Sender struct {
 	topic      string
 	production *apns2.Client
 	sandbox    *apns2.Client
+
+	// delivered is set by the first notification Apple accepts, which proves
+	// the topic is right; see the DeviceTokenNotForTopic case in Send.
+	delivered atomic.Bool
 }
 
 func New(c Config) (*Sender, error) {
@@ -214,6 +219,15 @@ func (s *Sender) Send(ctx context.Context, deviceToken string, n Notify) error {
 	switch res.Reason {
 	case apns2.ReasonUnregistered, apns2.ReasonBadDeviceToken, apns2.ReasonExpiredToken:
 		return ErrTokenGone
+	case apns2.ReasonDeviceTokenNotForTopic:
+		// A token of another app - a simulator build runs as upstream's
+		// bundle id - never works here, and kept it fails every message and
+		// the alert with it (#203). But a wrong topic gets the same answer for
+		// every token, so it is judged foreign only once this sender has
+		// delivered something; until then it stays an error that says so.
+		if s.delivered.Load() {
+			return ErrTokenGone
+		}
 	case reasonBadEnvironmentKey, apns2.ReasonBadCertificateEnvironment:
 		env := "production"
 		if n.Sandbox {
@@ -227,5 +241,6 @@ func (s *Sender) Send(ctx context.Context, deviceToken string, n Notify) error {
 		return fmt.Errorf("apns: rejected %d %s", res.StatusCode, res.Reason)
 	}
 
+	s.delivered.Store(true)
 	return nil
 }
