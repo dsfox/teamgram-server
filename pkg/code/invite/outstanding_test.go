@@ -2,6 +2,7 @@ package invite
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -30,6 +31,35 @@ func TestOutstandingListsWhatWasMinted(t *testing.T) {
 	if live[0].Invitation.Phone != "+79055767127" {
 		t.Fatalf("expected the number it was minted for, got %q", live[0].Invitation.Phone)
 	}
+}
+
+// A list that could not be read is not an empty list. Treating it as one wrote
+// the new code over it, and every other live invitation dropped out of --list
+// while it still opened the door.
+func TestAnUnreadableListIsNotOverwritten(t *testing.T) {
+	ctx := context.Background()
+	store := &mapStore{data: map[string]string{}}
+	_ = RememberOutstanding(ctx, store, "111111")
+
+	flaky := &listUnreadable{mapStore: store}
+	if err := RememberOutstanding(ctx, flaky, "222222"); err == nil {
+		t.Fatal("remembering a code over a list nobody could read reported success")
+	}
+	codes, _ := outstandingCodes(ctx, store)
+	if len(codes) != 1 || codes[0] != "111111" {
+		t.Fatalf("the list was written over: %v", codes)
+	}
+}
+
+type listUnreadable struct {
+	*mapStore
+}
+
+func (s *listUnreadable) GetCtx(ctx context.Context, key string) (string, error) {
+	if key == outstandingKey {
+		return "", errors.New("the store is not answering")
+	}
+	return s.mapStore.GetCtx(ctx, key)
 }
 
 // A used invitation disappears from the store and must disappear from the list,

@@ -125,11 +125,6 @@ func (d *Directory) Publish(ctx context.Context, userId, authKeyId int64, packag
 	// say which identity it has sends nothing here, so without this line every
 	// one of its publishes fails and it is left unreachable - the very thing
 	// this naming was added to prevent.
-	// A name is bytes, possibly none, but never absent: the column it goes in
-	// is NOT NULL, and a nil slice reaches MySQL as NULL. A client too old to
-	// say which identity it has sends nothing here, so without this line every
-	// one of its publishes fails and it is left unreachable - the very thing
-	// this naming was added to prevent.
 	if name == nil {
 		name = []byte{}
 	}
@@ -142,7 +137,9 @@ func (d *Directory) Publish(ctx context.Context, userId, authKeyId int64, packag
 	// A failure here is logged and stepped over: it would cost the device a
 	// fortnight of being counted, and refusing the publish over it would cost
 	// it the packages it came to leave.
-	_ = d.store.Seen(ctx, userId, authKeyId, now)
+	if err := d.store.Seen(ctx, userId, authKeyId, now); err != nil {
+		logx.WithContext(ctx).Errorf("mls: cannot note that %d/%d is still here: %v", userId, authKeyId, err)
+	}
 
 	// First, whatever this device published under an identity it no longer
 	// has. The count below is what decides whether it needs to make more, and

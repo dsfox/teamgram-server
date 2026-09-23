@@ -76,7 +76,9 @@ func (n *Notifier) ringDevice(ctx context.Context, d devices.DeviceDO, calleeId,
 		logx.WithContext(ctx).Infof("call push sent: user %d, device %d", d.UserId, d.AuthKeyId)
 	case errors.Is(err, pushrelay.ErrTokenGone):
 		logx.WithContext(ctx).Infof("token is gone, forgetting it: user %d, device %d", d.UserId, d.AuthKeyId)
-		_ = n.registry.Forget(ctx, d.TokenType, d.Token)
+		if err := n.registry.Forget(ctx, d.TokenType, d.Token); err != nil {
+			logx.WithContext(ctx).Errorf("cannot forget the gone token of user %d, device %d: %v", d.UserId, d.AuthKeyId, err)
+		}
 	default:
 		logx.WithContext(ctx).Errorf("call push not sent: user %d - %v", d.UserId, err)
 	}

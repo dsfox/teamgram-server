@@ -44,3 +44,21 @@ func TestTheFileStoreKeepsHashesAndBlocks(t *testing.T) {
 		t.Fatalf("the next day: %v", err)
 	}
 }
+
+// A day's count that cannot be read is not a count of zero. The limit is what
+// keeps one address from minting servers without end, and it used to read a
+// failed query as "nobody registered today" and let the registration through.
+func TestAnUnreadableCountRefusesTheRegistration(t *testing.T) {
+	store, err := OpenSQLite(filepath.Join(t.TempDir(), "relay.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
+	if _, err := store.db.Exec(`insert into registrations (ip, day, count) values (?, ?, ?)`,
+		"1.2.3.4", day(now), "not a number"); err != nil {
+		t.Fatal(err)
+	}
+	if id, _, err := store.Register("1.2.3.4", "x", now); err == nil {
+		t.Fatalf("registered %q on a count nobody could read", id)
+	}
+}

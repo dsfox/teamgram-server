@@ -231,14 +231,18 @@ func (n *Notifier) sendPush(ctx context.Context, d devices.DeviceDO, badge int, 
 		push.Platform = pushrelay.PlatformApple
 		// A badge-only push names no message, so there is nothing to seal.
 		if d.Secret != "" && !silent {
-			push.P, _ = pushrelay.SealForApple(d.Secret, n.title, n.body, badge, peerType, peerId, msgId)
+			if push.P, err = pushrelay.SealForApple(d.Secret, n.title, n.body, badge, peerType, peerId, msgId); err != nil {
+				logx.WithContext(ctx).Errorf("cannot seal the envelope for user %d, device %d, sending the alert alone: %v", d.UserId, d.AuthKeyId, err)
+			}
 		}
 	case d.IsFCM():
 		push.Platform = pushrelay.PlatformGoogle
 		// Android's app draws its own badge from what it fetches; the
 		// envelope wakes it, and a badge-only one names nobody.
 		if d.Secret != "" {
-			push.P, _ = pushrelay.SealForGoogle(d.Secret, badge, fromId)
+			if push.P, err = pushrelay.SealForGoogle(d.Secret, badge, fromId); err != nil {
+				logx.WithContext(ctx).Errorf("cannot seal the envelope for user %d, device %d, sending the wake-up alone: %v", d.UserId, d.AuthKeyId, err)
+			}
 		}
 	default:
 		// A device of a kind we cannot reach. Not an error, and not worth a
@@ -252,7 +256,9 @@ func (n *Notifier) sendPush(ctx context.Context, d devices.DeviceDO, badge int, 
 		logx.WithContext(ctx).Infof("notification sent: user %d, device %d", d.UserId, d.AuthKeyId)
 	case errors.Is(err, pushrelay.ErrTokenGone):
 		logx.WithContext(ctx).Infof("token is gone, forgetting it: user %d, device %d", d.UserId, d.AuthKeyId)
-		_ = n.registry.Forget(ctx, d.TokenType, d.Token)
+		if err := n.registry.Forget(ctx, d.TokenType, d.Token); err != nil {
+			logx.WithContext(ctx).Errorf("cannot forget the gone token of user %d, device %d: %v", d.UserId, d.AuthKeyId, err)
+		}
 	default:
 		logx.WithContext(ctx).Errorf("notification not sent: user %d - %v", d.UserId, err)
 	}

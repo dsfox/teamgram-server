@@ -3,7 +3,10 @@ package mls
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 // The whole point: starting a conversation with somebody takes one package for
@@ -98,6 +101,35 @@ func TestASilentDeviceDoesNotBlockTheOthers(t *testing.T) {
 	if len(claimed) != 1 || claimed[0].AuthKeyId != 100 {
 		t.Fatalf("the device that had something should have answered alone, got %v", claimed)
 	}
+}
+
+// Recording that a device is still here may fail without costing the device its
+// packages - but not in silence. The comment beside the call promised a log
+// line and there was none, so a store refusing every Seen would have aged every
+// device out of the count a fortnight later with nothing anywhere saying why.
+func TestAFailedSeenIsSteppedOverAndSaid(t *testing.T) {
+	var buf strings.Builder
+	logx.Reset()
+	logx.SetWriter(logx.NewWriter(&buf))
+	logx.SetLevel(logx.InfoLevel)
+	defer logx.Reset()
+
+	d := New(&seenRefused{mapStore: &mapStore{}})
+	added, err := d.Publish(context.Background(), 7, 100, [][]byte{[]byte("a")}, nil, []byte("me"), 1)
+	if err != nil || added != 1 {
+		t.Fatalf("a failed Seen cost the publish: added %d (%v)", added, err)
+	}
+	if !strings.Contains(buf.String(), "7/100") || !strings.Contains(buf.String(), "the table is gone") {
+		t.Fatalf("the failure left no trace: %q", buf.String())
+	}
+}
+
+type seenRefused struct {
+	*mapStore
+}
+
+func (s *seenRefused) Seen(context.Context, int64, int64, int32) error {
+	return errors.New("the table is gone")
 }
 
 // A client that retries after a lost answer must not be punished for it, and

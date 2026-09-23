@@ -129,7 +129,10 @@ func (s *SQLiteStore) Register(ip, address string, now time.Time) (string, strin
 	}
 	defer tx.Rollback()
 	var count int
-	_ = tx.QueryRow(`select count from registrations where ip = ? and day = ?`, ip, day(now)).Scan(&count)
+	err = tx.QueryRow(`select count from registrations where ip = ? and day = ?`, ip, day(now)).Scan(&count)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return "", "", fmt.Errorf("pushrelay: cannot read today's registrations: %w", err)
+	}
 	if count >= RegistrationsPerDay {
 		return "", "", ErrTooMany
 	}

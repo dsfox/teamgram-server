@@ -17,7 +17,10 @@ const outstandingKey = invitationPrefix + "outstanding"
 
 // RememberOutstanding notes that a code exists, so it can be listed later.
 func RememberOutstanding(ctx context.Context, store Store, code string) error {
-	codes, _ := outstandingCodes(ctx, store)
+	codes, err := outstandingCodes(ctx, store)
+	if err != nil {
+		return err
+	}
 	for _, existing := range codes {
 		if existing == code {
 			return nil
