@@ -6,7 +6,10 @@
 # place them into an image next to ffmpeg.
 #
 # Build: docker build -f Dockerfile.prebuilt -t ice9-server .
-FROM ubuntu:latest
+# Named rather than latest, which is whatever Ubuntu released last: the next
+# build would change the system under the server without a word. 26.04 is
+# what the stand and production were running on 23 September 2026.
+FROM ubuntu:26.04
 # ffmpeg is mandatory: it produces the first video frame used as a thumbnail.
 # Without a thumbnail the client does not show the video in a chat — verified in
 # practice, it looks like "the message never arrived". We install only it and

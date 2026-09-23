@@ -1,4 +1,4 @@
-FROM golang:1.26.5 AS builder
+FROM golang:1.26.8 AS builder
 # The context is the repository root, because the server is built against our
 # fork of the schema module - the four MLS methods cannot be added from outside
 # it - and go.mod reaches it as ../proto. Copying only the server would fail with
@@ -32,7 +32,10 @@ RUN python3 /tmp/rewrite-configs.py teamgramd/etc2 /tmp/etc2 \
  && rm -rf teamgramd/etc2 \
  && mv /tmp/etc2 teamgramd/etc2
 
-FROM ubuntu:latest
+# Named rather than latest, which is whatever Ubuntu released last: the next
+# build would change the system under the server without a word. 26.04 is
+# what the stand and production were running on 23 September 2026.
+FROM ubuntu:26.04
 # ffmpeg is mandatory: it produces the first video frame used as a thumbnail.
 # Without a thumbnail the client does not show the video in a chat — verified in
 # practice, it looks like "the message never arrived". We install only it and
