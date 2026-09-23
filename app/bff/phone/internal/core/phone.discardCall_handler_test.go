@@ -30,8 +30,14 @@ func TestAFinishedCallLeavesItsEntryInTheChat(t *testing.T) {
 		t.Fatalf("%d messages were sent, expected the call's one", len(s.msg.sent))
 	}
 	sent := s.msg.sent[0]
-	if sent.GetUserId() != alice || sent.GetAuthKeyId() != deviceOf(alice) || sent.GetPeerType() != mtproto.PEER_USER || sent.GetPeerId() != bob {
-		t.Fatalf("sent as %d (device %d) to peer %d/%d, expected from the caller to the callee", sent.GetUserId(), sent.GetAuthKeyId(), sent.GetPeerType(), sent.GetPeerId())
+	if sent.GetUserId() != alice || sent.GetPeerType() != mtproto.PEER_USER || sent.GetPeerId() != bob {
+		t.Fatalf("sent as %d to peer %d/%d, expected from the caller to the callee", sent.GetUserId(), sent.GetPeerType(), sent.GetPeerId())
+	}
+	// Sent in the name of no device: the caller's copy goes to all their
+	// devices but the sending one, and the phone that placed the call would
+	// be that one, never told of its own entry (#186).
+	if sent.GetAuthKeyId() != 0 {
+		t.Fatalf("sent in the name of device %d, which is then the one device of the caller never told", sent.GetAuthKeyId())
 	}
 	if len(sent.GetMessage()) != 1 {
 		t.Fatalf("%d messages in the send", len(sent.GetMessage()))

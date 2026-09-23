@@ -37,6 +37,11 @@ func (c *PhoneCore) PhoneDiscardCall(in *mtproto.TLPhoneDiscardCall) (*mtproto.U
 	if !spoken && c.MD.UserId == call.Admin {
 		reason = mtproto.MakeTLPhoneCallDiscardReasonMissed(nil).To_PhoneCallDiscardReason()
 	}
+	// A ring nobody heard looks exactly like a call nobody answered, unless it
+	// is said: no device of the callee ever reported ringing (#186).
+	if !spoken && call.Received.IsZero() {
+		c.Logger.Infof("phone: call %d never reached any device of %d", call.Id, call.Participant)
+	}
 	var duration *wrapperspb.Int32Value
 	if spoken {
 		duration = mtproto.MakeFlagsInt32(in.GetDuration())
@@ -71,9 +76,13 @@ func (c *PhoneCore) leaveEntry(call *calls.Call, reason *mtproto.PhoneCallDiscar
 	if duration != nil {
 		seconds = duration.GetValue()
 	}
+	// In the name of no device. A message sent from a device reaches all the
+	// sender's other devices and that one by its own reply - and nobody sends
+	// this reply on, so the phone that placed the call never heard of its own
+	// entry (#186).
 	_, err := c.svcCtx.Msg.MsgSendMessageV2(c.ctx, &msgpb.TLMsgSendMessageV2{
 		UserId:    call.Admin,
-		AuthKeyId: call.AdminKey,
+		AuthKeyId: 0,
 		PeerType:  mtproto.PEER_USER,
 		PeerId:    call.Participant,
 		Message: []*msgpb.OutboxMessage{

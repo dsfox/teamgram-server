@@ -112,6 +112,8 @@ type MainAuthWrapper struct {
 	// Whether the client itself said it went away. Kept apart from the expiry
 	// clock: traffic must not silently overrule what the client stated.
 	reportedOffline bool
+	// When the away record was last written; see stayReachable.
+	awayPublished int64
 	clientType           int
 	nextNotifyId         int64
 	nextPushId           int64
@@ -249,12 +251,12 @@ func (m *MainAuthWrapper) setOnline(ctx context.Context) {
 	// used to put the session back online. Marking it offline once therefore
 	// lasted about a second, and a message arriving after that still woke
 	// nobody. The client's own word outlives its traffic: until it says it is
-	// back, it is away.
+	// back, it is away - and away is still reachable.
 	if m.reportedOffline {
+		m.stayReachable(ctx)
 		return
 	}
 
-	//setOnlineTTL(s.AuthUserId, s.authKeyId, getServerID(), s.Layer, 60)
 	date := time.Now().Unix()
 	if (m.onlineExpired == 0 || date > m.onlineExpired-kPingAddTimeout) && m.AuthUserId != 0 {
 		logx.WithContext(ctx).Infof("DEBUG] setOnline - set online: (date: %d, userId:%d, onlineExpired: %d, authKeyId: %d)",
@@ -263,27 +265,50 @@ func (m *MainAuthWrapper) setOnline(ctx context.Context) {
 			m.onlineExpired,
 			m.authKeyId)
 
-		// s.setOnlineTTL(s.AuthUserId, s.authKeyId, getServerID(), s.Layer, 60)
-		_, _ = m.cb.Dao.StatusClient.StatusSetSessionOnline(
-			ctx,
-			&status.TLStatusSetSessionOnline{
-				UserId: m.AuthUserId,
-				Session: &status.SessionEntry{
-					UserId:        m.AuthUserId,
-					AuthKeyId:     m.authKeyId,
-					Gateway:       m.cb.Dao.MyServerId,
-					Expired:       date + 60,
-					Layer:         m.Layer(),
-					PermAuthKeyId: m.authKeyId,
-					Client:        m.ClientName(),
-				},
-			})
+		m.publishStatus(ctx, date+60)
 		m.onlineExpired = date + 60
-	} else {
-		//logx.WithContext(ctx).Infof("DEBUG] setOnline - not set online: (date: %d, onlineExpired: %d, AuthUserId: %d)",
-		//	date,
-		//	s.onlineExpired,
-		//	s.AuthUserId)
+	}
+}
+
+// awayRefresh is how often, in seconds, an away session writes its record
+// again: well inside the ninety seconds the record lives (StatusExpire in
+// status.yaml), so a connection that is still up never drops out of reach.
+const awayRefresh = 30
+
+// stayReachable keeps an away session in the status list with an expiry that
+// has already passed. The two halves of the record answer two questions. Its
+// presence says the connection can be reached, and every delivery goes by
+// that - a call has to ring on an Android in the background, whose push only
+// wakes a network that is already up (#186). Its expiry says whether the app
+// is on screen, and the notification path goes by that, so the phone is
+// still notified.
+func (m *MainAuthWrapper) stayReachable(ctx context.Context) {
+	date := time.Now().Unix()
+	if m.AuthUserId == 0 || date < m.awayPublished+awayRefresh {
+		return
+	}
+	m.publishStatus(ctx, date)
+	m.awayPublished = date
+}
+
+// publishStatus writes this session's record: reachable through this server,
+// on screen until expired.
+func (m *MainAuthWrapper) publishStatus(ctx context.Context, expired int64) {
+	if _, err := m.cb.Dao.StatusClient.StatusSetSessionOnline(
+		ctx,
+		&status.TLStatusSetSessionOnline{
+			UserId: m.AuthUserId,
+			Session: &status.SessionEntry{
+				UserId:        m.AuthUserId,
+				AuthKeyId:     m.authKeyId,
+				Gateway:       m.cb.Dao.MyServerId,
+				Expired:       expired,
+				Layer:         m.Layer(),
+				PermAuthKeyId: m.authKeyId,
+				Client:        m.ClientName(),
+			},
+		}); err != nil {
+		logx.WithContext(ctx).Errorf("status: cannot record session %d of %d: %v", m.authKeyId, m.AuthUserId, err)
 	}
 }
 
@@ -303,6 +328,7 @@ func (m *MainAuthWrapper) trySetOffline(ctx context.Context) {
 		})
 	}
 	m.onlineExpired = 0
+	m.awayPublished = 0
 }
 
 // setOnlineNow undoes setOfflineNow: the client is back on screen.
@@ -315,20 +341,18 @@ func (m *MainAuthWrapper) setOnlineNow(ctx context.Context) {
 	m.setOnline(ctx)
 }
 
-// setOfflineNow drops the online record without asking whether some other
-// session of the same key still looks alive. trySetOffline is right when a
-// connection merely dropped - another one may still be serving the app - but
-// when the client itself reports going offline there is nothing to weigh.
+// setOfflineNow takes the client at its word that it went to the background:
+// the app is no longer on screen, whatever its pings say, and the record says
+// so at once - but the connection is still there, and so is the record
+// (stayReachable).
 func (m *MainAuthWrapper) setOfflineNow(ctx context.Context) {
 	m.reportedOffline = true
 	if m.AuthUserId > 0 {
 		logx.WithContext(ctx).Infof("offline on client request: %s", m)
-		_, _ = m.cb.Dao.StatusClient.StatusSetSessionOffline(ctx, &status.TLStatusSetSessionOffline{
-			UserId:    m.AuthUserId,
-			AuthKeyId: m.authKeyId,
-		})
 	}
 	m.onlineExpired = 0
+	m.awayPublished = 0
+	m.stayReachable(ctx)
 }
 
 func (m *MainAuthWrapper) delOnline(ctx context.Context) {
@@ -341,6 +365,7 @@ func (m *MainAuthWrapper) delOnline(ctx context.Context) {
 		})
 	}
 	m.onlineExpired = 0
+	m.awayPublished = 0
 }
 
 func (m *MainAuthWrapper) getNextNotifyId() (id int64) {

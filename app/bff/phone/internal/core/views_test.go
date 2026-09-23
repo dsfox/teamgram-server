@@ -70,3 +70,66 @@ func TestEveryViewOfACallCarriesWhatThePhonesRead(t *testing.T) {
 		t.Errorf("discarded: %v", ended)
 	}
 }
+
+// Both phones run versions[0] of the confirmed call's protocol, so the server
+// has to put one version there that both can run. It used to hand back the
+// caller's whole list: an Android caller's begins with "10.0.0", which its own
+// text comparison reads as older than 2.7.7, and it switched its camera off
+// on every video call it placed (#186).
+func TestTheConfirmedCallCarriesOneVersionBothPhonesRun(t *testing.T) {
+	android := []string{"10.0.0", "11.0.0", "12.0.0", "13.0.0", "2.4.4", "2.7.7", "5.0.0", "7.0.0", "8.0.0", "9.0.0"}
+	iphone := []string{"9.0.0", "8.0.0", "7.0.0", "5.0.0", "2.7.7", "14.0.0", "13.0.0", "12.0.0", "11.0.0", "10.0.0"}
+	cases := []struct {
+		name           string
+		caller, callee []string
+		want           []string
+	}{
+		{"android calls an iphone", android, iphone, []string{"9.0.0"}},
+		{"iphone calls an android", iphone, android, []string{"9.0.0"}},
+		{"iphone calls an iphone", iphone, iphone, []string{"9.0.0"}},
+		{"nothing shared under the ceiling", []string{"10.0.0", "11.0.0"}, []string{"12.0.0", "11.0.0"}, []string{"11.0.0"}},
+		{"nothing shared at all", []string{"4.0.0"}, []string{"5.0.0"}, []string{"4.0.0"}},
+	}
+	for _, tc := range cases {
+		s := newStand(t)
+		s.call.Protocol = versions(tc.caller)
+		if err := s.call.Receive(bob, nowish()); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.call.Accept(bob, []byte("g_b"), nowish()); err != nil {
+			t.Fatal(err)
+		}
+		s.call.ParticipantProtocol = versions(tc.callee)
+		if err := s.call.Confirm(alice, []byte("g_a"), 0x0badcafe, nowish()); err != nil {
+			t.Fatal(err)
+		}
+		active := s.as(alice).active(s.call, nil, true, nowish())
+		if got := active.GetProtocol().GetLibraryVersions(); !equalStrings(got, tc.want) {
+			t.Errorf("%s: the confirmed call carries %v, want %v", tc.name, got, tc.want)
+		}
+		if got := s.call.Protocol.GetLibraryVersions(); !equalStrings(got, tc.caller) {
+			t.Errorf("%s: the caller's own protocol was changed to %v", tc.name, got)
+		}
+		if p := active.GetProtocol(); p.GetMinLayer() != 65 || p.GetMaxLayer() != 92 || !p.GetUdpP2P() || !p.GetUdpReflector() {
+			t.Errorf("%s: the rest of the protocol was lost: %v", tc.name, p)
+		}
+	}
+}
+
+func versions(list []string) *mtproto.PhoneCallProtocol {
+	return mtproto.MakeTLPhoneCallProtocol(&mtproto.PhoneCallProtocol{
+		UdpP2P: true, UdpReflector: true, MinLayer: 65, MaxLayer: 92, LibraryVersions: list,
+	}).To_PhoneCallProtocol()
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

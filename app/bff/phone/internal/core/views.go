@@ -1,10 +1,14 @@
 package core
 
 import (
+	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/pkg/calls"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -62,15 +66,70 @@ func (c *PhoneCore) accepted(call *calls.Call) *mtproto.PhoneCall {
 }
 
 // active is the confirmed call: g_a and the fingerprint the two compare, the
-// connections to try, and whether a direct path is allowed.
+// connections to try, whether a direct path is allowed, and the one version
+// of the call library both phones will run.
 func (c *PhoneCore) active(call *calls.Call, connections []*mtproto.PhoneConnection, p2pAllowed bool, now time.Time) *mtproto.PhoneCall {
 	pc := view(call)
+	pc.Protocol = agreedProtocol(call.Protocol, call.ParticipantProtocol)
 	pc.GAOrB = call.GA
 	pc.KeyFingerprint = call.KeyFingerprint
 	pc.Connections = connections
 	pc.P2PAllowed = p2pAllowed
 	pc.StartDate = int32(now.Unix())
 	return mtproto.MakeTLPhoneCall(pc).To_PhoneCall()
+}
+
+// newestAgreedVersion is the newest call library version the server settles
+// on. Both phones run versions[0] of the confirmed call's protocol, whatever
+// else they list. Every call measured on real phones so far ran 9.0.0, and
+// Android compares the agreed version with "2.7.7" as text, so from "10.0.0"
+// up it reads as older and the caller's camera is switched off (#186).
+// Raising this is a step to measure on phones, not a default.
+const newestAgreedVersion = "9.0.0"
+
+// agreedProtocol is the caller's protocol with one version left in it: the
+// newest both phones list, not above newestAgreedVersion when they share one
+// that is not. Phones that share nothing get the caller's list as it was.
+func agreedProtocol(caller, callee *mtproto.PhoneCallProtocol) *mtproto.PhoneCallProtocol {
+	newest, newestAllowed := "", ""
+	for _, version := range caller.GetLibraryVersions() {
+		if !slices.Contains(callee.GetLibraryVersions(), version) {
+			continue
+		}
+		if newest == "" || newerVersion(version, newest) {
+			newest = version
+		}
+		if !newerVersion(version, newestAgreedVersion) && (newestAllowed == "" || newerVersion(version, newestAllowed)) {
+			newestAllowed = version
+		}
+	}
+	if newestAllowed != "" {
+		newest = newestAllowed
+	}
+	if newest == "" {
+		return caller
+	}
+	agreed := proto.Clone(caller).(*mtproto.PhoneCallProtocol)
+	agreed.LibraryVersions = []string{newest}
+	return agreed
+}
+
+// newerVersion compares dotted versions by number, "10.0.0" after "9.0.0".
+func newerVersion(a, b string) bool {
+	left, right := strings.Split(a, "."), strings.Split(b, ".")
+	for i := 0; i < max(len(left), len(right)); i++ {
+		var x, y int
+		if i < len(left) {
+			x, _ = strconv.Atoi(left[i])
+		}
+		if i < len(right) {
+			y, _ = strconv.Atoi(right[i])
+		}
+		if x != y {
+			return x > y
+		}
+	}
+	return false
 }
 
 // discarded is the call over: the reason, the duration once it was spoken,
