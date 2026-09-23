@@ -91,3 +91,41 @@ func TestADeviceThatComesBackIsRungOnceOverItsSession(t *testing.T) {
 		t.Error("device 502 is not marked as rung")
 	}
 }
+
+// A phone that showed the call and then lost its connection never heard the
+// hang-up, and goes on ringing - and an Android in that state turns every
+// other call away as busy and places none (#186). When it comes back and asks
+// for its difference, it is told the call is over: once, by its own session
+// server, and only if the call rang it.
+func TestAPhoneThatComesBackAfterTheHangUpIsTold(t *testing.T) {
+	s := newStand(t)
+	s.call.MarkRung(501)
+	if _, err := s.as(alice).PhoneDiscardCall(&mtproto.TLPhoneDiscardCall{
+		Peer: s.peer(), Reason: mtproto.MakeTLPhoneCallDiscardReasonHangup(nil).To_PhoneCallDiscardReason(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	before := len(s.sync.me)
+
+	s.as(bob).RecallRinging(777)
+	if len(s.sync.me) != before {
+		t.Fatalf("a device the call never rang was told of its end: %v", s.sync.me[before:])
+	}
+
+	s.as(bob).RecallRinging(501)
+	s.as(bob).RecallRinging(501)
+	told := s.sync.me[before:]
+	if len(told) != 1 || told[0].GetUserId() != bob || told[0].GetPermAuthKeyId() != 501 {
+		t.Fatalf("the phone that was rung got %v, want one push to device 501", told)
+	}
+	if told[0].GetServerId().GetValue() != serverOf(bob) {
+		t.Fatalf("the end does not name the device's session server: %v", told[0].GetServerId())
+	}
+	updates := told[0].GetUpdates()
+	if updates.GetPredicateName() != mtproto.Predicate_updateShort {
+		t.Fatalf("the end went as %s", updates.GetPredicateName())
+	}
+	if pc := updates.GetUpdate().GetPhoneCall(); pc.GetPredicateName() != mtproto.Predicate_phoneCallDiscarded || pc.GetId() != s.call.Id {
+		t.Fatalf("device 501 was sent %s for call %d", pc.GetPredicateName(), pc.GetId())
+	}
+}

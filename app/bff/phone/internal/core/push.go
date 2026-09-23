@@ -71,6 +71,7 @@ func (c *PhoneCore) updateFor(call *calls.Call) *mtproto.Update {
 // device: an Android told twice answers "busy".
 func (c *PhoneCore) RecallRinging(permAuthKeyId int64) {
 	now := time.Now()
+	c.tellEnded(permAuthKeyId, now)
 	call, first := c.svcCtx.Registry.RingOnce(c.MD.UserId, permAuthKeyId, now)
 	if !first {
 		return
@@ -82,4 +83,18 @@ func (c *PhoneCore) RecallRinging(permAuthKeyId int64) {
 		Update: c.updateFor(call),
 		Date:   int32(now.Unix()),
 	}).To_Updates())
+}
+
+// tellEnded tells a device that comes back about the calls that rang it and
+// ended while it was away. An Android shows an incoming call and drops its
+// connection a moment later, so the hang-up reached nobody: the call goes on
+// ringing on that phone, and a phone that believes it is in a call turns
+// every other one away as busy and places none (#186). Told again, a phone
+// that did hear the hang-up has nothing to stop.
+func (c *PhoneCore) tellEnded(permAuthKeyId int64, now time.Time) {
+	for _, call := range c.svcCtx.Registry.EndedFor(c.MD.UserId, permAuthKeyId, now) {
+		c.Logger.Infof("phone: device %d of %d came back after call %d ended, telling it", permAuthKeyId, c.MD.UserId, call.Id)
+		missed := mtproto.MakeTLPhoneCallDiscardReasonMissed(nil).To_PhoneCallDiscardReason()
+		c.tell(c.MD.UserId, permAuthKeyId, c.MD.ServerId, c.updatesFor(c.discarded(call, missed, nil), now))
+	}
 }

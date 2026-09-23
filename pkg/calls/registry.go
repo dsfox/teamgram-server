@@ -29,11 +29,23 @@ var (
 type Registry struct {
 	mu    sync.Mutex
 	calls map[int64]*Call
+	// Calls over within the last RingingFor, kept only to be told to the
+	// phones they rang (EndedFor). Nobody can find one by id or be busy
+	// with it.
+	ended map[int64]*endedCall
+}
+
+// endedCall is a call that is over and which of the phones it rang have
+// been told so on their return.
+type endedCall struct {
+	call *Call
+	at   time.Time
+	told map[int64]struct{}
 }
 
 // NewRegistry makes an empty one.
 func NewRegistry() *Registry {
-	return &Registry{calls: make(map[int64]*Call)}
+	return &Registry{calls: make(map[int64]*Call), ended: make(map[int64]*endedCall)}
 }
 
 // Place starts a call, unless either of the two is already in one.
@@ -120,10 +132,41 @@ func (r *Registry) sweep(now time.Time) int {
 	for id, c := range r.calls {
 		if c.State == Discarded || c.Expired(now) {
 			delete(r.calls, id)
+			r.ended[id] = &endedCall{call: c, at: now, told: make(map[int64]struct{})}
 			gone++
 		}
 	}
+	for id, e := range r.ended {
+		if now.After(e.at.Add(RingingFor)) {
+			delete(r.ended, id)
+		}
+	}
 	return gone
+}
+
+// EndedFor is the calls that rang this device of this person and are over,
+// each handed out once. An Android shows an incoming call and drops its
+// connection a moment later, so the hang-up reaches nobody: the phone goes on
+// ringing, and a phone that believes it is in a call turns every other one
+// away as busy and places none (#186). What a device that was away asks when
+// it comes back, beside RingOnce.
+func (r *Registry) EndedFor(userId, permAuthKeyId int64, now time.Time) []*Call {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.sweep(now)
+
+	var list []*Call
+	for _, e := range r.ended {
+		if e.call.Participant != userId || !e.call.WasRung(permAuthKeyId) {
+			continue
+		}
+		if _, told := e.told[permAuthKeyId]; told {
+			continue
+		}
+		e.told[permAuthKeyId] = struct{}{}
+		list = append(list, e.call)
+	}
+	return list
 }
 
 func (c *Call) involves(user int64) bool {
