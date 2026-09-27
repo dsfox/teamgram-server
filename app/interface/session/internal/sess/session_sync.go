@@ -29,9 +29,10 @@ import (
 func (c *session) onSyncData(ctx context.Context, obj mtproto.TLObject) {
 	// for android, obj maybe is nil
 	if obj != nil {
-		logx.WithContext(ctx).Infof("session]]>> - session: %s, syncData: %s", c, obj)
+		// ice9: debug, not info - syncData carries the update itself, names and all.
+		logx.WithContext(ctx).Debugf("session]]>> - session: %s, syncData: %s", c, obj)
 	} else {
-		logx.WithContext(ctx).Infof("session]]>> - session: %s, syncData: nil", c)
+		logx.WithContext(ctx).Debugf("session]]>> - session: %s, syncData: nil", c)
 	}
 
 	gatewayId := c.getGatewayId()

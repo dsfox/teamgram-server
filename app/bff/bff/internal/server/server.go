@@ -53,6 +53,7 @@ import (
 	usernames_helper "github.com/teamgram/teamgram-server/app/bff/usernames"
 	users_helper "github.com/teamgram/teamgram-server/app/bff/users"
 	webbrowserhelper "github.com/teamgram/teamgram-server/app/bff/webbrowser"
+	"github.com/teamgram/teamgram-server/pkg/quietlog"
 
 	"github.com/zeromicro/go-zero/core/conf"
 	"github.com/zeromicro/go-zero/core/logx"
@@ -75,6 +76,8 @@ func (s *Server) Initialize() error {
 	conf.MustLoad(*configFile, &c, conf.UseEnv())
 
 	logx.Infov(c)
+	// ice9: no phone numbers or names in the logs of failed calls (pkg/quietlog).
+	quietlog.KeepPersonalDataOut()
 	// ctx := svc.NewServiceContext(c)
 	// s.grpcSrv = grpc.New(ctx, c.RpcServerConf)
 

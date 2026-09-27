@@ -271,7 +271,9 @@ func (c *SyncCore) pushUpdatesToSession(syncType SyncType, userId, permAuthKeyId
 			}
 		}
 
-		c.Logger.Debugf("serverIdKeyIdList - #%v", serverIdKeyIdList)
+		// ice9: info, because deploy/check-health.py counts it against the
+		// deliveries handed over, and production logs at info.
+		c.Logger.Infof("serverIdKeyIdList - #%v", serverIdKeyIdList)
 		for serverId, keyIdList := range serverIdKeyIdList {
 			for _, keyId := range keyIdList {
 				// log.Debugf("serverIdKeyIdList - #%v", serverIdKeyIdList)

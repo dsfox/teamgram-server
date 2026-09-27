@@ -13,7 +13,11 @@ Every service also gets a DevServer: pprof and metrics on its own port. Claims
 about where the time goes should come from a profile, not from a duration field
 in a log line.
 
-Usage: python3 deploy/etc/rewrite-configs.py <source> <output> [--telemetry host:port]
+--production writes what the live server runs: logs at info, and no request
+bodies from go-zero's stat interceptor, which logs every call's content at info
+- sign-in numbers and whole address books among them. The stand keeps debug.
+
+Usage: python3 deploy/etc/rewrite-configs.py <source> <output> [--telemetry host:port] [--production]
 """
 import re
 import sys
@@ -98,6 +102,18 @@ def dev_server_block(text: str) -> str:
             f"  EnablePprof: true\n")
 
 
+LOG_LEVEL = re.compile(r"^(?P<indent>[ ]+)Level:[ ]*\w+[ ]*$", re.M)
+
+
+def production(text: str) -> str:
+    text = LOG_LEVEL.sub(lambda m: f"{m.group('indent')}Level: info", text)
+    # An RPC server is one whose ListenOn sits at the top level; the HTTP
+    # server keeps its own settings under Http.
+    if re.search(r"^ListenOn:", text, re.M) and "Middlewares:" not in text:
+        text = text.rstrip("\n") + "\n\nMiddlewares:\n  Stat: false\n"
+    return text
+
+
 def telemetry_block(name: str, endpoint: str) -> str:
     return (f"Telemetry:\n"
             f"  Name: {name}\n"
@@ -150,13 +166,16 @@ def rewrite(text: str, telemetry: str = "") -> str:
     return text
 
 
-def main(source: Path, target: Path, telemetry: str = ""):
+def main(source: Path, target: Path, telemetry: str = "", live: bool = False):
     target.mkdir(parents=True, exist_ok=True)
     for path in sorted(source.glob("*.yaml")):
         result = rewrite(path.read_text(), telemetry)
+        if live:
+            result = production(result)
         (target / path.name).write_text(result)
         print(f"[config] {path.name}")
-    print(f"[config] done: {len(list(source.glob('*.yaml')))} files")
+    print(f"[config] done: {len(list(source.glob('*.yaml')))} files"
+          + (" for production" if live else ""))
 
 
 if __name__ == "__main__":
@@ -166,6 +185,9 @@ if __name__ == "__main__":
         index = args.index("--telemetry")
         collector = args[index + 1]
         del args[index:index + 2]
+    live = "--production" in args
+    if live:
+        args.remove("--production")
     if len(args) != 2:
         raise SystemExit(__doc__)
-    main(Path(args[0]), Path(args[1]), collector)
+    main(Path(args[0]), Path(args[1]), collector, live)
