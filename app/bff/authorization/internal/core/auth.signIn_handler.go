@@ -118,8 +118,8 @@ func (c *AuthorizationCore) AuthSignIn(in *mtproto.TLAuthSignIn) (*mtproto.Auth_
 		if c.MD.Layer >= 104 {
 			//  not register, next step: auth.singIn
 			return mtproto.MakeTLAuthAuthorizationSignUpRequired(&mtproto.Auth_Authorization{
-				// TermsOfService: model.MakeTermOfService(),
-				TermsOfService: nil,
+				// ice9: the terms a new number agrees to (terms.go).
+				TermsOfService: SignUpTerms(),
 			}).To_Auth_Authorization(), nil
 		} else {
 			c.Logger.Errorf("auth.signIn - not registered, next step auth.signIn, %v", err)
