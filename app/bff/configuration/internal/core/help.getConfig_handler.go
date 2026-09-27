@@ -79,8 +79,8 @@ func loadConfig() {
 // dc_options is the list a client keeps and dials from then on: whatever stands
 // here replaces what the phone was seeded with. So a server put up by somebody
 // else must say its own address, or its people would be handed ours and quietly
-// end up on our machine. ICE9_ADDRESS is how install.sh says it, and our own
-// deploy says it the same way rather than editing config.json.
+// end up on our machine. ICE9_ADDRESS is how install.sh says it. Our own
+// production does not set it and serves the address written in config.json.
 //
 // Empty means "use the file", which is what the local stand does.
 func adoptAddressFromEnvironment() {

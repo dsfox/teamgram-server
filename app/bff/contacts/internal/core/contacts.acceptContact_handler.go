@@ -37,7 +37,13 @@ func (c *ContactsCore) ContactsAcceptContact(in *mtproto.TLContactsAcceptContact
 		return nil, mtproto.ErrContactIdInvalid
 	}
 
-	contact, _ := users.GetImmutableUser(id.PeerId)
+	// CheckExistUser above says both are there, and each lookup is still
+	// asked: an answer thrown away as `_` is a nil the line after it dereferences.
+	contact, ok := users.GetImmutableUser(id.PeerId)
+	if !ok {
+		c.Logger.Errorf("contacts.acceptContact - %d is not among the users just read", id.PeerId)
+		return nil, mtproto.ErrContactIdInvalid
+	}
 	changeMutual, err := c.svcCtx.Dao.UserClient.UserAddContact(c.ctx, &userpb.TLUserAddContact{
 		UserId:                   c.MD.UserId,
 		AddPhonePrivacyException: mtproto.BoolTrue,
@@ -51,10 +57,18 @@ func (c *ContactsCore) ContactsAcceptContact(in *mtproto.TLContactsAcceptContact
 		return nil, mtproto.ErrContactIdInvalid
 	}
 
-	cUser, _ := users.GetUnsafeUser(c.MD.UserId, id.PeerId)
+	cUser, err := users.GetUnsafeUser(c.MD.UserId, id.PeerId)
+	if err != nil {
+		c.Logger.Errorf("contacts.acceptContact - cannot read %d back: %v", id.PeerId, err)
+		return nil, mtproto.ErrContactIdInvalid
+	}
 	cUser.Contact = true
 	cUser.MutualContact = mtproto.FromBool(changeMutual)
-	me, _ := users.GetUnsafeUserSelf(c.MD.UserId)
+	me, err := users.GetUnsafeUserSelf(c.MD.UserId)
+	if err != nil {
+		c.Logger.Errorf("contacts.acceptContact - cannot read %d back: %v", c.MD.UserId, err)
+		return nil, mtproto.ErrContactIdInvalid
+	}
 
 	// The bar above the chat should disappear, so tell the client there is
 	// nothing left to offer.
