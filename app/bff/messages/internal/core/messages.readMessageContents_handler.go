@@ -77,14 +77,10 @@ func (c *MessagesCore) MessagesReadMessageContents(in *mtproto.TLMessagesReadMes
 				DialogMessageId: m.DialogMessageId,
 				MediaUnread:     true,
 			})
-		} else if m.GetMessage().GetReactions() != nil {
-			contents = append(contents, &msgpb.ContentMessage{
-				Id:              m.MessageId,
-				SendUserId:      m.SenderUserId,
-				DialogMessageId: m.DialogMessageId,
-				Reaction:        true,
-			})
 		} else {
+			// Reactions are not counted as unread (#18): a message carrying
+			// them has nothing to read here, and taking it for an unread
+			// reaction would count the dialog's unread reactions below zero.
 			c.Logger.Infof("content has readed")
 		}
 	}

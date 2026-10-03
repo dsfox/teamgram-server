@@ -21,6 +21,7 @@ package dao
 import (
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/teamgram-server/app/messenger/msg/internal/dal/dao/mysql_dao"
+	"github.com/teamgram/teamgram-server/pkg/reactions"
 )
 
 type Mysql struct {
@@ -33,6 +34,8 @@ type Mysql struct {
 	*mysql_dao.MessageReadOutboxDAO
 	*mysql_dao.UserPtsUpdatesDAO
 	*sqlx.CommonDAO
+	// Who reacted to what (#18): an edit carries the reactions to each reader.
+	Reactions *reactions.MysqlStore
 }
 
 func NewMysqlDao(db *sqlx.DB, shardingSize int) *Mysql {
@@ -46,5 +49,6 @@ func NewMysqlDao(db *sqlx.DB, shardingSize int) *Mysql {
 		MessageReadOutboxDAO: mysql_dao.NewMessageReadOutboxDAO(db),
 		UserPtsUpdatesDAO:    mysql_dao.NewUserPtsUpdatesDAO(db),
 		CommonDAO:            sqlx.NewCommonDAO(db),
+		Reactions:            reactions.NewMysqlStore(db),
 	}
 }

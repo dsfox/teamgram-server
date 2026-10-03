@@ -45,6 +45,11 @@ func (c *MsgCore) MsgSendMessageV2(in *msg.TLMsgSendMessageV2) (*mtproto.Updates
 	}
 
 	for _, outBox := range outBoxList {
+		// A message being sent has nobody's reactions yet. A forward is made
+		// from the original as the forwarder reads it, reactions and all (#18).
+		if m := outBox.GetMessage(); m != nil {
+			m.Reactions = nil
+		}
 		if outBox.GetScheduleDate().GetValue() != 0 {
 			c.Logger.Errorf("msg.sendMessageV2 blocked, License key from https://teamgram.net required to unlock enterprise features.")
 			return nil, mtproto.ErrEnterpriseIsBlocked

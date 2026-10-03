@@ -260,13 +260,6 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, md *metadat
 			Users:    []*mtproto.User{},
 		}).To_Messages_Messages(), nil
 
-	// reactions
-	case "TLMessagesGetAvailableReactions":
-		return mtproto.MakeTLMessagesAvailableReactions(&mtproto.Messages_AvailableReactions{
-			Hash:      0,
-			Reactions: []*mtproto.AvailableReaction{},
-		}).To_Messages_AvailableReactions(), nil
-
 	// folders
 	case "TLMessagesGetDialogFiltersEFD48C89":
 		// The newer form answers with a wrapper, not a bare vector. Handing back
@@ -385,9 +378,8 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, md *metadat
 	// holds nothing, and answering "unchanged" contradicts that. It then asks
 	// again, and again - 431 repeats of a single method were measured on a live
 	// phone, which is what made sending a photo take a minute.
-	case "TLMessagesGetTopReactions",
-		"TLMessagesGetRecentReactions",
-		"TLMessagesGetDefaultTagReactions":
+	// The reaction sets themselves are answered by app/bff/reactions (#18).
+	case "TLMessagesGetDefaultTagReactions":
 		return mtproto.MakeTLMessagesReactions(&mtproto.Messages_Reactions{
 			Hash:      0,
 			Reactions: []*mtproto.Reaction{},
@@ -583,16 +575,6 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, md *metadat
 
 	case "TLMessagesGetScheduledHistory":
 		return mtproto.MakeTLMessagesMessagesNotModified(nil).To_Messages_Messages(), nil
-
-	// Reactions are not implemented (#18), but the client asks for them as it
-	// scrolls, and an error there stalls the queue the messages come down.
-	case "TLMessagesGetMessagesReactions":
-		return mtproto.MakeTLUpdates(&mtproto.Updates{
-			Updates: []*mtproto.Update{},
-			Users:   []*mtproto.User{},
-			Chats:   []*mtproto.Chat{},
-			Date:    int32(time.Now().Unix()),
-		}).To_Updates(), nil
 
 	// Quick replies are not implemented, and the client asks as it opens a chat.
 	// An empty list is an answer; an error is a retry - the lesson getStickerSet

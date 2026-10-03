@@ -45,6 +45,7 @@ import (
 	premium_helper "github.com/teamgram/teamgram-server/app/bff/premium"
 	privacysettingshelper "github.com/teamgram/teamgram-server/app/bff/privacysettings"
 	qrcode_helper "github.com/teamgram/teamgram-server/app/bff/qrcode"
+	reactions_helper "github.com/teamgram/teamgram-server/app/bff/reactions"
 	savedmessagedialogshelper "github.com/teamgram/teamgram-server/app/bff/savedmessagedialogs"
 	sponsoredmessages_helper "github.com/teamgram/teamgram-server/app/bff/sponsoredmessages"
 	tos_helper "github.com/teamgram/teamgram-server/app/bff/tos"
@@ -336,6 +337,20 @@ func (s *Server) Initialize() error {
 				nil,
 				nil,
 				nil))
+
+		// reactions_helper: reactions to messages (#18). The pictures it
+		// offers are put where the file service reads them as it starts.
+		mtproto.RegisterRPCReactionsServer(
+			grpcServer,
+			reactions_helper.New(reactions_helper.Config{
+				RpcServerConf: c.RpcServerConf,
+				Mysql:         c.Mysql,
+				MessageClient: c.BizServiceClient,
+				ChatClient:    c.BizServiceClient,
+				UserClient:    c.BizServiceClient,
+				IdgenClient:   c.IdgenClient,
+				SyncClient:    c.SyncClient,
+			}))
 
 		// nsfw_helper
 		mtproto.RegisterRPCNsfwServer(

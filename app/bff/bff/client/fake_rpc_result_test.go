@@ -61,8 +61,6 @@ func TestStubAnswersEncode(t *testing.T) {
 func stubRequests() []mtproto.TLObject {
 	return []mtproto.TLObject{
 		&mtproto.TLMessagesReportReadMetrics{},
-		&mtproto.TLMessagesGetTopReactions{},
-		&mtproto.TLMessagesGetRecentReactions{},
 		&mtproto.TLMessagesGetDefaultTagReactions{},
 		&mtproto.TLAccountGetDefaultEmojiStatuses{},
 		&mtproto.TLAccountGetRecentEmojiStatuses{},
@@ -107,7 +105,6 @@ func stubRequests() []mtproto.TLObject {
 		&mtproto.TLMessagesGetEmojiStickerGroups{},
 		&mtproto.TLMessagesGetSuggestedDialogFilters{},
 		&mtproto.TLMessagesGetScheduledHistory{},
-		&mtproto.TLMessagesGetMessagesReactions{},
 		&mtproto.TLMessagesGetQuickReplies{},
 		&mtproto.TLMessagesGetSavedReactionTags{},
 		&mtproto.TLMessagesGetStickerSet{},
@@ -136,7 +133,6 @@ func stubRequests() []mtproto.TLObject {
 		&mtproto.TLMessagesGetFeaturedStickers{},
 		&mtproto.TLMessagesGetFeaturedEmojiStickers{},
 		&mtproto.TLMessagesGetScheduledMessages{},
-		&mtproto.TLMessagesGetAvailableReactions{},
 		&mtproto.TLMessagesGetDialogFiltersEFD48C89{},
 		&mtproto.TLMessagesGetDialogFiltersF19ED96D{},
 		&mtproto.TLMessagesGetSavedGifs{},

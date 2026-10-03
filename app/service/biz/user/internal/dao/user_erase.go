@@ -37,6 +37,8 @@ var erasableByUser = []struct {
 	{"message_read_outbox", "user_id"},
 	{"dialog_filters", "user_id"},
 	{"hash_tags", "user_id"},
+	// Their reactions to other people's messages, kept in the open (#18).
+	{"message_reactions", "user_id"},
 
 	// The address book they uploaded, and their place in other people's.
 	{"imported_contacts", "user_id"},

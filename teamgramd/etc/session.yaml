@@ -86,7 +86,7 @@ BFFProxyClients:
     #"/mtproto.RPCLangpack": "bff.bff"
     "/mtproto.RPCAutoDownload": "bff.bff"
     #"/mtproto.RPCMessageThreads": "bff.bff"
-    #"/mtproto.RPCReactions": "bff.bff"
+    "/mtproto.RPCReactions": "bff.bff"
     "/mtproto.RPCMessages": "bff.bff"
     "/mtproto.RPCNotification": "bff.bff"
     "/mtproto.RPCUsers": "bff.bff"

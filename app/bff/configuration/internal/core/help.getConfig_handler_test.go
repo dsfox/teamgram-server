@@ -1,9 +1,11 @@
 package core
 
 import (
+	"os"
 	"testing"
 
 	"github.com/teamgram/proto/mtproto"
+	"github.com/zeromicro/go-zero/core/jsonx"
 )
 
 // Which language a phone is offered before anybody chooses one. The rule lives
@@ -104,5 +106,25 @@ func TestTheFileDecidesWhenNobodySaysOtherwise(t *testing.T) {
 		if len(options) != 1 || options[0].GetIpAddress() != "5.23.53.210" {
 			t.Errorf("ICE9_ADDRESS=%q changed the address the file gave", address)
 		}
+	}
+}
+
+// iOS takes the reaction a double tap gives from reactions_default, and has
+// none without it (#18). Read from the file the image ships.
+func TestTheShippedConfigNamesTheDefaultReaction(t *testing.T) {
+	data, err := os.ReadFile("../../../../../teamgramd/bin/config.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var shipped mtproto.TLConfig
+	if err = jsonx.Unmarshal(data, &shipped); err != nil {
+		t.Fatal(err)
+	}
+	reaction := shipped.GetReactionsDefault()
+	if reaction.GetPredicateName() != mtproto.Predicate_reactionEmoji || reaction.GetEmoticon() != "👍" {
+		t.Fatalf("the default reaction is %v, want 👍", reaction)
+	}
+	if err = shipped.Encode(mtproto.NewEncodeBuf(1024), 214); err != nil {
+		t.Fatalf("the config does not encode with it: %v", err)
 	}
 }

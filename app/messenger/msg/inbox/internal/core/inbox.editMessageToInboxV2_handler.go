@@ -24,6 +24,7 @@ import (
 	"github.com/teamgram/teamgram-server/app/messenger/msg/inbox/inbox"
 	"github.com/teamgram/teamgram-server/app/messenger/msg/internal/dal/dataobject"
 	"github.com/teamgram/teamgram-server/app/messenger/sync/sync"
+	"github.com/teamgram/teamgram-server/pkg/reactions"
 
 	"github.com/zeromicro/go-zero/core/jsonx"
 )
@@ -33,7 +34,7 @@ import (
 func (c *InboxCore) InboxEditMessageToInboxV2(in *inbox.TLInboxEditMessageToInboxV2) (*mtproto.Void, error) {
 	if in.Out {
 		var (
-			mData, _ = jsonx.Marshal(in.NewMessage.Message)
+			mData, _ = jsonx.Marshal(reactions.Stored(in.NewMessage.Message))
 		)
 
 		if _, err := c.svcCtx.Dao.MessagesDAO.UpdateEditMessage(c.ctx, string(mData), in.NewMessage.Message.Message, in.UserId, in.NewMessage.MessageId); err != nil {
@@ -160,6 +161,14 @@ func (c *InboxCore) InboxEditMessageToInboxV2(in *inbox.TLInboxEditMessageToInbo
 		})
 		if tR.Err != nil {
 			return nil, tR.Err
+		}
+
+		// The edit reaches this reader with the reactions as they see them: a
+		// copy without them would take them off the message on their phone (#18).
+		if rows, err := c.svcCtx.Dao.Reactions.Of(c.ctx, in.NewMessage.DialogMessageId); err != nil {
+			c.Logger.Errorf("inbox.editMessageToInboxV2 - reactions of %d: %v", in.NewMessage.DialogMessageId, err)
+		} else {
+			newMessage.Reactions = reactions.OnMessage(rows, in.UserId)
 		}
 
 		var (

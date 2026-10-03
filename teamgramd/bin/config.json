@@ -78,6 +78,10 @@
     },
     "base_lang_pack_version": {
       "value": 0
+    },
+    "reactions_default": {
+      "predicate_name": "reactionEmoji",
+      "emoticon": "\ud83d\udc4d"
     }
   }
 }
