@@ -183,17 +183,17 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, md *metadat
 			Expires: int32(time.Now().Unix() + 3600),
 		}).To_Help_TermsOfServiceUpdate(), nil
 
-	// themes
-	case "TLAccountGetThemes":
-		return mtproto.MakeTLAccountThemes(&mtproto.Account_Themes{
-			Hash:   0,
-			Themes: []*mtproto.Theme{},
-		}).To_Account_Themes(), nil
-	case "TLAccountGetChatThemes":
-		return mtproto.MakeTLAccountThemes(&mtproto.Account_Themes{
-			Hash:   0,
-			Themes: []*mtproto.Theme{},
-		}).To_Account_Themes(), nil
+	// Themes and name colours are answered by app/bff/appearance (#23, #24).
+	// A chat wallpaper of one's own is not offered, and Android clears it each
+	// time a theme is applied: an answer, not the licence refusal that the
+	// alerts count.
+	case "TLMessagesSetChatWallPaper":
+		return mtproto.MakeTLUpdates(&mtproto.Updates{
+			Updates: []*mtproto.Update{},
+			Users:   []*mtproto.User{},
+			Chats:   []*mtproto.Chat{},
+			Date:    int32(time.Now().Unix()),
+		}).To_Updates(), nil
 
 	// stickers
 	case "TLMessagesGetAllStickers":
@@ -406,7 +406,6 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, md *metadat
 
 	case "TLAccountGetDefaultProfilePhotoEmojis",
 		"TLAccountGetDefaultGroupPhotoEmojis",
-		"TLAccountGetDefaultBackgroundEmojis",
 		"TLAccountGetChannelRestrictedStatusEmojis":
 		return mtproto.MakeTLEmojiList(&mtproto.EmojiList{
 			Hash:       0,
@@ -475,9 +474,6 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, md *metadat
 			ConnectedBots: []*mtproto.ConnectedBot{},
 			Users:         []*mtproto.User{},
 		}).To_Account_ConnectedBots(), nil
-
-	case "TLHelpGetPeerColors", "TLHelpGetPeerProfileColors":
-		return mtproto.MakeTLHelpPeerColorsNotModified(nil).To_Help_PeerColors(), nil
 
 	case "TLMessagesGetAttachMenuBots":
 		return mtproto.MakeTLAttachMenuBotsNotModified(nil).To_AttachMenuBots(), nil

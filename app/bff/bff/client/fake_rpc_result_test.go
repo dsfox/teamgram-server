@@ -61,6 +61,7 @@ func TestStubAnswersEncode(t *testing.T) {
 func stubRequests() []mtproto.TLObject {
 	return []mtproto.TLObject{
 		&mtproto.TLMessagesReportReadMetrics{},
+		&mtproto.TLMessagesSetChatWallPaper{},
 		&mtproto.TLMessagesGetDefaultTagReactions{},
 		&mtproto.TLAccountGetDefaultEmojiStatuses{},
 		&mtproto.TLAccountGetRecentEmojiStatuses{},
@@ -68,7 +69,6 @@ func stubRequests() []mtproto.TLObject {
 		&mtproto.TLAccountGetCollectibleEmojiStatuses{},
 		&mtproto.TLAccountGetDefaultProfilePhotoEmojis{},
 		&mtproto.TLAccountGetDefaultGroupPhotoEmojis{},
-		&mtproto.TLAccountGetDefaultBackgroundEmojis{},
 		&mtproto.TLAccountGetChannelRestrictedStatusEmojis{},
 		&mtproto.TLAccountGetReactionsNotifySettings{},
 		&mtproto.TLAccountGetSavedRingtones{},
@@ -95,8 +95,6 @@ func stubRequests() []mtproto.TLObject {
 		&mtproto.TLStoriesGetPinnedStories{},
 		&mtproto.TLStoriesGetAlbums{},
 		&mtproto.TLStoriesGetAllReadPeerStories{},
-		&mtproto.TLHelpGetPeerColors{},
-		&mtproto.TLHelpGetPeerProfileColors{},
 		&mtproto.TLMessagesGetAttachMenuBots{},
 		&mtproto.TLMessagesGetAvailableEffects{},
 		&mtproto.TLMessagesGetEmojiGroups{},
@@ -120,8 +118,6 @@ func stubRequests() []mtproto.TLObject {
 		&mtproto.TLAccountGetPassword{},
 		&mtproto.TLHelpAcceptTermsOfService{},
 		&mtproto.TLHelpGetTermsOfServiceUpdate{},
-		&mtproto.TLAccountGetThemes{},
-		&mtproto.TLAccountGetChatThemes{},
 		&mtproto.TLMessagesGetAllStickers{},
 		&mtproto.TLMessagesGetArchivedStickers{},
 		&mtproto.TLMessagesGetFavedStickers{},

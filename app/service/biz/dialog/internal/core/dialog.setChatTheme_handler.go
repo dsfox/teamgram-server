@@ -19,6 +19,8 @@
 package core
 
 import (
+	"context"
+
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/app/service/biz/dialog/dialog"
@@ -26,25 +28,38 @@ import (
 
 // DialogSetChatTheme
 // dialog.setChatTheme user_id:long peer_type:int peer_id:long theme_emoticon:string = Bool;
+//
+// The theme of a chat between two, written for both of them (#23). Through
+// the dialog cache, as setChatWallpaper writes: getFullUser reads the dialog
+// through it, and a write beside the cache left both phones reading the
+// theme they had before.
 func (c *DialogCore) DialogSetChatTheme(in *dialog.TLDialogSetChatTheme) (*mtproto.Bool, error) {
-	sqlx.TxWrapper(c.ctx, c.svcCtx.Dao.DB, func(tx *sqlx.Tx, result *sqlx.StoreResult) {
-		_, _ = c.svcCtx.Dao.DialogsDAO.UpdateCustomMapTx(
-			tx,
-			map[string]interface{}{
-				"theme_emoticon": in.ThemeEmoticon,
-			},
-			in.UserId,
-			in.PeerType,
-			in.PeerId)
-		_, _ = c.svcCtx.Dao.DialogsDAO.UpdateCustomMapTx(
-			tx,
-			map[string]interface{}{
-				"theme_emoticon": in.ThemeEmoticon,
-			},
-			in.PeerId,
-			in.PeerType,
-			in.UserId)
-	})
+	_, _, err := c.svcCtx.Dao.CachedConn.Exec(
+		c.ctx,
+		func(ctx context.Context, conn *sqlx.DB) (int64, int64, error) {
+			var written int64
+			for _, side := range [][2]int64{{in.UserId, in.PeerId}, {in.PeerId, in.UserId}} {
+				n, err := c.svcCtx.Dao.DialogsDAO.UpdateCustomMap(
+					ctx,
+					map[string]interface{}{
+						"theme_emoticon": in.ThemeEmoticon,
+					},
+					side[0],
+					in.PeerType,
+					side[1])
+				if err != nil {
+					return 0, written, err
+				}
+				written += n
+			}
+			return 0, written, nil
+		},
+		dialog.GetDialogCacheKey(in.UserId, mtproto.MakePeerDialogId(in.PeerType, in.PeerId)),
+		dialog.GetDialogCacheKey(in.PeerId, mtproto.MakePeerDialogId(in.PeerType, in.UserId)))
+	if err != nil {
+		c.Logger.Errorf("dialog.setChatTheme - %v: %v", in, err)
+		return nil, err
+	}
 
 	return mtproto.BoolTrue, nil
 }

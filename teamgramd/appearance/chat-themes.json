@@ -1,0 +1,220 @@
+{
+  "hash": 587937349,
+  "themes": [
+    {
+      "id": 9000001,
+      "emoticon": "🌿",
+      "settings": [
+        {
+          "base_theme": "classic",
+          "accent_color": -14444461,
+          "message_colors": [
+            16448460,
+            15924169
+          ],
+          "wallpaper_colors": [
+            14672544,
+            12245149,
+            14868135,
+            10405776
+          ]
+        },
+        {
+          "base_theme": "tinted",
+          "accent_color": -10179489,
+          "message_colors": [],
+          "wallpaper_colors": [
+            1449237,
+            1517337,
+            1318420,
+            1844762
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9000002,
+      "emoticon": "🌸",
+      "settings": [
+        {
+          "base_theme": "classic",
+          "accent_color": -3252606,
+          "message_colors": [
+            16775644,
+            16512223
+          ],
+          "wallpaper_colors": [
+            15839888,
+            15519636,
+            15184772,
+            15457960
+          ]
+        },
+        {
+          "base_theme": "tinted",
+          "accent_color": -1344335,
+          "message_colors": [],
+          "wallpaper_colors": [
+            2365726,
+            2299676,
+            2824489,
+            2036765
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9000003,
+      "emoticon": "🍇",
+      "settings": [
+        {
+          "base_theme": "classic",
+          "accent_color": -8428605,
+          "message_colors": [
+            12668782
+          ],
+          "wallpaper_colors": [
+            14139881,
+            15252950,
+            13807337,
+            15518600
+          ]
+        },
+        {
+          "base_theme": "tinted",
+          "accent_color": -6127120,
+          "message_colors": [],
+          "wallpaper_colors": [
+            2039081,
+            1315612,
+            2695985,
+            1512219
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9000004,
+      "emoticon": "🐳",
+      "settings": [
+        {
+          "base_theme": "classic",
+          "accent_color": -14380627,
+          "message_colors": [
+            13745435
+          ],
+          "wallpaper_colors": [
+            14137502,
+            15130306,
+            14337454,
+            15064255
+          ]
+        },
+        {
+          "base_theme": "tinted",
+          "accent_color": -12138259,
+          "message_colors": [],
+          "wallpaper_colors": [
+            1450789,
+            923416,
+            1977902,
+            1187615
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9000005,
+      "emoticon": "🍀",
+      "settings": [
+        {
+          "base_theme": "classic",
+          "accent_color": -14050257,
+          "message_colors": [
+            16775881,
+            16641460
+          ],
+          "wallpaper_colors": [
+            15507059,
+            15257733,
+            15640183,
+            15590569
+          ]
+        },
+        {
+          "base_theme": "tinted",
+          "accent_color": -10179489,
+          "message_colors": [],
+          "wallpaper_colors": [
+            1449237,
+            1517337,
+            1318420,
+            1844762
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9000006,
+      "emoticon": "🔮",
+      "settings": [
+        {
+          "base_theme": "classic",
+          "accent_color": -7842636,
+          "message_colors": [
+            16578264,
+            16578486
+          ],
+          "wallpaper_colors": [
+            13349092,
+            15452393,
+            14657745,
+            15583400
+          ]
+        },
+        {
+          "base_theme": "tinted",
+          "accent_color": -6127120,
+          "message_colors": [],
+          "wallpaper_colors": [
+            2039081,
+            1315612,
+            2695985,
+            1512219
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9000007,
+      "emoticon": "🌊",
+      "settings": [
+        {
+          "base_theme": "classic",
+          "accent_color": -13464881,
+          "message_colors": [],
+          "wallpaper_colors": [
+            10206439,
+            12638707,
+            9815019,
+            12309992
+          ]
+        },
+        {
+          "base_theme": "tinted",
+          "accent_color": -14053142,
+          "message_colors": [
+            3366274,
+            3242648
+          ],
+          "wallpaper_colors": [
+            725788,
+            1647408,
+            1251362,
+            1516337
+          ]
+        }
+      ]
+    }
+  ]
+}

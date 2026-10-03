@@ -23,6 +23,7 @@ import (
 	"github.com/zeromicro/go-zero/core/jsonx"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/mr"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 const (
@@ -130,15 +131,21 @@ func makeEmojiStatus(documentId int64, until int32) *mtproto.EmojiStatus {
 	}
 }
 
+// makePeerColor is the colour a user shows, or nil when they chose none.
+// "None" is -1 (sql-patches/15): 0 is red, the first of the clients' seven,
+// and has to reach them as a colour rather than vanish as an empty flag (#24).
 func makePeerColor(color int32, backgroundEmojiId int64) *mtproto.PeerColor {
-	if color == 0 && backgroundEmojiId == 0 {
+	if color < 0 && backgroundEmojiId == 0 {
 		return nil
 	}
 
-	return mtproto.MakeTLPeerColor(&mtproto.PeerColor{
-		Color:                       mtproto.MakeFlagsInt32(color),
+	peerColor := &mtproto.PeerColor{
 		BackgroundEmojiId_FLAGINT64: mtproto.MakeFlagsInt64(backgroundEmojiId),
-	}).To_PeerColor()
+	}
+	if color >= 0 {
+		peerColor.Color = &wrapperspb.Int32Value{Value: color}
+	}
+	return mtproto.MakeTLPeerColor(peerColor).To_PeerColor()
 }
 
 func getUsernames(usernames string) []*mtproto.Username {

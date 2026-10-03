@@ -23,6 +23,7 @@ import (
 
 	"github.com/teamgram/proto/mtproto"
 	account_helper "github.com/teamgram/teamgram-server/app/bff/account"
+	appearance_helper "github.com/teamgram/teamgram-server/app/bff/appearance"
 	authorization_helper "github.com/teamgram/teamgram-server/app/bff/authorization"
 	autodownload_helper "github.com/teamgram/teamgram-server/app/bff/autodownload"
 	"github.com/teamgram/teamgram-server/app/bff/bff/internal/config"
@@ -337,6 +338,18 @@ func (s *Server) Initialize() error {
 				nil,
 				nil,
 				nil))
+
+		// appearance_helper: chat themes and name colours (#23, #24), colours
+		// only - the lists are read from /app/appearance as it starts.
+		appearance := appearance_helper.New(appearance_helper.Config{
+			RpcServerConf: c.RpcServerConf,
+			DialogClient:  c.BizServiceClient,
+			UserClient:    c.BizServiceClient,
+			MsgClient:     c.MsgClient,
+			SyncClient:    c.SyncClient,
+		})
+		mtproto.RegisterRPCThemesServer(grpcServer, appearance)
+		mtproto.RegisterRPCAccentColorsServer(grpcServer, appearance)
 
 		// reactions_helper: reactions to messages (#18). The pictures it
 		// offers are put where the file service reads them as it starts.
