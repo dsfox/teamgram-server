@@ -1,0 +1,168 @@
+{
+  "source": "Google Noto Emoji Animation, CC BY 4.0",
+  "hash": 1634599310,
+  "reactions": [
+    {
+      "emoji": "👍",
+      "title": "Thumbs Up",
+      "icon": {
+        "file": "1f44d.webp",
+        "mime": "image/webp",
+        "size": 46740,
+        "sha256": "21c762e83e7906dc37b1ffcb78e07bf38618403ef942a6bfc651a897d90d686c",
+        "document_id": 7000001
+      },
+      "animation": {
+        "file": "1f44d.tgs",
+        "mime": "application/x-tgsticker",
+        "size": 11736,
+        "sha256": "b6c57fec1dfcea57d256121057c591a04a049fa24df07f33879d3915e2ac2fda",
+        "document_id": 7000002
+      }
+    },
+    {
+      "emoji": "👎",
+      "title": "Thumbs Down",
+      "icon": {
+        "file": "1f44e.webp",
+        "mime": "image/webp",
+        "size": 46492,
+        "sha256": "148dd88e252982546432815f99fc49894d505b43f281a18901bba188d804c2ce",
+        "document_id": 7000011
+      },
+      "animation": {
+        "file": "1f44e.tgs",
+        "mime": "application/x-tgsticker",
+        "size": 11697,
+        "sha256": "38bad5e38b175c574049c6ba00d3712087b9287901b485b49057811974bd502a",
+        "document_id": 7000012
+      }
+    },
+    {
+      "emoji": "❤️",
+      "title": "Red Heart",
+      "icon": {
+        "file": "2764_fe0f.webp",
+        "mime": "image/webp",
+        "size": 27886,
+        "sha256": "405a54467a6ed97c4f7fcd5356cb5932bb8ff1f85e68024c17457729afab43df",
+        "document_id": 7000021
+      },
+      "animation": {
+        "file": "2764_fe0f.tgs",
+        "mime": "application/x-tgsticker",
+        "size": 1841,
+        "sha256": "60d67df865cfa8bc82533b1229f9a2f90a8fae4acbe77293af2f50ce7a991994",
+        "document_id": 7000022
+      }
+    },
+    {
+      "emoji": "🔥",
+      "title": "Fire",
+      "icon": {
+        "file": "1f525.webp",
+        "mime": "image/webp",
+        "size": 40992,
+        "sha256": "7a2d55a523ba3976ac70456ceb2f2598e84106a271a570357df152594aa31c7c",
+        "document_id": 7000031
+      },
+      "animation": {
+        "file": "1f525.tgs",
+        "mime": "application/x-tgsticker",
+        "size": 7093,
+        "sha256": "8cc6aaf0c42adc1a2d67666ca96d61689b53dd0551eddbfd47fe43da2e6402f5",
+        "document_id": 7000032
+      }
+    },
+    {
+      "emoji": "😁",
+      "title": "Beaming Face",
+      "icon": {
+        "file": "1f601.webp",
+        "mime": "image/webp",
+        "size": 69262,
+        "sha256": "32a340f4fa30ff6ca2e19f8b70f08592bd68175b3a83f5b07eb8c2724c913ca5",
+        "document_id": 7000041
+      },
+      "animation": {
+        "file": "1f601.tgs",
+        "mime": "application/x-tgsticker",
+        "size": 7900,
+        "sha256": "83b26db540b3157080987b4db1d2dc274439ae326c2e2576a1ff5ab630ca4c0f",
+        "document_id": 7000042
+      }
+    },
+    {
+      "emoji": "😢",
+      "title": "Crying Face",
+      "icon": {
+        "file": "1f622.webp",
+        "mime": "image/webp",
+        "size": 62728,
+        "sha256": "d75e5a8ec4906eecd588af336b876117ee4a821d214d1af7ebb4beaeaec1b45e",
+        "document_id": 7000051
+      },
+      "animation": {
+        "file": "1f622.tgs",
+        "mime": "application/x-tgsticker",
+        "size": 9001,
+        "sha256": "ee7adc9cfd96a3b08e8ca9545192869d42a603b0a76c4e229b350179cc0e4721",
+        "document_id": 7000052
+      }
+    },
+    {
+      "emoji": "😮",
+      "title": "Face with Open Mouth",
+      "icon": {
+        "file": "1f62e.webp",
+        "mime": "image/webp",
+        "size": 62806,
+        "sha256": "9d2ba02ee772cd5f0a6e34fca046ce2ae1460fc1c7bd2c87efa1a9b764271db8",
+        "document_id": 7000061
+      },
+      "animation": {
+        "file": "1f62e.tgs",
+        "mime": "application/x-tgsticker",
+        "size": 2192,
+        "sha256": "e3104958c585c64bce0a871641fac8fdcdb181b90795181f5f93571cac48618c",
+        "document_id": 7000062
+      }
+    },
+    {
+      "emoji": "🙏",
+      "title": "Folded Hands",
+      "icon": {
+        "file": "1f64f.webp",
+        "mime": "image/webp",
+        "size": 44712,
+        "sha256": "2ff1920bac39323312379163187dc89e201e78e466766017b5403d2eba7e6aca",
+        "document_id": 7000071
+      },
+      "animation": {
+        "file": "1f64f.tgs",
+        "mime": "application/x-tgsticker",
+        "size": 11260,
+        "sha256": "46ae419b86f94e8ac88c0dd62eb21e817d5ec0b9395f6bab924a6f002aafc0d4",
+        "document_id": 7000072
+      }
+    },
+    {
+      "emoji": "🎉",
+      "title": "Party Popper",
+      "icon": {
+        "file": "1f389.webp",
+        "mime": "image/webp",
+        "size": 33342,
+        "sha256": "14c514ac89cd1fd22dbd3a04ea9dd870ed264e9fb6b9562e4b70c1f4bd8083fc",
+        "document_id": 7000081
+      },
+      "animation": {
+        "file": "1f389.tgs",
+        "mime": "application/x-tgsticker",
+        "size": 12246,
+        "sha256": "d68724902648bea3423ba49b55d4ead9878b432f2e66c003f997599e917c6b8e",
+        "document_id": 7000082
+      }
+    }
+  ]
+}
