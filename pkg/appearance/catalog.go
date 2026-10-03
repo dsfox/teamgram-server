@@ -4,7 +4,9 @@
 //
 // Everything here is colours: a theme carries no file, only an accent, the
 // colours of one's own bubbles and a gradient behind them, for the day and for
-// the night. The numbers are Android's own built-in palettes.
+// the night. The numbers are Android's own built-in palettes. The same themes
+// come once more as app themes, in the four bases Android's Chat Settings
+// picker indexes (#223).
 package appearance
 
 import (
@@ -24,6 +26,8 @@ const DefaultDir = "/app/appearance"
 type Catalog struct {
 	themesHash  int64
 	themes      []themeEntry
+	appHash     int64
+	appThemes   []themeEntry
 	byEmoticon  map[string]bool
 	coloursHash int32
 	nameColours []int32
@@ -63,6 +67,13 @@ func Load(dir string) (*Catalog, error) {
 	if err := readJSON(filepath.Join(dir, "chat-themes.json"), &themes); err != nil {
 		return nil, err
 	}
+	var appThemes struct {
+		Hash   int64        `json:"hash"`
+		Themes []themeEntry `json:"themes"`
+	}
+	if err := readJSON(filepath.Join(dir, "app-themes.json"), &appThemes); err != nil {
+		return nil, err
+	}
 	var colours struct {
 		Hash          int32          `json:"hash"`
 		NameColors    []int32        `json:"name_colors"`
@@ -71,12 +82,15 @@ func Load(dir string) (*Catalog, error) {
 	if err := readJSON(filepath.Join(dir, "peer-colors.json"), &colours); err != nil {
 		return nil, err
 	}
-	if themes.Hash == 0 || colours.Hash == 0 || len(themes.Themes) == 0 || len(colours.NameColors) == 0 {
+	if themes.Hash == 0 || appThemes.Hash == 0 || colours.Hash == 0 ||
+		len(themes.Themes) == 0 || len(appThemes.Themes) == 0 || len(colours.NameColors) == 0 {
 		return nil, fmt.Errorf("%s: a list is empty or has no hash", dir)
 	}
 	c := &Catalog{
 		themesHash:  themes.Hash,
 		themes:      themes.Themes,
+		appHash:     appThemes.Hash,
+		appThemes:   appThemes.Themes,
 		byEmoticon:  map[string]bool{},
 		coloursHash: colours.Hash,
 		nameColours: colours.NameColors,
@@ -95,7 +109,34 @@ func Load(dir string) (*Catalog, error) {
 		}
 		c.byEmoticon[theme.Emoticon] = true
 	}
+	for _, theme := range c.appThemes {
+		// Android's picker takes settings 0..3 as "Blue", "Day", "Night" and
+		// "Dark Blue", and leaves out a theme with fewer than four
+		// (MediaDataController.generateEmojiPreviewThemes).
+		if theme.Id == 0 || theme.Emoticon == "" || !appBasesInOrder(theme.Settings) {
+			return nil, fmt.Errorf("%s: app theme %d %q needs an id, an emoticon and the four bases in order", dir, theme.Id, theme.Emoticon)
+		}
+		for _, settings := range theme.Settings {
+			if len(settings.WallpaperColors) != 4 {
+				return nil, fmt.Errorf("%s: app theme %q needs four background colours", dir, theme.Emoticon)
+			}
+		}
+	}
 	return c, nil
+}
+
+var appBases = []string{"classic", "day", "night", "tinted"}
+
+func appBasesInOrder(settings []settingsEntry) bool {
+	if len(settings) != len(appBases) {
+		return false
+	}
+	for i, s := range settings {
+		if s.BaseTheme != appBases[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func readJSON(path string, into any) error {
@@ -109,8 +150,9 @@ func readJSON(path string, into any) error {
 	return nil
 }
 
-func (c *Catalog) ThemesHash() int64  { return c.themesHash }
-func (c *Catalog) ColoursHash() int32 { return c.coloursHash }
+func (c *Catalog) ThemesHash() int64    { return c.themesHash }
+func (c *Catalog) AppThemesHash() int64 { return c.appHash }
+func (c *Catalog) ColoursHash() int32   { return c.coloursHash }
 
 // Offers says whether this is one of the themes, matched as the exact string:
 // iOS looks a theme up by the emoji exactly as it was sent.
@@ -122,21 +164,37 @@ func (c *Catalog) Offers(emoticon string) bool {
 func (c *Catalog) ChatThemes() []*mtproto.Theme {
 	list := make([]*mtproto.Theme, 0, len(c.themes))
 	for _, theme := range c.themes {
-		settings := make([]*mtproto.ThemeSettings, 0, len(theme.Settings))
-		for variant, s := range theme.Settings {
-			settings = append(settings, s.themeSettings(theme.Id*10+int64(variant), variant == 1))
-		}
-		list = append(list, mtproto.MakeTLTheme(&mtproto.Theme{
-			ForChat:    true,
-			Id:         theme.Id,
-			AccessHash: theme.Id ^ 0x1ce9,
-			Slug:       "",
-			Title:      "",
-			Settings:   settings,
-			Emoticon:   &wrapperspb.StringValue{Value: theme.Emoticon},
-		}).To_Theme())
+		list = append(list, theme.toTheme(true))
 	}
 	return list
+}
+
+// AppThemes is what account.getThemes answers Android with: the default
+// themes its Chat Settings picker draws.
+func (c *Catalog) AppThemes() []*mtproto.Theme {
+	list := make([]*mtproto.Theme, 0, len(c.appThemes))
+	for _, theme := range c.appThemes {
+		list = append(list, theme.toTheme(false))
+	}
+	return list
+}
+
+func (theme themeEntry) toTheme(forChat bool) *mtproto.Theme {
+	settings := make([]*mtproto.ThemeSettings, 0, len(theme.Settings))
+	for variant, s := range theme.Settings {
+		dark := s.BaseTheme == "night" || s.BaseTheme == "tinted"
+		settings = append(settings, s.themeSettings(theme.Id*10+int64(variant), dark))
+	}
+	return mtproto.MakeTLTheme(&mtproto.Theme{
+		Default:    !forChat,
+		ForChat:    forChat,
+		Id:         theme.Id,
+		AccessHash: theme.Id ^ 0x1ce9,
+		Slug:       "",
+		Title:      "",
+		Settings:   settings,
+		Emoticon:   &wrapperspb.StringValue{Value: theme.Emoticon},
+	}).To_Theme()
 }
 
 // The wallpaper is a gradient with no file behind it, and it always carries

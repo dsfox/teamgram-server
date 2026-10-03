@@ -40,9 +40,22 @@ func (c *AppearanceCore) AccountGetUniqueGiftChatThemes(in *mtproto.TLAccountGet
 // AccountGetThemes
 // account.getThemes
 //
-// Cloud themes - whole app themes shared as files - are not offered.
+// Android builds the "Color theme" row of its Chat Settings from the themes
+// marked default here, and waits on placeholders for ever while there are
+// none (#223). iOS reads this list only as cloud themes - whole app themes
+// shared as files - which are not offered, so it is told there are none.
 func (c *AppearanceCore) AccountGetThemes(in *mtproto.TLAccountGetThemes) (*mtproto.Account_Themes, error) {
-	return mtproto.MakeTLAccountThemes(&mtproto.Account_Themes{Hash: 0, Themes: []*mtproto.Theme{}}).To_Account_Themes(), nil
+	catalog := c.svcCtx.Catalog
+	if catalog == nil || in.Format != "android" {
+		return mtproto.MakeTLAccountThemes(&mtproto.Account_Themes{Hash: 0, Themes: []*mtproto.Theme{}}).To_Account_Themes(), nil
+	}
+	if in.Hash != 0 && in.Hash == catalog.AppThemesHash() {
+		return mtproto.MakeTLAccountThemesNotModified(nil).To_Account_Themes(), nil
+	}
+	return mtproto.MakeTLAccountThemes(&mtproto.Account_Themes{
+		Hash:   catalog.AppThemesHash(),
+		Themes: catalog.AppThemes(),
+	}).To_Account_Themes(), nil
 }
 
 // MessagesSetChatTheme

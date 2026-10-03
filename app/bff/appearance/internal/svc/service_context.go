@@ -56,8 +56,8 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		logx.Errorf("appearance: no themes or colours to offer: %v", err)
 		catalog = nil
 	} else {
-		logx.Infof("appearance: %d chat themes, %d name and %d profile colours offered",
-			len(catalog.ChatThemes()), len(catalog.NameColours()), len(catalog.ProfileColours()))
+		logx.Infof("appearance: %d chat themes, %d app themes, %d name and %d profile colours offered",
+			len(catalog.ChatThemes()), len(catalog.AppThemes()), len(catalog.NameColours()), len(catalog.ProfileColours()))
 	}
 	return &ServiceContext{
 		Config:  c,

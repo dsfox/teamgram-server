@@ -74,6 +74,7 @@ func TestTheAnswersEncodeForTheClientsLayers(t *testing.T) {
 		Encode(*mtproto.EncodeBuf, int32) error
 	}{
 		mtproto.MakeTLAccountThemes(&mtproto.Account_Themes{Hash: c.ThemesHash(), Themes: c.ChatThemes()}),
+		mtproto.MakeTLAccountThemes(&mtproto.Account_Themes{Hash: c.AppThemesHash(), Themes: c.AppThemes()}),
 		mtproto.MakeTLHelpPeerColors(&mtproto.Help_PeerColors{Hash: c.ColoursHash(), Colors: c.NameColours()}),
 		mtproto.MakeTLHelpPeerColors(&mtproto.Help_PeerColors{Hash: c.ColoursHash(), Colors: c.ProfileColours()}),
 	}
@@ -115,5 +116,53 @@ func TestNameColoursAreNumbersAndProfileColoursAreWhole(t *testing.T) {
 	}
 	if c.ThemesHash() == 0 || c.ColoursHash() == 0 {
 		t.Fatal("zero is what a client holding nothing asks with")
+	}
+}
+
+// Android's Chat Settings picker draws the default themes of account.getThemes,
+// takes settings 0..3 as "Blue", "Day", "Night" and "Dark Blue", and leaves out
+// a theme with fewer than four (#223).
+func TestAppThemesAreDefaultAndCarryTheFourBasesInOrder(t *testing.T) {
+	c := loadShipped(t)
+	apps := c.AppThemes()
+	if len(apps) != 7 || c.AppThemesHash() == 0 || c.AppThemesHash() == c.ThemesHash() {
+		t.Fatalf("seven app themes with a hash of their own, got %d and %d", len(apps), c.AppThemesHash())
+	}
+	chatIds := map[int64]bool{}
+	for _, theme := range c.ChatThemes() {
+		chatIds[theme.Id] = true
+	}
+	bases := []string{mtproto.Predicate_baseThemeClassic, mtproto.Predicate_baseThemeDay,
+		mtproto.Predicate_baseThemeNight, mtproto.Predicate_baseThemeTinted}
+	for _, theme := range apps {
+		e := theme.Emoticon.GetValue()
+		if !theme.Default || theme.ForChat || theme.Id == 0 || chatIds[theme.Id] {
+			t.Fatalf("%q: a default app theme with an id no chat theme has: %v", e, theme)
+		}
+		if len(theme.Settings) != 4 {
+			t.Fatalf("%q: four settings, got %d", e, len(theme.Settings))
+		}
+		for i, s := range theme.Settings {
+			if s.BaseTheme.GetPredicateName() != bases[i] {
+				t.Fatalf("%q: settings %d is %s, Android reads it as %s", e, i, s.BaseTheme.GetPredicateName(), bases[i])
+			}
+			if uint32(s.AccentColor)>>24 != 0xFF || s.Wallpaper.GetSettings().GetFourthBackgroundColor() == nil {
+				t.Fatalf("%q %s: an opaque accent and four colours behind", e, bases[i])
+			}
+			if dark := i >= 2; s.Wallpaper.Dark != dark {
+				t.Fatalf("%q %s: the wallpaper says dark=%v", e, bases[i], s.Wallpaper.Dark)
+			}
+		}
+	}
+}
+
+func TestAnAppThemeOutOfOrderIsRefused(t *testing.T) {
+	inOrder := []settingsEntry{{BaseTheme: "classic"}, {BaseTheme: "day"}, {BaseTheme: "night"}, {BaseTheme: "tinted"}}
+	if !appBasesInOrder(inOrder) {
+		t.Fatal("the four bases in order are refused")
+	}
+	swapped := []settingsEntry{{BaseTheme: "classic"}, {BaseTheme: "night"}, {BaseTheme: "day"}, {BaseTheme: "tinted"}}
+	if appBasesInOrder(swapped) || appBasesInOrder(inOrder[:2]) {
+		t.Fatal("a theme Android would read wrongly, or leave out, is let through")
 	}
 }

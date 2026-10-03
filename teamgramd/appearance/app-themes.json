@@ -1,0 +1,380 @@
+{
+  "hash": 82972163,
+  "themes": [
+    {
+      "id": 9100001,
+      "emoticon": "🌿",
+      "settings": [
+        {
+          "base_theme": "classic",
+          "accent_color": -14444461,
+          "message_colors": [
+            16448460,
+            15924169
+          ],
+          "wallpaper_colors": [
+            14672544,
+            12245149,
+            14868135,
+            10405776
+          ]
+        },
+        {
+          "base_theme": "day",
+          "accent_color": -11226775,
+          "message_colors": [],
+          "wallpaper_colors": [
+            14672544,
+            12245149,
+            14868135,
+            10405776
+          ]
+        },
+        {
+          "base_theme": "night",
+          "accent_color": -11880383,
+          "message_colors": [],
+          "wallpaper_colors": [
+            790796,
+            526600,
+            1185810,
+            724235
+          ]
+        },
+        {
+          "base_theme": "tinted",
+          "accent_color": -10179489,
+          "message_colors": [],
+          "wallpaper_colors": [
+            1449237,
+            1517337,
+            1318420,
+            1844762
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9100002,
+      "emoticon": "🌸",
+      "settings": [
+        {
+          "base_theme": "classic",
+          "accent_color": -3252606,
+          "message_colors": [
+            16775644,
+            16512223
+          ],
+          "wallpaper_colors": [
+            15839888,
+            15519636,
+            15184772,
+            15457960
+          ]
+        },
+        {
+          "base_theme": "day",
+          "accent_color": -3379581,
+          "message_colors": [
+            7106002,
+            13134228
+          ],
+          "wallpaper_colors": [
+            15839888,
+            15519636,
+            15184772,
+            15457960
+          ]
+        },
+        {
+          "base_theme": "night",
+          "accent_color": -2204034,
+          "message_colors": [
+            11489135,
+            6441372
+          ],
+          "wallpaper_colors": [
+            985872,
+            1774874,
+            1248786,
+            2167834
+          ]
+        },
+        {
+          "base_theme": "tinted",
+          "accent_color": -1344335,
+          "message_colors": [],
+          "wallpaper_colors": [
+            2365726,
+            2299676,
+            2824489,
+            2036765
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9100003,
+      "emoticon": "🍇",
+      "settings": [
+        {
+          "base_theme": "classic",
+          "accent_color": -8428605,
+          "message_colors": [
+            12668782
+          ],
+          "wallpaper_colors": [
+            14139881,
+            15252950,
+            13807337,
+            15518600
+          ]
+        },
+        {
+          "base_theme": "day",
+          "accent_color": -6587438,
+          "message_colors": [],
+          "wallpaper_colors": [
+            14139881,
+            15252950,
+            13807337,
+            15518600
+          ]
+        },
+        {
+          "base_theme": "night",
+          "accent_color": -7115558,
+          "message_colors": [],
+          "wallpaper_colors": [
+            592138,
+            1972769,
+            723467,
+            1117975
+          ]
+        },
+        {
+          "base_theme": "tinted",
+          "accent_color": -6127120,
+          "message_colors": [],
+          "wallpaper_colors": [
+            2039081,
+            1315612,
+            2695985,
+            1512219
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9100004,
+      "emoticon": "🐳",
+      "settings": [
+        {
+          "base_theme": "classic",
+          "accent_color": -14380627,
+          "message_colors": [
+            13745435
+          ],
+          "wallpaper_colors": [
+            14137502,
+            15130306,
+            14337454,
+            15064255
+          ]
+        },
+        {
+          "base_theme": "day",
+          "accent_color": -11029287,
+          "message_colors": [],
+          "wallpaper_colors": [
+            14137502,
+            15130306,
+            14337454,
+            15064255
+          ]
+        },
+        {
+          "base_theme": "night",
+          "accent_color": -11881005,
+          "message_colors": [],
+          "wallpaper_colors": [
+            1121052,
+            658958,
+            1319201,
+            461835
+          ]
+        },
+        {
+          "base_theme": "tinted",
+          "accent_color": -12138259,
+          "message_colors": [],
+          "wallpaper_colors": [
+            1450789,
+            923416,
+            1977902,
+            1187615
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9100005,
+      "emoticon": "🍀",
+      "settings": [
+        {
+          "base_theme": "classic",
+          "accent_color": -14050257,
+          "message_colors": [
+            16775881,
+            16641460
+          ],
+          "wallpaper_colors": [
+            15507059,
+            15257733,
+            15640183,
+            15590569
+          ]
+        },
+        {
+          "base_theme": "day",
+          "accent_color": -11226775,
+          "message_colors": [],
+          "wallpaper_colors": [
+            15507059,
+            15257733,
+            15640183,
+            15590569
+          ]
+        },
+        {
+          "base_theme": "night",
+          "accent_color": -11880383,
+          "message_colors": [],
+          "wallpaper_colors": [
+            790796,
+            526600,
+            1185810,
+            724235
+          ]
+        },
+        {
+          "base_theme": "tinted",
+          "accent_color": -10179489,
+          "message_colors": [],
+          "wallpaper_colors": [
+            1449237,
+            1517337,
+            1318420,
+            1844762
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9100006,
+      "emoticon": "🔮",
+      "settings": [
+        {
+          "base_theme": "classic",
+          "accent_color": -7842636,
+          "message_colors": [
+            16578264,
+            16578486
+          ],
+          "wallpaper_colors": [
+            13349092,
+            15452393,
+            14657745,
+            15583400
+          ]
+        },
+        {
+          "base_theme": "day",
+          "accent_color": -6587438,
+          "message_colors": [],
+          "wallpaper_colors": [
+            13349092,
+            15452393,
+            14657745,
+            15583400
+          ]
+        },
+        {
+          "base_theme": "night",
+          "accent_color": -7115558,
+          "message_colors": [],
+          "wallpaper_colors": [
+            592138,
+            1972769,
+            723467,
+            1117975
+          ]
+        },
+        {
+          "base_theme": "tinted",
+          "accent_color": -6127120,
+          "message_colors": [],
+          "wallpaper_colors": [
+            2039081,
+            1315612,
+            2695985,
+            1512219
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9100007,
+      "emoticon": "🌊",
+      "settings": [
+        {
+          "base_theme": "classic",
+          "accent_color": -13464881,
+          "message_colors": [],
+          "wallpaper_colors": [
+            10206439,
+            12638707,
+            9815019,
+            12309992
+          ]
+        },
+        {
+          "base_theme": "day",
+          "accent_color": -11759137,
+          "message_colors": [],
+          "wallpaper_colors": [
+            10206439,
+            12638707,
+            9815019,
+            12309992
+          ]
+        },
+        {
+          "base_theme": "night",
+          "accent_color": -12678921,
+          "message_colors": [],
+          "wallpaper_colors": [
+            855575,
+            592396,
+            1580072,
+            921362
+          ]
+        },
+        {
+          "base_theme": "tinted",
+          "accent_color": -14053142,
+          "message_colors": [
+            3366274,
+            3242648
+          ],
+          "wallpaper_colors": [
+            725788,
+            1647408,
+            1251362,
+            1516337
+          ]
+        }
+      ]
+    }
+  ]
+}

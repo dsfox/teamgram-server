@@ -190,13 +190,27 @@ func TestTheListsAreWholeForAClientHoldingNothing(t *testing.T) {
 	if again.GetPredicateName() != mtproto.Predicate_account_themesNotModified {
 		t.Fatalf("asked with the list's hash: %s", again.GetPredicateName())
 	}
+	apps, _ := c.AccountGetThemes(&mtproto.TLAccountGetThemes{Format: "android", Hash: 0})
+	if apps.GetPredicateName() != mtproto.Predicate_account_themes || len(apps.Themes) != 7 || !apps.Themes[0].Default {
+		t.Fatalf("Android asking with zero: the seven default themes, got %s with %d", apps.GetPredicateName(), len(apps.Themes))
+	}
+	if again, _ := c.AccountGetThemes(&mtproto.TLAccountGetThemes{Format: "android", Hash: apps.Hash}); again.GetPredicateName() != mtproto.Predicate_account_themesNotModified {
+		t.Fatalf("Android asking with the list's hash: %s", again.GetPredicateName())
+	}
+	if ios, _ := c.AccountGetThemes(&mtproto.TLAccountGetThemes{Format: "ios", Hash: 0}); len(ios.Themes) != 0 {
+		t.Fatalf("iOS reads this list as cloud themes, which are off: got %d", len(ios.Themes))
+	}
 	gifts, _ := c.AccountGetUniqueGiftChatThemes(&mtproto.TLAccountGetUniqueGiftChatThemes{})
 	if gifts.GetPredicateName() != mtproto.Predicate_account_chatThemesNotModified {
 		t.Fatalf("no gifts, said as nothing new so Android's sheet finishes loading: %s", gifts.GetPredicateName())
 	}
 	for name, ask := range map[string]func(int32) (*mtproto.Help_PeerColors, error){
-		"name":    func(h int32) (*mtproto.Help_PeerColors, error) { return c.HelpGetPeerColors(&mtproto.TLHelpGetPeerColors{Hash: h}) },
-		"profile": func(h int32) (*mtproto.Help_PeerColors, error) { return c.HelpGetPeerProfileColors(&mtproto.TLHelpGetPeerProfileColors{Hash: h}) },
+		"name": func(h int32) (*mtproto.Help_PeerColors, error) {
+			return c.HelpGetPeerColors(&mtproto.TLHelpGetPeerColors{Hash: h})
+		},
+		"profile": func(h int32) (*mtproto.Help_PeerColors, error) {
+			return c.HelpGetPeerProfileColors(&mtproto.TLHelpGetPeerProfileColors{Hash: h})
+		},
 	} {
 		colours, _ := ask(0)
 		if colours.GetPredicateName() != mtproto.Predicate_help_peerColors || len(colours.Colors) == 0 {
