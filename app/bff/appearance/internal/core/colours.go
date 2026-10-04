@@ -1,8 +1,12 @@
 package core
 
 import (
+	"sort"
+
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/app/messenger/sync/sync"
+	chatpb "github.com/teamgram/teamgram-server/app/service/biz/chat/chat"
+	"github.com/teamgram/teamgram-server/app/service/biz/dialog/dialog"
 	userpb "github.com/teamgram/teamgram-server/app/service/biz/user/user"
 )
 
@@ -84,8 +88,70 @@ func (c *AppearanceCore) AccountUpdateColor(in *mtproto.TLAccountUpdateColor) (*
 	}); err != nil {
 		c.Logger.Errorf("account.updateColor - telling the other phones of %d: %v", me, err)
 	}
-	c.Logger.Infof("account.updateColor - %d chose colour %d (profile: %v)", me, colour, in.ForProfile)
+	told := c.tellThoseWhoSee(me)
+	c.Logger.Infof("account.updateColor - %d chose colour %d (profile: %v), %d people told", me, colour, in.ForProfile, told)
 	return mtproto.BoolTrue, nil
+}
+
+// tellThoseWhoSee hands a person's new colour to everybody who has their name
+// in front of them - the other side of each chat between two, the members of
+// each group - rather than leaving it to whatever next carries the user, which
+// in a quiet chat is nothing at all: the colour was kept and nobody saw it
+// (#24). Returns how many were told.
+func (c *AppearanceCore) tellThoseWhoSee(me int64) int {
+	mine, err := c.svcCtx.Dialogs.DialogGetMyDialogsData(c.ctx, &dialog.TLDialogGetMyDialogsData{UserId: me, User: true, Chat: true})
+	if err != nil {
+		c.Logger.Errorf("account.updateColor - the chats of %d: %v", me, err)
+		return 0
+	}
+	seeing := map[int64]bool{}
+	for _, id := range mine.GetUsers() {
+		seeing[id] = true
+	}
+	for _, chatId := range mine.GetChats() {
+		members, err := c.svcCtx.Chats.ChatGetChatParticipantIdList(c.ctx, &chatpb.TLChatGetChatParticipantIdList{ChatId: chatId})
+		if err != nil {
+			c.Logger.Errorf("account.updateColor - the members of chat %d: %v", chatId, err)
+			continue
+		}
+		for _, id := range members.GetDatas() {
+			seeing[id] = true
+		}
+	}
+	delete(seeing, me)
+	if len(seeing) == 0 {
+		return 0
+	}
+	recipients := make([]int64, 0, len(seeing))
+	for id := range seeing {
+		recipients = append(recipients, id)
+	}
+	sort.Slice(recipients, func(i, j int) bool { return recipients[i] < recipients[j] })
+
+	// Each of them is handed the person as they see them: a contact or not,
+	// with or without the phone number.
+	users, err := c.svcCtx.Users.UserGetMutableUsers(c.ctx, &userpb.TLUserGetMutableUsers{Id: append([]int64{me}, recipients...), To: recipients})
+	if err != nil {
+		c.Logger.Errorf("account.updateColor - reading %d for those who see them: %v", me, err)
+		return 0
+	}
+	told := 0
+	for _, id := range recipients {
+		seenAs := users.GetUserListByIdList(id, me)
+		if len(seenAs) == 0 {
+			continue
+		}
+		if _, err = c.svcCtx.Sync.SyncPushUpdates(c.ctx, &sync.TLSyncPushUpdates{
+			UserId: id,
+			Updates: mtproto.MakeUpdatesByUpdatesUsers(seenAs,
+				mtproto.MakeTLUpdateUser(&mtproto.Update{UserId: me}).To_Update()),
+		}); err != nil {
+			c.Logger.Errorf("account.updateColor - telling %d of %d's colour: %v", id, me, err)
+			continue
+		}
+		told++
+	}
+	return told
 }
 
 func colourAsked(in *mtproto.TLAccountUpdateColor) (int32, int64) {

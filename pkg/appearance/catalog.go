@@ -179,6 +179,16 @@ func (c *Catalog) AppThemes() []*mtproto.Theme {
 	return list
 }
 
+// Theme is one of the offered themes, chat or app, by its id and access hash.
+func (c *Catalog) Theme(id, accessHash int64) *mtproto.Theme {
+	for _, theme := range append(c.ChatThemes(), c.AppThemes()...) {
+		if theme.Id == id && theme.AccessHash == accessHash {
+			return theme
+		}
+	}
+	return nil
+}
+
 func (theme themeEntry) toTheme(forChat bool) *mtproto.Theme {
 	settings := make([]*mtproto.ThemeSettings, 0, len(theme.Settings))
 	for variant, s := range theme.Settings {

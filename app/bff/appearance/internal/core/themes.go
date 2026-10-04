@@ -40,13 +40,16 @@ func (c *AppearanceCore) AccountGetUniqueGiftChatThemes(in *mtproto.TLAccountGet
 // AccountGetThemes
 // account.getThemes
 //
-// Android builds the "Color theme" row of its Chat Settings from the themes
-// marked default here, and waits on placeholders for ever while there are
-// none (#223). iOS reads this list only as cloud themes - whole app themes
-// shared as files - which are not offered, so it is told there are none.
+// Both clients build their colour theme row from this list: Android the
+// "Color theme" row of Chat Settings, from the themes marked default, which
+// waited on placeholders for ever while there were none (#223); iOS the
+// "COLOR THEME" row of Appearance, from the themes that carry an emoji, which
+// showed only its own default one. Each picks the settings for day or night
+// by their base. iOS was told there were none until 4 October, on the wrong
+// belief that it read the list only as cloud themes.
 func (c *AppearanceCore) AccountGetThemes(in *mtproto.TLAccountGetThemes) (*mtproto.Account_Themes, error) {
 	catalog := c.svcCtx.Catalog
-	if catalog == nil || in.Format != "android" {
+	if catalog == nil {
 		return mtproto.MakeTLAccountThemes(&mtproto.Account_Themes{Hash: 0, Themes: []*mtproto.Theme{}}).To_Account_Themes(), nil
 	}
 	if in.Hash != 0 && in.Hash == catalog.AppThemesHash() {
@@ -166,11 +169,21 @@ func (c *AppearanceCore) AccountSaveTheme(in *mtproto.TLAccountSaveTheme) (*mtpr
 // AccountGetTheme
 // account.getTheme
 //
-// The four that make or fetch a cloud theme are things a person does, behind
-// a switch that is off; no client asks for them on its own.
+// One of the themes offered, by its id and access hash: iOS asks again for the
+// theme it is using, every so often, to see whether it changed. Anything else
+// - a slug from a link, a theme somebody made - is a cloud theme, and those
+// are not offered.
 func (c *AppearanceCore) AccountGetTheme(in *mtproto.TLAccountGetTheme) (*mtproto.Theme, error) {
+	if c.svcCtx.Catalog != nil && in.Theme.GetPredicateName() == mtproto.Predicate_inputTheme {
+		if theme := c.svcCtx.Catalog.Theme(in.Theme.Id, in.Theme.AccessHash); theme != nil {
+			return theme, nil
+		}
+	}
 	return nil, mtproto.ErrThemeInvalid
 }
+
+// The three that make a cloud theme are things a person does, behind a
+// switch that is off; no client asks for them on its own.
 
 // AccountCreateTheme
 // account.createTheme

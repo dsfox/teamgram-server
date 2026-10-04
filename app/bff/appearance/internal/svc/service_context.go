@@ -9,6 +9,8 @@ import (
 	msg_client "github.com/teamgram/teamgram-server/app/messenger/msg/msg/client"
 	msgpb "github.com/teamgram/teamgram-server/app/messenger/msg/msg/msg"
 	"github.com/teamgram/teamgram-server/app/messenger/sync/sync"
+	chatpb "github.com/teamgram/teamgram-server/app/service/biz/chat/chat"
+	chat_client "github.com/teamgram/teamgram-server/app/service/biz/chat/client"
 	dialog_client "github.com/teamgram/teamgram-server/app/service/biz/dialog/client"
 	"github.com/teamgram/teamgram-server/app/service/biz/dialog/dialog"
 	user_client "github.com/teamgram/teamgram-server/app/service/biz/user/client"
@@ -24,6 +26,11 @@ import (
 type Dialogs interface {
 	DialogGetDialogById(ctx context.Context, in *dialog.TLDialogGetDialogById) (*dialog.DialogExt, error)
 	DialogSetChatTheme(ctx context.Context, in *dialog.TLDialogSetChatTheme) (*mtproto.Bool, error)
+	DialogGetMyDialogsData(ctx context.Context, in *dialog.TLDialogGetMyDialogsData) (*dialog.DialogsData, error)
+}
+
+type Chats interface {
+	ChatGetChatParticipantIdList(ctx context.Context, in *chatpb.TLChatGetChatParticipantIdList) (*chatpb.Vector_Long, error)
 }
 
 type Users interface {
@@ -37,6 +44,7 @@ type Msg interface {
 
 type Sync interface {
 	SyncUpdatesNotMe(ctx context.Context, in *sync.TLSyncUpdatesNotMe) (*mtproto.Void, error)
+	SyncPushUpdates(ctx context.Context, in *sync.TLSyncPushUpdates) (*mtproto.Void, error)
 }
 
 type ServiceContext struct {
@@ -45,6 +53,7 @@ type ServiceContext struct {
 	// and the clients' own seven name colours, as before, and says why.
 	Catalog *appearance.Catalog
 	Dialogs Dialogs
+	Chats   Chats
 	Users   Users
 	Msg     Msg
 	Sync    Sync
@@ -63,6 +72,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		Config:  c,
 		Catalog: catalog,
 		Dialogs: dialog_client.NewDialogClient(rpcx.GetCachedRpcClient(c.DialogClient)),
+		Chats:   chat_client.NewChatClient(rpcx.GetCachedRpcClient(c.ChatClient)),
 		Users:   user_client.NewUserClient(rpcx.GetCachedRpcClient(c.UserClient)),
 		Msg:     msg_client.NewMsgClient(rpcx.GetCachedRpcClient(c.MsgClient)),
 		Sync:    queue.NewSyncClient(c.SyncClient),
