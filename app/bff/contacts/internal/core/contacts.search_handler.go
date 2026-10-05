@@ -71,36 +71,19 @@ func (c *ContactsCore) ContactsSearch(in *mtproto.TLContactsSearch) (*mtproto.Co
 	//
 
 	// Check query string and limit
-	if len(q) >= 3 && limit > 0 {
-		contacts, _ := c.svcCtx.Dao.UserClient.UserGetContactIdList(c.ctx, &userpb.TLUserGetContactIdList{
-			UserId: c.MD.UserId,
-		})
-
-		// c.Logger.Debugf("q: %s", q)
-		rVList, err := c.svcCtx.Dao.UserClient.UserSearchUsername(c.ctx, &userpb.TLUserSearchUsername{
-			Q:                q,
-			ExcludedContacts: append(contacts.GetDatas(), c.MD.UserId),
-			Limit:            limit,
+	// No directory (the owner's decision of 5 October): a stranger is found by
+	// the exact username they gave out, or by their number - never by a name
+	// or part of one. Upstream searched every account by username prefix and
+	// by first and last name, while the App Store listing said strangers
+	// cannot look you up. The person's own contacts are searched on the phone.
+	if limit > 0 {
+		peer, err := c.svcCtx.Dao.UserClient.UserResolveUsername(c.ctx, &userpb.TLUserResolveUsername{
+			Username: q,
 		})
 		if err != nil {
-			c.Logger.Errorf("contacts.search - error: %v", err)
-			return found, nil
-		}
-
-		for _, v := range rVList.GetDatas() {
-			// c.Logger.Debugf("v: %v", v)
-			idHelper.PickByPeer(v.Peer)
-		}
-
-		rVList2, err := c.svcCtx.Dao.UserClient.UserSearch(c.ctx, &userpb.TLUserSearch{
-			Q:                in.Q,
-			ExcludedContacts: append(contacts.GetDatas(), c.MD.UserId),
-			Offset:           0,
-			Limit:            limit,
-		})
-
-		for _, v := range rVList2.GetIdList() {
-			idHelper.PickByPeerUtil(mtproto.PEER_USER, v)
+			c.Logger.Infof("contacts.search - %d: no username %q (%v)", c.MD.UserId, q, err)
+		} else if peer.GetPredicateName() == mtproto.Predicate_peerUser && peer.GetUserId() != c.MD.UserId {
+			idHelper.PickByPeer(peer)
 		}
 	}
 
