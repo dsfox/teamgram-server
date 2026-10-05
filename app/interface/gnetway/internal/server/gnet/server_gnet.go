@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/teamgram/proto/mtproto"
+	"github.com/teamgram/teamgram-server/app/interface/gnetway/internal/dao"
 	httpcodec "github.com/teamgram/teamgram-server/app/interface/gnetway/internal/server/gnet/http"
 	"github.com/teamgram/teamgram-server/app/interface/gnetway/internal/server/gnet/pp"
 	"github.com/teamgram/teamgram-server/app/interface/gnetway/internal/server/gnet/ws"
@@ -39,6 +40,14 @@ import (
 	"github.com/zeromicro/go-zero/core/timex"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/protobuf/proto"
+)
+
+// How long a packet the session service did not take is tried again before
+// its connection is closed, and how often (#228). Longer than a restart of the
+// session service or a pause like the one on 31 August that ended by itself.
+const (
+	undeliveredPatience = 15 * time.Second
+	undeliveredRetry    = 500 * time.Millisecond
 )
 
 func (s *Server) asyncRunIfError(connId int64, msgId int64, execb func() error, retcb func(c gnet.Conn, msgId int64, err error)) {
@@ -429,7 +438,7 @@ func (s *Server) onEncryptedMessage(c gnet.Conn, ctx *connContext, authKey *auth
 
 			ctx2, span := otel.Tracer("gnetway").Start(context.Background(), "SessionSendDataToSession")
 			defer span.End()
-			err := s.svcCtx.Dao.SessionDispatcher.SendData(ctx2, permAuthKeyId, &session.TLSessionSendDataToSession{
+			data := &session.TLSessionSendDataToSession{
 				Data: &session.SessionClientData{
 					ServerId:      s.svcCtx.GatewayId,
 					ConnType:      connType,
@@ -441,13 +450,39 @@ func (s *Server) onEncryptedMessage(c gnet.Conn, ctx *connContext, authKey *auth
 					Payload:       mtpRwaData[16:],
 					ClientIp:      clientIp,
 				},
-			})
+			}
+			err := s.svcCtx.Dao.SessionDispatcher.SendData(ctx2, permAuthKeyId, data)
+			if dao.Undelivered(err) {
+				// The session service did not take it: paused, restarting, or
+				// only just back. Dropped, the packet would leave its client
+				// waiting for an answer that never comes on a connection that
+				// still looks alive - a listener's getDifference was lost so on
+				// 5 October and its update loop stood still (#228). So it is
+				// tried again for as long as an outage that ends by itself lasts.
+				first := time.Now()
+				logx.Errorf("conn(%s): the session did not take a packet (%v); trying again for %s", c, err, undeliveredPatience)
+				for dao.Undelivered(err) && time.Since(first) < undeliveredPatience {
+					time.Sleep(undeliveredRetry)
+					err = s.svcCtx.Dao.SessionDispatcher.SendData(ctx2, permAuthKeyId, data)
+				}
+				if err == nil {
+					logx.Infof("conn(%s): the packet reached the session %s late", c, time.Since(first).Round(time.Millisecond))
+				}
+			}
 			if err != nil {
 				logx.Errorf("session.sendDataToSession - error: %v", err)
 			}
 			return err
 		},
 		func(c gnet.Conn, msgId int64, err error) {
+			if dao.Undelivered(err) {
+				// Still nowhere after all that patience. Closed, the
+				// connection makes the client send what it is waiting on again
+				// over the next one, instead of waiting for ever (#228).
+				logx.Errorf("conn(%s): nothing reached the session (%v); closing so the client sends it again", c, err)
+				_ = c.Close()
+				return
+			}
 			if isBindTempAuthKey && errors.Is(err, mtproto.ErrAuthKeyUnregistered) {
 				payload := serializeToBuffer2(salt, sessionId, &mtproto.TLMessage2{
 					MsgId: nextMessageId(false),

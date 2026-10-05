@@ -559,6 +559,22 @@ func (c *BFFProxyClient) TryReturnFakeRpcResult(ctx context.Context, md *metadat
 			Chats: []*mtproto.Chat{},
 		}).To_Messages_Chats(), nil
 
+	case "TLBotsGetBotRecommendations":
+		// Android asks whenever any profile opens, iOS about a bot's profile -
+		// and iOS asks again without end when refused (#229). No bots here.
+		return mtproto.MakeTLUsersUsers(&mtproto.Users_Users{
+			Users: []*mtproto.User{},
+		}).To_Users_Users(), nil
+
+	case "TLAccountGetMultiWallPapers":
+		// Android fetches the patterns of its theme accents after every full
+		// answer to account.getThemes, so since it has our colour themes
+		// (#223) this was refused on every launch (#229). The server holds no
+		// wallpapers; an empty vector is "none of those".
+		return &mtproto.Vector_WallPaper{
+			Datas: []*mtproto.WallPaper{},
+		}, nil
+
 	case "TLStoriesGetPeerMaxIDs78499170":
 		return &mtproto.Vector_RecentStory{
 			Datas: []*mtproto.RecentStory{},

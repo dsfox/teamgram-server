@@ -27,6 +27,9 @@ var numbers = map[string]float64{
 	// it, and a button that leads nowhere is what App Review calls a hidden
 	// feature (2.3.1(a), 5 October). iOS hides it only for exactly 1.
 	"ios_disable_ai_chat": 1,
+	// The same button in the caption of a photo picked from the legacy
+	// gallery, which reads a key of its own (#227).
+	"ios_disable_ai_attach": 1,
 }
 
 // Value assembles the settings in the shape the client expects.

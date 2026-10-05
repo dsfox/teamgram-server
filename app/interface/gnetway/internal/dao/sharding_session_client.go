@@ -16,6 +16,7 @@ import (
 	sessionclient "github.com/teamgram/teamgram-server/app/interface/session/client"
 	"github.com/teamgram/teamgram-server/pkg/discovery"
 
+	"github.com/zeromicro/go-zero/core/breaker"
 	"github.com/zeromicro/go-zero/core/hash"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stringx"
@@ -227,7 +228,15 @@ func (sess *ShardingSessionClient) InvokeByKey(key string, cb func(client sessio
 	sess.mu.Lock()
 	sess.failCounters[node]++
 	failCount := sess.failCounters[node]
-	if failCount >= maxNodeFailures {
+	if failCount >= maxNodeFailures && len(sess.sessions)-len(sess.sidelined) <= 1 {
+		// The only node left: there is nothing to route round it to, and taking
+		// it out turned every packet into "not found session" for five seconds
+		// - after it had answered again, too. A listener's getDifference was
+		// lost in exactly those seconds on 5 October (#228). It stays, and the
+		// next packet tries it.
+		logx.Errorf("session node %s unreachable (%d consecutive failures); the only node, so it stays in the ring", node, failCount)
+		delete(sess.failCounters, node)
+	} else if failCount >= maxNodeFailures {
 		logx.Errorf("session node %s unreachable (%d consecutive failures), out of the ring for %s", node, failCount, nodeReturnsAfter)
 		sess.dispatcher.Remove(node)
 		delete(sess.failCounters, node)
@@ -275,6 +284,15 @@ func parseRedirectError(err error) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// Undelivered says the packet never reached a session service: no node in the
+// ring, the node did not answer, or the client's circuit breaker - opened by
+// those failures - refused to try. The breaker says so with a plain error, not
+// a gRPC status, and a new client's first packet was dropped that way for half
+// a minute after an outage (#228). Anything else is the session's own answer.
+func Undelivered(err error) bool {
+	return errors.Is(err, ErrSessionNotFound) || errors.Is(err, breaker.ErrServiceUnavailable) || isConnError(err)
 }
 
 // isConnError 判断是否为连接级错误（节点不可达）

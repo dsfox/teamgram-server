@@ -115,6 +115,8 @@ func stubRequests() []mtproto.TLObject {
 		&mtproto.TLMessagesGetWebPage32CA8F91{},
 		&mtproto.TLMessagesGetWebPage8D9692A3{},
 		&mtproto.TLAccountGetWallPapers{},
+		&mtproto.TLAccountGetMultiWallPapers{},
+		&mtproto.TLBotsGetBotRecommendations{},
 		&mtproto.TLAccountGetPassword{},
 		&mtproto.TLHelpAcceptTermsOfService{},
 		&mtproto.TLHelpGetTermsOfServiceUpdate{},
