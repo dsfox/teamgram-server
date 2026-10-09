@@ -184,7 +184,8 @@ type LeafState struct {
 // lets go of it by itself.
 //
 // A leaf is matched to a device through the name its key packages were
-// published under (#136), and **a leaf that matches nothing is called alive**.
+// published under (#136), and **a leaf that matches nothing is called alive** -
+// though it does not count as any device's leaf when working out who is short.
 // That is deliberate and it is the safe direction: a device that published
 // before key packages carried a name cannot be matched at all, and evicting a
 // live phone is the worst thing this can lead to. Being wrong the other way
@@ -239,7 +240,11 @@ func (m *MysqlMembers) Holding(ctx context.Context, groupId []byte) ([]LeafState
 		// again can happen within one.
 		living := !known || (answering[device.user][device.key] && missed[device] <= row.JoinedAt)
 		leaves = append(leaves, LeafState{Name: row.Leaf, UserId: row.UserId, Alive: living})
-		if living {
+		// Alive and never taken out, but not counted as standing for a device
+		// when it matches none (#240): a leaf from a phone that published
+		// before key packages carried a name made its owner look whole, and
+		// the phone they actually hold was never let in.
+		if living && known {
 			alive[row.UserId]++
 		} else if _, seen := alive[row.UserId]; !seen {
 			alive[row.UserId] = 0
