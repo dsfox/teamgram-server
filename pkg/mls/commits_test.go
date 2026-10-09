@@ -260,7 +260,11 @@ func TestACommitNobodyAppliedIsForgottenWhenTheDeviceAsks(t *testing.T) {
 type mapCommits struct {
 	rows    []Commit
 	devices map[int64][]int64
-	nextId  int64
+	// Devices with a session that Devices leaves out because they have not
+	// been seen lately; nil means the same as devices.
+	signedIn map[int64][]int64
+	missed   []Missed
+	nextId   int64
 }
 
 func (m *mapCommits) put(c Commit) error {
@@ -298,22 +302,125 @@ func (m *mapCommits) Confirm(_ context.Context, userId, authKeyId int64, ids []i
 	return removed, nil
 }
 
-func (m *mapCommits) ForgetOlderThan(_ context.Context, userId, authKeyId int64, before int32) (int, error) {
+func (m *mapCommits) ForgetOlderThan(_ context.Context, userId, authKeyId int64, before int32) ([]Missed, error) {
 	var kept []Commit
-	forgotten := 0
+	latest := map[string]int32{}
 	for _, row := range m.rows {
 		if row.UserId == userId && row.AuthKeyId == authKeyId && row.Date < before {
-			forgotten++
+			if row.Date > latest[string(row.GroupId)] {
+				latest[string(row.GroupId)] = row.Date
+			}
 			continue
 		}
 		kept = append(kept, row)
 	}
 	m.rows = kept
+	var forgotten []Missed
+	for group, at := range latest {
+		forgotten = append(forgotten, Missed{GroupId: []byte(group), UserId: userId, AuthKeyId: authKeyId, At: at})
+	}
 	return forgotten, nil
 }
 
 func (m *mapCommits) Devices(_ context.Context, userId int64) ([]int64, error) {
 	return m.devices[userId], nil
+}
+
+func (m *mapCommits) SignedInDevices(_ context.Context, userId int64) ([]int64, error) {
+	if m.signedIn == nil {
+		return m.devices[userId], nil
+	}
+	return m.signedIn[userId], nil
+}
+
+func (m *mapCommits) Missed(_ context.Context, missed []Missed) error {
+	m.missed = append(m.missed, missed...)
+	return nil
+}
+
+// missedBy is when this device last missed a commit of this group, or zero.
+func (m *mapCommits) missedBy(group string, userId, authKeyId int64) int32 {
+	var at int32
+	for _, each := range m.missed {
+		if string(each.GroupId) == group && each.UserId == userId && each.AuthKeyId == authKeyId && each.At > at {
+			at = each.At
+		}
+	}
+	return at
+}
+
+// A device that has not asked for a fortnight cannot catch up: what moved the
+// group while it was away has been forgotten. When it does come back it is
+// answering again, so its leaf looked alive, nobody took it out and let it
+// back in, and it waited for ever (#211). So forgetting is written down, by
+// group, at the date of the newest commit forgotten - the date of the change
+// it missed, not the moment of the sweep, so a sweep that comes after the
+// device has been let back in says nothing about the leaf it has now.
+func TestAForgottenCommitIsRememberedAsMissed(t *testing.T) {
+	commits := &mapCommits{devices: map[int64][]int64{9: {100}}}
+	groups := &mapGroups{commits: commits}
+	ctx := context.Background()
+
+	made := int32(10 * CommitLife)
+	older := made - CommitLife - 2*86400
+	old := made - CommitLife - 86400
+	for _, c := range []struct {
+		group string
+		epoch int64
+		at    int32
+	}{{"a", 1, older}, {"a", 2, old}, {"b", 1, older}, {"c", 1, made}} {
+		if _, err := Accept(ctx, groups, commits, []byte(c.group), c.epoch, 1, []int64{9},
+			[]byte("a change"), c.at); err != nil {
+			t.Fatalf("the commit to %s at epoch %d should have been taken: %v", c.group, c.epoch, err)
+		}
+	}
+
+	if _, err := WaitingCommits(ctx, commits, 9, 100, made); err != nil {
+		t.Fatalf("asking failed: %v", err)
+	}
+
+	if at := commits.missedBy("a", 9, 100); at != old {
+		t.Errorf("the device missed group a at %d, expected the newer forgotten commit's %d", at, old)
+	}
+	if at := commits.missedBy("b", 9, 100); at != older {
+		t.Errorf("the device missed group b at %d, expected %d", at, older)
+	}
+	if at := commits.missedBy("c", 9, 100); at != 0 {
+		t.Errorf("a fresh commit still waiting was taken for a missed one (%d)", at)
+	}
+}
+
+// The other way a device misses a commit: it is not handed one at all. A
+// device not seen for a fortnight is left out of every delivery (#138), so a
+// change made while it is away never reaches its box and there is nothing to
+// forget when it comes back - the shape of #211 exactly.
+func TestACommitThatPassesADeviceByIsRememberedAsMissed(t *testing.T) {
+	commits := &mapCommits{
+		devices:  map[int64][]int64{9: {100}},
+		signedIn: map[int64][]int64{9: {100, 200}},
+	}
+	groups := &mapGroups{commits: commits}
+	ctx := context.Background()
+	group := []byte("conversation")
+
+	if _, err := Accept(ctx, groups, commits, group, 4, 1, []int64{9}, []byte("a change"), 77); err != nil {
+		t.Fatalf("the commit should have been taken: %v", err)
+	}
+	if at := commits.missedBy("conversation", 9, 200); at != 77 {
+		t.Errorf("the device left out missed the commit at %d, expected 77", at)
+	}
+	if at := commits.missedBy("conversation", 9, 100); at != 0 {
+		t.Errorf("the device that was handed the commit is said to have missed it (%d)", at)
+	}
+
+	// A commit that is refused moved nothing, so nobody missed anything.
+	before := len(commits.missed)
+	if _, err := Accept(ctx, groups, commits, group, 4, 1, []int64{9}, []byte("too late"), 78); !errors.Is(err, ErrBehind) {
+		t.Fatalf("a commit from an old epoch was answered %v", err)
+	}
+	if len(commits.missed) != before {
+		t.Errorf("a refused commit wrote %d missed commit(s)", len(commits.missed)-before)
+	}
 }
 
 // A delivery that gives out halfway must leave the group where it was.

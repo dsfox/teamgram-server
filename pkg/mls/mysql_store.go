@@ -181,9 +181,15 @@ func (s *MysqlStore) CountAvailable(ctx context.Context, userId, authKeyId int64
 //
 // `deleted = 0` is what the server itself means by a session, everywhere it asks
 // (app/service/authsession/.../auth_users_dao.go).
-const stillSignedIn = " and exists (select 1 from auth_users a where " +
+const stillSignedIn = hasASession + seenLately
+
+// hasASession is the first half on its own: a device whose session is there,
+// seen lately or not - the ones a commit passes by when they are not (#211).
+const hasASession = " and exists (select 1 from auth_users a where " +
 	"a.auth_key_id = mls_key_packages.auth_key_id and " +
-	"a.user_id = mls_key_packages.user_id and a.deleted = 0)" +
+	"a.user_id = mls_key_packages.user_id and a.deleted = 0)"
+
+const seenLately = "" +
 	// And seen since, which is the other half of the same question (#138). A
 	// device that reinstalls leaves its old row in auth_users exactly as it
 	// was - nobody logged it out - so by the record it is alive for ever, and
@@ -227,11 +233,20 @@ func (s *MysqlStore) CountDevices(ctx context.Context, userId int64) (int, error
 }
 
 func (s *MysqlStore) Devices(ctx context.Context, userId int64) ([]int64, error) {
+	return s.devicesWhere(ctx, userId, stillSignedIn)
+}
+
+// SignedInDevices is every device with a session, seen lately or not.
+func (s *MysqlStore) SignedInDevices(ctx context.Context, userId int64) ([]int64, error) {
+	return s.devicesWhere(ctx, userId, hasASession)
+}
+
+func (s *MysqlStore) devicesWhere(ctx context.Context, userId int64, condition string) ([]int64, error) {
 	var devices []int64
 
 	err := s.db.QueryRowsPartial(ctx, &devices,
 		"select distinct auth_key_id from mls_key_packages where user_id = ?"+
-			stillSignedIn, userId)
+			condition, userId)
 	if err != nil {
 		if errors.Is(err, sqlx.ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
 			return nil, nil

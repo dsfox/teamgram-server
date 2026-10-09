@@ -17,12 +17,12 @@ import (
 // behind, and every conversation carries them from then on (#41).
 //
 // The welcomes and commits go with them for a plainer reason: they are
-// addressed to a device that will never ask again.
+// addressed to a device that will never ask again - and so does what it missed.
 //
 // With authKeyId zero it is the whole account, which is what unbinding every
 // device of a person means.
 func ForgetDevice(ctx context.Context, db *sqlx.DB, userId, authKeyId int64) {
-	tables := []string{"mls_key_packages", "mls_welcomes", "mls_commits"}
+	tables := []string{"mls_key_packages", "mls_welcomes", "mls_commits", "mls_missed"}
 	for _, table := range tables {
 		var err error
 		if authKeyId == 0 {

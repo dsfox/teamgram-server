@@ -194,24 +194,58 @@ func (s *MysqlCommits) Confirm(ctx context.Context, userId, authKeyId int64, ids
 // By the device rather than by the person, unlike welcomes: a commit is left
 // for one device, and the index the table has starts with both halves, so this
 // reads exactly the rows of the device that is asking.
-func (s *MysqlCommits) ForgetOlderThan(ctx context.Context, userId, authKeyId int64, before int32) (int, error) {
-	result, err := s.db.Exec(ctx,
-		"delete from mls_commits where user_id = ? and auth_key_id = ? and date < ?",
+//
+// What goes is read first, by group and the newest of each, because a device
+// that loses a commit can never reach that group's epoch again (#211). Nothing
+// can slip in between the two: what arrives meanwhile is dated now, not before.
+func (s *MysqlCommits) ForgetOlderThan(ctx context.Context, userId, authKeyId int64, before int32) ([]Missed, error) {
+	var rows []commitRow
+	err := s.db.QueryRowsPartial(ctx, &rows,
+		"select group_id, max(date) as date from mls_commits "+
+			"where user_id = ? and auth_key_id = ? and date < ? group by group_id",
 		userId, authKeyId, before)
-	if err != nil {
-		logx.WithContext(ctx).Errorf("mls: cannot forget the stale commits: %v", err)
-		return 0, err
+	if err != nil && !errors.Is(err, sqlx.ErrNotFound) && !errors.Is(err, sql.ErrNoRows) {
+		logx.WithContext(ctx).Errorf("mls: cannot read the stale commits: %v", err)
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, nil
 	}
 
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return 0, err
+	if _, err := s.db.Exec(ctx,
+		"delete from mls_commits where user_id = ? and auth_key_id = ? and date < ?",
+		userId, authKeyId, before); err != nil {
+		logx.WithContext(ctx).Errorf("mls: cannot forget the stale commits: %v", err)
+		return nil, err
 	}
-	return int(affected), nil
+
+	forgotten := make([]Missed, 0, len(rows))
+	for _, r := range rows {
+		forgotten = append(forgotten, Missed{GroupId: r.GroupId, UserId: userId, AuthKeyId: authKeyId, At: r.Date})
+	}
+	return forgotten, nil
 }
 
 // Devices asks the key package table, for the same reason welcomes do: a device
 // is reachable here exactly when it has published something to be reached by.
 func (s *MysqlCommits) Devices(ctx context.Context, userId int64) ([]int64, error) {
 	return (&MysqlStore{db: s.db}).Devices(ctx, userId)
+}
+
+func (s *MysqlCommits) SignedInDevices(ctx context.Context, userId int64) ([]int64, error) {
+	return (&MysqlStore{db: s.db}).SignedInDevices(ctx, userId)
+}
+
+// Missed keeps, for each device and group, the newest commit it will never get.
+func (s *MysqlCommits) Missed(ctx context.Context, missed []Missed) error {
+	const remember = "insert into mls_missed(group_id, user_id, auth_key_id, missed_at) values (?, ?, ?, ?) " +
+		"on duplicate key update missed_at = greatest(missed_at, values(missed_at))"
+	for _, m := range missed {
+		if _, err := s.db.Exec(ctx, remember, m.GroupId, m.UserId, m.AuthKeyId, m.At); err != nil {
+			logx.WithContext(ctx).Errorf("mls: cannot note that %d/%d missed a commit of %x: %v",
+				m.UserId, m.AuthKeyId, m.GroupId, err)
+			return err
+		}
+	}
+	return nil
 }

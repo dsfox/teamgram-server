@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
@@ -46,8 +47,28 @@ type GroupStore interface {
 type CommitStore interface {
 	Waiting(ctx context.Context, userId, authKeyId int64) ([]Commit, error)
 	Confirm(ctx context.Context, userId, authKeyId int64, ids []int64) (int, error)
-	ForgetOlderThan(ctx context.Context, userId, authKeyId int64, before int32) (int, error)
+	// ForgetOlderThan drops what has waited too long and says, by group, the
+	// newest of what it dropped.
+	ForgetOlderThan(ctx context.Context, userId, authKeyId int64, before int32) ([]Missed, error)
 	Devices(ctx context.Context, userId int64) ([]int64, error)
+	// SignedInDevices is Devices without the question of when each was last
+	// seen: every device that still has a session.
+	SignedInDevices(ctx context.Context, userId int64) ([]int64, error)
+	// Missed writes down commits devices will never get.
+	Missed(ctx context.Context, missed []Missed) error
+}
+
+// Missed is a commit of a group that a device will never get: forgotten from
+// its box after waiting too long, or never put there because the device had not
+// been seen for a fortnight. Either way that device can no longer reach the
+// group's epoch, and its leaf there is dead from that moment however lively the
+// device is (#211).
+type Missed struct {
+	GroupId   []byte
+	UserId    int64
+	AuthKeyId int64
+	// When the change it missed was made.
+	At int32
 }
 
 // CommitLife is how long a commit waits for the device it was left for.
@@ -69,6 +90,12 @@ type CommitStore interface {
 // It is generous for the case it must not break - a phone off for a week comes
 // back and finishes its chain - because what is bounded here is a device that
 // will never apply them, not one that is late.
+//
+// "Let in afresh by the comparison" did not happen on its own: back, the device
+// is answering again, so its leaf looked alive and nobody had a reason to take
+// it out and let it in. It looped on repair until somebody did it by hand
+// (#211). What a sweep drops is written down as missed now, and a leaf whose
+// device missed a commit is dead to that comparison.
 const CommitLife int32 = WelcomeLife
 
 // Commit is one waiting for a device.
@@ -133,10 +160,23 @@ func Accept(
 	// device that signs in between the two rounds misses this commit and is
 	// caught up by its welcome, which is the ordinary path and not a hole.
 	deliveries := make([]Commit, 0, len(members))
+	var passedBy []Missed
 	for _, userId := range members {
 		devices, err := commits.Devices(ctx, userId)
 		if err != nil {
 			return 0, fmt.Errorf("cannot list the devices: %w", err)
+		}
+		// A device with a session that has not been seen for a fortnight is
+		// left out (#138), so it will never have this commit. Said here,
+		// because nothing else will ever say it: there is no row to forget.
+		signedIn, err := commits.SignedInDevices(ctx, userId)
+		if err != nil {
+			return 0, fmt.Errorf("cannot list the devices with a session: %w", err)
+		}
+		for _, authKeyId := range signedIn {
+			if !slices.Contains(devices, authKeyId) {
+				passedBy = append(passedBy, Missed{GroupId: groupId, UserId: userId, AuthKeyId: authKeyId, At: now})
+			}
 		}
 		for _, authKeyId := range devices {
 			waiting, err := commits.Waiting(ctx, userId, authKeyId)
@@ -171,6 +211,15 @@ func Accept(
 		return 0, ErrBehind
 	}
 
+	// After the move, and only then: a refused commit moved nothing, so nobody
+	// missed it. Not a reason to refuse this one if it fails - the device is
+	// then where it was before this was written, stranded until let in by hand.
+	if len(passedBy) > 0 {
+		if err := commits.Missed(ctx, passedBy); err != nil {
+			logx.WithContext(ctx).Errorf("mls: cannot note %d device(s) passed by: %v", len(passedBy), err)
+		}
+	}
+
 	return len(deliveries), nil
 }
 
@@ -200,10 +249,14 @@ func forgetTheStaleCommits(ctx context.Context, commits CommitStore, userId, aut
 			"mls: cannot forget the commits nobody applied: %v", err)
 		return
 	}
-	if forgotten > 0 {
-		logx.WithContext(ctx).Infof(
-			"mls: %d commit(s) of %d/%d had been waiting longer than any device "+
-				"comes back from", forgotten, userId, authKeyId)
+	if len(forgotten) == 0 {
+		return
+	}
+	logx.WithContext(ctx).Infof(
+		"mls: commits of %d group(s) had waited for %d/%d longer than any device "+
+			"comes back from; it has missed them", len(forgotten), userId, authKeyId)
+	if err := commits.Missed(ctx, forgotten); err != nil {
+		logx.WithContext(ctx).Errorf("mls: cannot note what %d/%d missed: %v", userId, authKeyId, err)
 	}
 }
 

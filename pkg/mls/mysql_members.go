@@ -177,6 +177,12 @@ type LeafState struct {
 // act on them for anybody but their own account. A leaf whose device was gone
 // then stayed for ever and every commit was encrypted to it (#139).
 //
+// A leaf is also dead when its device missed a commit of this group after the
+// leaf joined (#211): that device can never reach the group's epoch, however
+// lively it is, and only taking the leaf out and letting the device in afresh
+// helps. A leaf let in again is a new row with a later joined_at, so the mark
+// lets go of it by itself.
+//
 // A leaf is matched to a device through the name its key packages were
 // published under (#136), and **a leaf that matches nothing is called alive**.
 // That is deliberate and it is the safe direction: a device that published
@@ -219,13 +225,19 @@ func (m *MysqlMembers) Holding(ctx context.Context, groupId []byte) ([]LeafState
 	if err != nil {
 		return nil, nil, err
 	}
+	missed, err := m.missedIn(ctx, groupId)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	leaves := make([]LeafState, 0, len(held))
 	alive := map[int64]int{}
 	for _, row := range held {
 		device, known := behind[string(row.Leaf)]
-		// Unknown counts as alive, for the reason above.
-		living := !known || answering[device.user][device.key]
+		// Unknown counts as alive, for the reason above. Missed in the same
+		// second as joined is not counted: taking a leaf out and letting it in
+		// again can happen within one.
+		living := !known || (answering[device.user][device.key] && missed[device] <= row.JoinedAt)
 		leaves = append(leaves, LeafState{Name: row.Leaf, UserId: row.UserId, Alive: living})
 		if living {
 			alive[row.UserId]++
@@ -303,6 +315,31 @@ func (m *MysqlMembers) devicesBehind(ctx context.Context, names [][]byte) (map[s
 		behind[string(row.Name)] = deviceKey{user: row.UserId, key: row.AuthKeyId}
 	}
 	return behind, nil
+}
+
+// The newest commit of a group one device will never get.
+type missedRow struct {
+	GroupId   []byte `db:"group_id"`
+	UserId    int64  `db:"user_id"`
+	AuthKeyId int64  `db:"auth_key_id"`
+	MissedAt  int32  `db:"missed_at"`
+}
+
+// When each device last missed a commit of this group.
+func (m *MysqlMembers) missedIn(ctx context.Context, groupId []byte) (map[deviceKey]int32, error) {
+	missed := map[deviceKey]int32{}
+	var rows []missedRow
+	const query = "select group_id, user_id, auth_key_id, missed_at from mls_missed where group_id = ?"
+	if err := m.db.QueryRowsPartial(ctx, &rows, query, groupId); err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			logx.WithContext(ctx).Errorf("mls members - cannot read what %x was missed by: %v", groupId, err)
+			return nil, err
+		}
+	}
+	for _, row := range rows {
+		missed[deviceKey{user: row.UserId, key: row.AuthKeyId}] = row.MissedAt
+	}
+	return missed, nil
 }
 
 // One live device of somebody, by the two columns that name it.
