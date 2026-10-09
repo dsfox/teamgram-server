@@ -220,21 +220,28 @@ func (c *AuthorizationCore) pushSignInMessage(ctx context.Context, signInUserId 
 			message.Message, message.Entities = mtproto.MakeTextAndMessageEntities(builder)
 		}
 
-		c.svcCtx.Dao.MsgClient.MsgPushUserMessage(
-			ctx,
-			&msgpb.TLMsgPushUserMessage{
-				UserId:    777000,
-				AuthKeyId: 0,
-				PeerType:  mtproto.PEER_USER,
-				PeerId:    signInUserId,
-				PushType:  1,
-				Message: msgpb.MakeTLOutboxMessage(&msgpb.OutboxMessage{
-					NoWebpage:    false,
-					Background:   false,
-					RandomId:     rand.Int63(),
-					Message:      message,
-					ScheduleDate: nil,
-				}).To_OutboxMessage(),
-			})
+		c.pushServiceMessage(ctx, signInUserId, message)
 	})
+}
+
+// pushServiceMessage leaves a message from the service account (777000) in this
+// person's history, where every device of theirs reads it and deleting the chat
+// on any of them takes it away for all (#216).
+func (c *AuthorizationCore) pushServiceMessage(ctx context.Context, userId int64, message *mtproto.Message) {
+	c.svcCtx.Dao.MsgClient.MsgPushUserMessage(
+		ctx,
+		&msgpb.TLMsgPushUserMessage{
+			UserId:    777000,
+			AuthKeyId: 0,
+			PeerType:  mtproto.PEER_USER,
+			PeerId:    userId,
+			PushType:  1,
+			Message: msgpb.MakeTLOutboxMessage(&msgpb.OutboxMessage{
+				NoWebpage:    false,
+				Background:   false,
+				RandomId:     rand.Int63(),
+				Message:      message,
+				ScheduleDate: nil,
+			}).To_OutboxMessage(),
+		})
 }

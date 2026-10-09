@@ -25,7 +25,6 @@ import (
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/app/bff/authorization/internal/logic"
 	"github.com/teamgram/teamgram-server/app/bff/authorization/model"
-	"github.com/teamgram/teamgram-server/app/messenger/sync/sync"
 	"github.com/teamgram/teamgram-server/app/service/authsession/authsession"
 	userpb "github.com/teamgram/teamgram-server/app/service/biz/user/user"
 	"github.com/teamgram/teamgram-server/pkg/code/conf"
@@ -198,13 +197,20 @@ func (c *AuthorizationCore) AuthSignIn(in *mtproto.TLAuthSignIn) (*mtproto.Auth_
 		signInN.Message_STRING, signInN.Entities = mtproto.MakeTextAndMessageEntities(builder)
 	}
 
-	_, _ = c.svcCtx.Dao.SyncClient.SyncUpdatesNotMe(
-		c.ctx,
-		&sync.TLSyncUpdatesNotMe{
-			UserId:        user.Id(),
-			PermAuthKeyId: c.MD.PermAuthKeyId,
-			Updates:       mtproto.MakeUpdatesByUpdates(signInN),
-		})
+	// A message from 777000 in the account's history rather than the service
+	// notification it was built as. A notification is kept by each phone under
+	// a number of its own, so deleting the service chat on one device - or from
+	// any session - emptied it everywhere but on the phones, which went on
+	// showing the chat and its unread count after a restart (#216). The login
+	// code has always travelled this way.
+	c.pushServiceMessage(c.ctx, user.Id(), mtproto.MakeTLMessage(&mtproto.Message{
+		Out:      true,
+		Date:     int32(now.Unix()),
+		FromId:   mtproto.MakePeerUser(777000),
+		PeerId:   mtproto.MakeTLPeerUser(&mtproto.Peer{UserId: user.Id()}).To_Peer(),
+		Message:  signInN.Message_STRING,
+		Entities: signInN.Entities,
+	}).To_Message())
 
 	// Whoever just got in has a device to read it on. If they got in by
 	// spending their recovery code, this is where the next one reaches them;
