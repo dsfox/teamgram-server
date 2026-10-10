@@ -23,7 +23,14 @@ client that knew only it; ours lives in secrets and is mounted at the path
 below. The stock key stays second for clients installed before the switch.
 Only our servers take the flag: the public image has no such secret to mount.
 
-Usage: python3 deploy/etc/rewrite-configs.py <source> <output> [--telemetry host:port] [--production] [--ice9-key]
+--own-key puts the server's own key first (#244): /app/secrets/server_rsa.key,
+which install.sh makes once per installed server, with no fingerprint - gnetway
+works it out, and `GET /key` hands that key to an app given the server's code.
+A server installed before #244 has no such file; gnetway passes over it and
+offers the stock key alone. The public image and the stand take this flag; our
+own live server does not.
+
+Usage: python3 deploy/etc/rewrite-configs.py <source> <output> [--telemetry host:port] [--production] [--ice9-key] [--own-key]
 """
 import re
 import sys
@@ -122,6 +129,13 @@ def ice9_key(text: str) -> str:
     return RSA_KEY_LIST.sub(lambda m: m.group(0) + ICE9_KEY, text, count=1)
 
 
+OWN_KEY = '  - KeyFile: "/app/secrets/server_rsa.key"\n'
+
+
+def own_key(text: str) -> str:
+    return RSA_KEY_LIST.sub(lambda m: m.group(0) + OWN_KEY, text, count=1)
+
+
 def production(text: str) -> str:
     text = LOG_LEVEL.sub(lambda m: f"{m.group('indent')}Level: info", text)
     # An RPC server is one whose ListenOn sits at the top level; the HTTP
@@ -183,14 +197,18 @@ def rewrite(text: str, telemetry: str = "") -> str:
     return text
 
 
-def main(source: Path, target: Path, telemetry: str = "", live: bool = False, own_key: bool = False):
+def main(source: Path, target: Path, telemetry: str = "", live: bool = False, ice9: bool = False,
+         own: bool = False):
     target.mkdir(parents=True, exist_ok=True)
     for path in sorted(source.glob("*.yaml")):
         result = rewrite(path.read_text(), telemetry)
         if live:
             result = production(result)
-        if own_key:
+        if ice9:
             result = ice9_key(result)
+        # After ice9's, so a server's own key ends up first.
+        if own:
+            result = own_key(result)
         (target / path.name).write_text(result)
         print(f"[config] {path.name}")
     print(f"[config] done: {len(list(source.glob('*.yaml')))} files"
@@ -207,9 +225,12 @@ if __name__ == "__main__":
     live = "--production" in args
     if live:
         args.remove("--production")
-    own_key = "--ice9-key" in args
-    if own_key:
+    ice9 = "--ice9-key" in args
+    if ice9:
         args.remove("--ice9-key")
+    own = "--own-key" in args
+    if own:
+        args.remove("--own-key")
     if len(args) != 2:
         raise SystemExit(__doc__)
-    main(Path(args[0]), Path(args[1]), collector, live, own_key)
+    main(Path(args[0]), Path(args[1]), collector, live, ice9, own)

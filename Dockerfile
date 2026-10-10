@@ -28,7 +28,10 @@ RUN ./build.sh
 # deploy goes on mounting its copy over this one, so nothing there changes.
 # After the build, so that a config edit does not rebuild the whole server.
 COPY server/deploy/etc/rewrite-configs.py /tmp/rewrite-configs.py
-RUN python3 /tmp/rewrite-configs.py teamgramd/etc2 /tmp/etc2 \
+# --own-key: every installed server has a key of its own, which install.sh
+# makes in /srv/ice9/secrets and the app checks against the server's code
+# (#244); an install without one goes on offering the stock key alone.
+RUN python3 /tmp/rewrite-configs.py teamgramd/etc2 /tmp/etc2 --own-key \
  && rm -rf teamgramd/etc2 \
  && mv /tmp/etc2 teamgramd/etc2
 
@@ -43,7 +46,9 @@ FROM ubuntu:26.04
 # check below: a running container is not a working server, and install.sh has
 # to be able to tell the difference on a machine where nothing else is
 # installed. The check is stdlib only, which is why the minimal package does.
-RUN apt update -y && apt install -y ffmpeg psmisc python3-minimal && apt-get clean
+# qrencode draws the server's QR code at the end of install.sh, on a machine
+# where nothing else is installed (#244).
+RUN apt update -y && apt install -y ffmpeg psmisc python3-minimal qrencode && apt-get clean
 WORKDIR /app
 COPY --from=builder /app/teamgramd/ /app/
 # How a database is brought up, carried inside the image so that the image is

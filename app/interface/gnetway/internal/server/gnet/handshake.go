@@ -21,11 +21,15 @@ package gnet
 import (
 	"bytes"
 	"context"
+	"crypto/rsa"
 	"crypto/sha1"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"io/fs"
 	"math/big"
+	"os"
 	"strconv"
 	"time"
 
@@ -140,6 +144,7 @@ type rsaKeyHelper struct {
 type handshake struct {
 	keyFingerprints []int64
 	rsaList         []rsaKeyHelper
+	keyAnswer       []byte
 	// keyFingerprint  uint64
 	dh2048p []byte
 	dh2048g []byte
@@ -156,41 +161,72 @@ func (m *handshake) getKey(keyFingerprint int64) *crypto.RSACryptor {
 }
 
 func mustNewHandshake(cList []config.RSAKey) *handshake {
-	var (
-		h = &handshake{
-			keyFingerprints: make([]int64, 0, len(cList)),
-			rsaList:         make([]rsaKeyHelper, 0, len(cList)),
-			dh2048p:         dh2048P,
-			dh2048g:         dh2048G,
-		}
-		// rsaList = make([]rsaKeyHelper, 0, len(cList))
-	)
-
-	for _, c := range cList {
-		rsa, err := crypto.NewRSACryptor(c.KeyFile)
-		if err != nil {
-			panic(err)
-		}
-		keyFingerprint, err := strconv.ParseUint(c.KeyFingerprint, 10, 64)
-		if err != nil {
-			panic(err)
-		}
-		actual, err := fingerprintOfKeyFile(c.KeyFile)
-		if err != nil {
-			panic(err)
-		}
-		if actual != keyFingerprint {
-			panic(fmt.Sprintf("%s: the config names it %d, its fingerprint is %d", c.KeyFile, keyFingerprint, actual))
-		}
-		logx.Infof("handshake key %s: fingerprint %d", c.KeyFile, actual)
-
-		h.keyFingerprints = append(h.keyFingerprints, int64(keyFingerprint))
-		h.rsaList = append(h.rsaList, rsaKeyHelper{
-			rsa:            rsa,
-			keyFingerprint: int64(keyFingerprint),
-		})
+	h := &handshake{
+		keyFingerprints: make([]int64, 0, len(cList)),
+		rsaList:         make([]rsaKeyHelper, 0, len(cList)),
+		dh2048p:         dh2048P,
+		dh2048g:         dh2048G,
 	}
 
+	// The first configured key is the server's own, the one `GET /key` hands
+	// out (#244): ice9's on ours, the installer's on a server of one's own.
+	var own *rsa.PublicKey
+	for i, c := range cList {
+		data, err := os.ReadFile(c.KeyFile)
+		if err != nil {
+			// A key named by its fingerprint is one the apps have built in, so
+			// it must be there. One without a fingerprint is a server's own
+			// key, which an install from before #244 never made.
+			if c.KeyFingerprint == "" && errors.Is(err, fs.ErrNotExist) {
+				logx.Errorf("handshake key %s is not there: this server has no key of its own, so apps given a server code cannot reach it - run install.sh again to make one", c.KeyFile)
+				continue
+			}
+			panic(err)
+		}
+		key, err := readServerKey(c.KeyFile, data)
+		if err != nil {
+			panic(err)
+		}
+		// MTProto's RSA_PAD fills exactly 256 bytes, and the apps refuse any
+		// other exponent when they check a server's code.
+		if key.N.BitLen() != 2048 || key.E != 65537 {
+			panic(fmt.Sprintf("%s: a handshake key is RSA-2048 with e 65537, this one is %d bits with e %d", c.KeyFile, key.N.BitLen(), key.E))
+		}
+		actual := fingerprintOf(&key.PublicKey)
+		if c.KeyFingerprint != "" {
+			stated, err := strconv.ParseUint(c.KeyFingerprint, 10, 64)
+			if err != nil {
+				panic(err)
+			}
+			if actual != stated {
+				panic(fmt.Sprintf("%s: the config names it %d, its fingerprint is %d", c.KeyFile, stated, actual))
+			}
+		}
+		rsaCryptor, err := crypto.NewRSACryptorByKeyData(data)
+		if err != nil {
+			panic(err)
+		}
+		logx.Infof("handshake key %s: fingerprint %d", c.KeyFile, actual)
+		if i == 0 && actual != stockFingerprint {
+			own = &key.PublicKey
+		}
+
+		h.keyFingerprints = append(h.keyFingerprints, int64(actual))
+		h.rsaList = append(h.rsaList, rsaKeyHelper{
+			rsa:            rsaCryptor,
+			keyFingerprint: int64(actual),
+		})
+	}
+	if len(h.rsaList) == 0 {
+		panic("no handshake key could be loaded")
+	}
+
+	h.keyAnswer = keyAnswerFor(own)
+	if own != nil {
+		logx.Infof("GET /key hands out fingerprint %d", fingerprintOf(own))
+	} else {
+		logx.Infof("GET /key answers 404: this server has no key of its own")
+	}
 	return h
 }
 

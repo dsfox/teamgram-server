@@ -23,8 +23,10 @@ type Config struct {
 }
 
 type RSAKey struct {
-	KeyFile        string
-	KeyFingerprint string
+	KeyFile string
+	// Computed from the key when left out: a server's own key, which the
+	// installer makes, has no number anybody wrote down (#244).
+	KeyFingerprint string `json:",optional"`
 }
 
 type GnetwayServer struct {

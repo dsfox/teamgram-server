@@ -27,6 +27,24 @@ import (
 
 func (s *Server) onTcpData(ctx *connContext, c gnet.Conn) (action gnet.Action) {
 	if ctx.codec == nil {
+		// The one plain HTTP request answered here: an app given a server's
+		// code fetches the server's own key before its first handshake (#244).
+		if buf, _ := c.Peek(-1); len(buf) > 0 {
+			switch askedForKey(buf) {
+			case keyPartial:
+				return gnet.None
+			case keyWhole:
+				if _, err := c.Write(s.handshake.keyAnswer); err != nil {
+					logx.Errorf("conn(%s) GET /key could not be answered: %v", c, err)
+				} else {
+					logx.Infof("conn(%s) GET /key answered", c)
+				}
+				return gnet.Close
+			case keyTooLong:
+				return gnet.Close
+			}
+		}
+
 		var (
 			err error
 		)

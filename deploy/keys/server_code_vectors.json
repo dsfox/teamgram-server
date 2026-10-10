@@ -1,0 +1,145 @@
+{
+ "rule": "A server code is SHA-256 over the canonical PKCS#1 DER of the server's RSA-2048 key with e 65537 (270 bytes), its first 10 bytes read as a big-endian number, mod 10^24, written as 24 digits; any other key, and teamgram's stock key, is refused (#244). The reference is server/deploy/check-mtproto.py; tests/test_the_server_code_is_one_rule.py holds both clients to these vectors.",
+ "accept": [
+  {
+   "what": "ice9's own key",
+   "pem": "-----BEGIN RSA PUBLIC KEY-----\nMIIBCgKCAQEAzpUVNGKYk9pExJWbL06e23mrN8zoMxApqLkxxCQIxckqQVmBXs3j\nrHMIt9Ch+kfUMang70oJHP5OH41EgRl1YGraLJuN7siO9RRQYnSTTQTD10tSMEvB\n5VvnXQsNuSeoEc35t3AOxSQBm9IbBqlQQ60/rKPve4vQ7IdZkG0ZPmL+b7w48huH\nKmOELgyElFn1HJROzQm1xZoy+OYjKGo6tR4VrnmarxpZVwI5ruwxR7gqhQXHul0A\n+Tj080Oo+G5a3z52z0l6Bc6Y1unNlwnj3F0luCwFRIPc+mbkcUyFHZ/QrXDvUh14\nNqoPtX5YPpGLyizjvz/fWs72Q9QWPw5XkwIDAQAB\n-----END RSA PUBLIC KEY-----\n",
+   "code": "138485278689309020570713"
+  },
+  {
+   "what": "a key whose code begins with 0",
+   "pem": "-----BEGIN RSA PUBLIC KEY-----\nMIIBCgKCAQEA4ixLHNP8HI6hbYulfFgx6L0VyuM8dDp/TsIJHsiWR7HSNUo8NDx7\nDNUZ4Z1ww2bkW9Vqk6MqoNzqyt0MDK7zH3qzhO0IWZBVsChxzpfjy6BBVoxkXJia\nX+Yv8tq9ApNUXgBfPle4y5ioUEZrO16gCX98NSGhs/XoApRQj/C/cghMJOyPsMhf\nGpxn8oQXfZiNYWjlPo3rf2FRWsw8bP2TzCDyK33XkzBNNlNIunuHjFcCayN0nKOV\nA2lTL5H9nT0IkxsJmtUM8LrX7RKNb85gSu2gUrOWic19F7B5N/yEJEjuIQ0J2R/d\nqDbnsVUN3b2K84Dg+BDveZjyPcZ+JjxZswIDAQAB\n-----END RSA PUBLIC KEY-----\n",
+   "code": "062092320587167923146172"
+  }
+ ],
+ "refuse": [
+  {
+   "what": "e 3",
+   "pem": "-----BEGIN RSA PUBLIC KEY-----\nMIIBCAKCAQEAzpUVNGKYk9pExJWbL06e23mrN8zoMxApqLkxxCQIxckqQVmBXs3j\nrHMIt9Ch+kfUMang70oJHP5OH41EgRl1YGraLJuN7siO9RRQYnSTTQTD10tSMEvB\n5VvnXQsNuSeoEc35t3AOxSQBm9IbBqlQQ60/rKPve4vQ7IdZkG0ZPmL+b7w48huH\nKmOELgyElFn1HJROzQm1xZoy+OYjKGo6tR4VrnmarxpZVwI5ruwxR7gqhQXHul0A\n+Tj080Oo+G5a3z52z0l6Bc6Y1unNlwnj3F0luCwFRIPc+mbkcUyFHZ/QrXDvUh14\nNqoPtX5YPpGLyizjvz/fWs72Q9QWPw5XkwIBAw==\n-----END RSA PUBLIC KEY-----\n"
+  },
+  {
+   "what": "a 1024-bit modulus",
+   "pem": "-----BEGIN RSA PUBLIC KEY-----\nMIGJAoGBAOvFmJzHBFxzxtyJEuD9ex37UCGQUwlJGQvBLqxPF+s11rPlMOaRrl/8\n3C0WhLBH/MGJymb8WD0GHZ6h1aBeWaiH7Md1f1J2vJhJy4EqQSrl29YMZlh0Nf3y\nP/yO0772Q2oQYbQAklQCjAEvVTn1vsIzB+3oiyiuvr5vIqmR5Mh5AgMBAAE=\n-----END RSA PUBLIC KEY-----\n"
+  },
+  {
+   "what": "an extra zero before the modulus",
+   "pem": "-----BEGIN RSA PUBLIC KEY-----\nMIIBCwKCAQIAAM6VFTRimJPaRMSVmy9Ontt5qzfM6DMQKai5McQkCMXJKkFZgV7N\n46xzCLfQofpH1DGp4O9KCRz+Th+NRIEZdWBq2iybje7IjvUUUGJ0k00Ew9dLUjBL\nweVb510LDbknqBHN+bdwDsUkAZvSGwapUEOtP6yj73uL0OyHWZBtGT5i/m+8OPIb\nhypjhC4MhJRZ9RyUTs0JtcWaMvjmIyhqOrUeFa55mq8aWVcCOa7sMUe4KoUFx7pd\nAPk49PNDqPhuWt8+ds9JegXOmNbpzZcJ49xdJbgsBUSD3Ppm5HFMhR2f0K1w71Id\neDaqD7V+WD6Ri8os478/31rO9kPUFj8OV5MCAwEAAQ==\n-----END RSA PUBLIC KEY-----\n"
+  },
+  {
+   "what": "a byte after the key",
+   "pem": "-----BEGIN RSA PUBLIC KEY-----\nMIIBCgKCAQEAzpUVNGKYk9pExJWbL06e23mrN8zoMxApqLkxxCQIxckqQVmBXs3j\nrHMIt9Ch+kfUMang70oJHP5OH41EgRl1YGraLJuN7siO9RRQYnSTTQTD10tSMEvB\n5VvnXQsNuSeoEc35t3AOxSQBm9IbBqlQQ60/rKPve4vQ7IdZkG0ZPmL+b7w48huH\nKmOELgyElFn1HJROzQm1xZoy+OYjKGo6tR4VrnmarxpZVwI5ruwxR7gqhQXHul0A\n+Tj080Oo+G5a3z52z0l6Bc6Y1unNlwnj3F0luCwFRIPc+mbkcUyFHZ/QrXDvUh14\nNqoPtX5YPpGLyizjvz/fWs72Q9QWPw5XkwIDAQABAA==\n-----END RSA PUBLIC KEY-----\n"
+  },
+  {
+   "what": "a PUBLIC KEY label",
+   "pem": "-----BEGIN PUBLIC KEY-----\nMIIBCgKCAQEAzpUVNGKYk9pExJWbL06e23mrN8zoMxApqLkxxCQIxckqQVmBXs3j\nrHMIt9Ch+kfUMang70oJHP5OH41EgRl1YGraLJuN7siO9RRQYnSTTQTD10tSMEvB\n5VvnXQsNuSeoEc35t3AOxSQBm9IbBqlQQ60/rKPve4vQ7IdZkG0ZPmL+b7w48huH\nKmOELgyElFn1HJROzQm1xZoy+OYjKGo6tR4VrnmarxpZVwI5ruwxR7gqhQXHul0A\n+Tj080Oo+G5a3z52z0l6Bc6Y1unNlwnj3F0luCwFRIPc+mbkcUyFHZ/QrXDvUh14\nNqoPtX5YPpGLyizjvz/fWs72Q9QWPw5XkwIDAQAB\n-----END PUBLIC KEY-----\n"
+  },
+  {
+   "what": "teamgram's stock key",
+   "pem": "-----BEGIN RSA PUBLIC KEY-----\nMIIBCgKCAQEAvKLEOWTzt9Hn3/9Kdp/RdHcEhzmd8xXeLSpHIIzaXTLJDw8BhJy1\njR/iqeG8Je5yrtVabqMSkA6ltIpgylH///FojMsX1BHu4EPYOXQgB0qOi6kr08iX\nZIH9/iOPQOWDsL+Lt8gDG0xBy+sPe/2ZHdzKMjX6O9B4sOsxjFrk5qDoWDrioJor\nAJ7eFAfPpOBf2w73ohXudSrJE0lbQ8pCWNpMY8cB9i8r+WBitcvouLDAvmtnTX7a\nkhoDzmKgpJBYliAY4qA73v7u5UIepE8QgV0jCOhxJCPubP8dg+/PlLLVKyxU5Cdi\nQtZj2EMy4s9xlNKzX8XezE0MHEa6bQpnFwIDAQAB\n-----END RSA PUBLIC KEY-----\n"
+  }
+ ],
+ "links": [
+  {
+   "link": "https://i.ice9.app/server#talk.example.org:10443/138485278689309020570713",
+   "host": "talk.example.org",
+   "port": 10443,
+   "code": "138485278689309020570713"
+  },
+  {
+   "link": "https://i.ice9.app/server#203.0.113.7:10444/062092320587167923146172",
+   "host": "203.0.113.7",
+   "port": 10444,
+   "code": "062092320587167923146172"
+  },
+  {
+   "link": "tg2://server#2130706433:10443/138485278689309020570713",
+   "host": "2130706433",
+   "port": 10443,
+   "code": "138485278689309020570713"
+  },
+  {
+   "link": "HTTPS://I.ICE9.APP/server#talk.example.org:10443",
+   "host": "talk.example.org",
+   "port": 10443,
+   "code": ""
+  },
+  {
+   "link": "https://i.ice9.app/server#talk.example.org:10443/12345678901234567890123",
+   "malformed": true
+  },
+  {
+   "link": "https://i.ice9.app/server#talk.example.org:10443/1234567890123456789012345",
+   "malformed": true
+  },
+  {
+   "link": "https://i.ice9.app/server#talk.example.org/138485278689309020570713",
+   "malformed": true
+  },
+  {
+   "link": "https://i.ice9.app/server#talk.example.org:0",
+   "malformed": true
+  },
+  {
+   "link": "https://i.ice9.app/server#talk.example.org:70000",
+   "malformed": true
+  },
+  {
+   "link": "https://i.ice9.app/server#talk.example.org:10443/1384 8527 8689 3090 2057 0713",
+   "malformed": true
+  },
+  {
+   "link": "https://i.ice9.app/server#talk%2eexample.org:10443",
+   "malformed": true
+  },
+  {
+   "link": "https://i.ice9.app.evil.example/server#talk.example.org:10443",
+   "other": true
+  },
+  {
+   "link": "https://i.ice9.app/server/#talk.example.org:10443",
+   "other": true
+  },
+  {
+   "link": "https://i.ice9.app/alice",
+   "other": true
+  }
+ ],
+ "typed": [
+  {
+   "typed": "1384 8527 8689 3090 2057 0713",
+   "digits": "138485278689309020570713"
+  },
+  {
+   "typed": "1384-8527-8689-3090-2057-0713",
+   "digits": "138485278689309020570713"
+  },
+  {
+   "typed": "138485278689309020570713",
+   "digits": "138485278689309020570713"
+  },
+  {
+   "typed": "",
+   "digits": ""
+  },
+  {
+   "typed": "   ",
+   "digits": ""
+  },
+  {
+   "typed": "1384 8527 8689 3090 2057 071",
+   "digits": null
+  },
+  {
+   "typed": "1384 8527 8689 3090 2057 07130",
+   "digits": null
+  },
+  {
+   "typed": "\u0661\u0663\u0668\u0664 8527 8689 3090 2057 0713",
+   "digits": null
+  },
+  {
+   "typed": "1384x8527",
+   "digits": null
+  }
+ ]
+}
