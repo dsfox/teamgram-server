@@ -45,6 +45,12 @@ type Config struct {
 	KeyId   string // key identifier, 10 characters
 	TeamId  string // team identifier, 10 characters
 	Topic   string // app identifier, same as the bundle id
+
+	// Where Apple is, when not where Apple says it is: empty means Apple's
+	// own hosts. The stand puts its own front here (cmd/standapple), which
+	// answers the tokens scenarios make up and hands real ones to Apple (#188).
+	SandboxHost    string
+	ProductionHost string
 }
 
 // ConfigFromEnv reads the settings from the environment. The second value tells
@@ -56,6 +62,9 @@ func ConfigFromEnv() (Config, bool) {
 		KeyId:   os.Getenv("APNS_KEY_ID"),
 		TeamId:  os.Getenv("APNS_TEAM_ID"),
 		Topic:   os.Getenv("APNS_TOPIC"),
+
+		SandboxHost:    os.Getenv("APNS_SANDBOX_HOST"),
+		ProductionHost: os.Getenv("APNS_PRODUCTION_HOST"),
 	}
 
 	return c, c.KeyPath != "" && c.KeyId != "" && c.TeamId != "" && c.Topic != ""
@@ -87,11 +96,18 @@ func New(c Config) (*Sender, error) {
 		TeamID:  c.TeamId,
 	}
 
-	return &Sender{
+	sender := &Sender{
 		topic:      c.Topic,
 		production: newClient(tok).Production(),
 		sandbox:    newClient(tok).Development(),
-	}, nil
+	}
+	if c.ProductionHost != "" {
+		sender.production.Host = c.ProductionHost
+	}
+	if c.SandboxHost != "" {
+		sender.sandbox.Host = c.SandboxHost
+	}
+	return sender, nil
 }
 
 // newClient repeats the apns2 defaults and adds a limit on how long an idle
