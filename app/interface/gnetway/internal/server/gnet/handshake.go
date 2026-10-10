@@ -175,8 +175,14 @@ func mustNewHandshake(cList []config.RSAKey) *handshake {
 		if err != nil {
 			panic(err)
 		}
-
-		// TODO: check fingerprint
+		actual, err := fingerprintOfKeyFile(c.KeyFile)
+		if err != nil {
+			panic(err)
+		}
+		if actual != keyFingerprint {
+			panic(fmt.Sprintf("%s: the config names it %d, its fingerprint is %d", c.KeyFile, keyFingerprint, actual))
+		}
+		logx.Infof("handshake key %s: fingerprint %d", c.KeyFile, actual)
 
 		h.keyFingerprints = append(h.keyFingerprints, int64(keyFingerprint))
 		h.rsaList = append(h.rsaList, rsaKeyHelper{
@@ -427,6 +433,9 @@ func (s *Server) onReqDHParams(c gnet.Conn, ctx *HandshakeStateCtx, request *mtp
 		logx.Errorf("conn(%s) error: %v", c, err)
 		return nil, err
 	}
+	// Which key each handshake chose: the old one is dropped only once nobody
+	// asks for it (#242).
+	logx.Infof("conn(%s) handshake key %d", c, uint64(request.PublicKeyFingerprint))
 
 	since2 := timex.Now()
 

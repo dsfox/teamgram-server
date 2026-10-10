@@ -364,6 +364,7 @@ func (s *Server) httpOnReqDHParams(ctx *HandshakeStateCtx, request *mtproto.TLRe
 	if rsa == nil {
 		return nil, fmt.Errorf("invalid PublicKeyFingerprint")
 	}
+	logx.Infof("http handshake key %d", uint64(request.PublicKeyFingerprint))
 
 	if len(request.EncryptedData) < 256 {
 		return nil, fmt.Errorf("encryptedData too short")

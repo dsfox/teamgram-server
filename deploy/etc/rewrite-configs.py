@@ -17,7 +17,13 @@ in a log line.
 bodies from go-zero's stat interceptor, which logs every call's content at info
 - sign-in numbers and whole address books among them. The stand keeps debug.
 
-Usage: python3 deploy/etc/rewrite-configs.py <source> <output> [--telemetry host:port] [--production]
+--ice9-key puts ice9's own MTProto key in front of teamgram's stock one (#242).
+The stock key's private half is public, so anybody could be the server to a
+client that knew only it; ours lives in secrets and is mounted at the path
+below. The stock key stays second for clients installed before the switch.
+Only our servers take the flag: the public image has no such secret to mount.
+
+Usage: python3 deploy/etc/rewrite-configs.py <source> <output> [--telemetry host:port] [--production] [--ice9-key]
 """
 import re
 import sys
@@ -104,6 +110,17 @@ def dev_server_block(text: str) -> str:
 
 LOG_LEVEL = re.compile(r"^(?P<indent>[ ]+)Level:[ ]*\w+[ ]*$", re.M)
 
+# The key's fingerprint as tools/rsa_fingerprint.py computes it from
+# server/deploy/keys/ice9_server_rsa.pub; gnetway refuses to start when the two
+# disagree, and tests/test_server_key_agrees.py checks it before that.
+ICE9_KEY = ('  - KeyFile: "/app/secrets/ice9_server_rsa.key"\n'
+            '    KeyFingerprint: "9317290418914058974"\n')
+RSA_KEY_LIST = re.compile(r"^RSAKey:\n", re.M)
+
+
+def ice9_key(text: str) -> str:
+    return RSA_KEY_LIST.sub(lambda m: m.group(0) + ICE9_KEY, text, count=1)
+
 
 def production(text: str) -> str:
     text = LOG_LEVEL.sub(lambda m: f"{m.group('indent')}Level: info", text)
@@ -166,12 +183,14 @@ def rewrite(text: str, telemetry: str = "") -> str:
     return text
 
 
-def main(source: Path, target: Path, telemetry: str = "", live: bool = False):
+def main(source: Path, target: Path, telemetry: str = "", live: bool = False, own_key: bool = False):
     target.mkdir(parents=True, exist_ok=True)
     for path in sorted(source.glob("*.yaml")):
         result = rewrite(path.read_text(), telemetry)
         if live:
             result = production(result)
+        if own_key:
+            result = ice9_key(result)
         (target / path.name).write_text(result)
         print(f"[config] {path.name}")
     print(f"[config] done: {len(list(source.glob('*.yaml')))} files"
@@ -188,6 +207,9 @@ if __name__ == "__main__":
     live = "--production" in args
     if live:
         args.remove("--production")
+    own_key = "--ice9-key" in args
+    if own_key:
+        args.remove("--ice9-key")
     if len(args) != 2:
         raise SystemExit(__doc__)
-    main(Path(args[0]), Path(args[1]), collector, live)
+    main(Path(args[0]), Path(args[1]), collector, live, own_key)
