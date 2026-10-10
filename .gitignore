@@ -72,3 +72,6 @@ AGENTS.md
 # Stray binaries from a go build without -o: they belong in teamgramd/bin
 /invite
 /alert
+
+# Python byte code, made when tests import deploy/check-mtproto.py
+__pycache__/
