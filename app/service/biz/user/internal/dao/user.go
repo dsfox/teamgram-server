@@ -29,6 +29,7 @@ import (
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/app/service/biz/user/internal/dal/dataobject"
 	"github.com/teamgram/teamgram-server/app/service/biz/user/user"
+	"github.com/teamgram/teamgram-server/pkg/usernames"
 
 	"github.com/zeromicro/go-zero/core/jsonx"
 	"github.com/zeromicro/go-zero/core/logx"
@@ -64,6 +65,13 @@ func (d *Dao) getBotData(ctx context.Context, botId int64) *mtproto.BotData {
 	}
 
 	return botData
+}
+
+// isBuiltInBot says whether a name is one of the server's own bots, which
+// contacts.resolveUsername answers before any account - a person given it
+// would be mentioned as the bot.
+func isBuiltInBot(name string) bool {
+	return user.GetBotIdByName(name) > 0
 }
 
 func (d *Dao) CreateNewUserV2(
@@ -102,6 +110,17 @@ func (d *Dao) CreateNewUserV2(
 		//return
 	} else {
 		userDO.Id = lastInsertId
+	}
+
+	// ice9: every account has a username, made from its name, so that a
+	// mention reads the same for everybody (#239). Here, before the user is
+	// cached, so the sign-up answer carries it. A failure leaves the account
+	// without one rather than without a way in: the one-off pass
+	// (cmd/usernames) names it later.
+	if name, err := usernames.NewStore(d.DB, isBuiltInBot).Assign(ctx, userDO.Id, firstName, lastName); err != nil {
+		logx.WithContext(ctx).Errorf("CreateNewUserV2(%d) - no username given: %v", userDO.Id, err)
+	} else {
+		userDO.Username = name
 	}
 
 	cacheUserData.UserData = d.MakeUserDataByDO(userDO)

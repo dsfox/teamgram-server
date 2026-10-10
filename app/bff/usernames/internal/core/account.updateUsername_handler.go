@@ -43,27 +43,48 @@ func (c *UsernamesCore) AccountUpdateUsername(in *mtproto.TLAccountUpdateUsernam
 
 	if username2 != me.Username() {
 		// TODO: 分布式事物
+		// ice9: a refusal is answered, not swallowed (#239). The account came
+		// back unchanged, so a name already taken looked to the client like a
+		// change that went through.
 		if err = c.updateUsername(c.MD.UserId, me.Username(), username2); err != nil {
 			c.Logger.Errorf("account.updateUsername - error: %v", err)
-		} else if _, err = c.svcCtx.Dao.UserClient.UserUpdateUsername(c.ctx, &userpb.TLUserUpdateUsername{
+			return nil, err
+		}
+		if _, err = c.svcCtx.Dao.UserClient.UserUpdateUsername(c.ctx, &userpb.TLUserUpdateUsername{
 			UserId:   c.MD.UserId,
 			Username: username2,
 		}); err != nil {
 			c.Logger.Errorf("account.updateUsername - error: %v", err)
-		} else {
-			me.SetUsername(username2)
-
-			_, _ = c.svcCtx.Dao.SyncClient.SyncUpdatesNotMe(c.ctx, &sync.TLSyncUpdatesNotMe{
-				UserId:        c.MD.UserId,
-				PermAuthKeyId: c.MD.PermAuthKeyId,
-				Updates: mtproto.MakeUpdatesByUpdates(mtproto.MakeTLUpdateUserName(&mtproto.Update{
-					UserId:    c.MD.UserId,
-					FirstName: me.FirstName(),
-					LastName:  me.LastName(),
-					Username:  username2,
-				}).To_Update()),
-			})
+			return nil, err
 		}
+		me.SetUsername(username2)
+
+		// Chosen now rather than given, so a stranger may find it (#239).
+		if err := c.svcCtx.Usernames.Forget(c.ctx, c.MD.UserId); err != nil {
+			c.Logger.Errorf("account.updateUsername - the given username of %d is still marked: %v", c.MD.UserId, err)
+		}
+
+		// The account's other devices read the list, not the one name, at
+		// the layers clients speak now; sent empty, it told them there was none.
+		var names []*mtproto.Username
+		if username2 != "" {
+			names = append(names, mtproto.MakeTLUsername(&mtproto.Username{
+				Editable: true,
+				Active:   true,
+				Username: username2,
+			}).To_Username())
+		}
+		_, _ = c.svcCtx.Dao.SyncClient.SyncUpdatesNotMe(c.ctx, &sync.TLSyncUpdatesNotMe{
+			UserId:        c.MD.UserId,
+			PermAuthKeyId: c.MD.PermAuthKeyId,
+			Updates: mtproto.MakeUpdatesByUpdates(mtproto.MakeTLUpdateUserName(&mtproto.Update{
+				UserId:    c.MD.UserId,
+				FirstName: me.FirstName(),
+				LastName:  me.LastName(),
+				Username:  username2,
+				Usernames: names,
+			}).To_Update()),
+		})
 	}
 
 	return me.ToSelfUser(), nil

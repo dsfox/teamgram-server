@@ -83,7 +83,15 @@ func (c *ContactsCore) ContactsSearch(in *mtproto.TLContactsSearch) (*mtproto.Co
 		if err != nil {
 			c.Logger.Infof("contacts.search - %d: no username %q (%v)", c.MD.UserId, q, err)
 		} else if peer.GetPredicateName() == mtproto.Predicate_peerUser && peer.GetUserId() != c.MD.UserId {
-			idHelper.PickByPeer(peer)
+			// A username the server gave out is for mentions, not a way in:
+			// only one the person chose finds them (#239).
+			given, err := c.svcCtx.Usernames.IsGenerated(c.ctx, peer.GetUserId(), q)
+			if err != nil {
+				c.Logger.Errorf("contacts.search - cannot tell whether %q was given: %v", q, err)
+			}
+			if err == nil && !given {
+				idHelper.PickByPeer(peer)
+			}
 		}
 	}
 

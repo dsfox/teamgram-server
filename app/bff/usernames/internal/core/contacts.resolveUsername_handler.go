@@ -50,6 +50,20 @@ func (c *UsernamesCore) ContactsResolveUsername(in *mtproto.TLContactsResolveUse
 		}
 
 		peer = mtproto.FromPeer(rName)
+
+		// ice9: a username the server gave out is for mentions, not a way in
+		// (#239): it resolves for the account itself, its contacts and the
+		// people in a group with it - for them a tap on the mention opens the
+		// profile - and for nobody else, as if it were not taken.
+		if peer.PeerType == mtproto.PEER_USER && peer.PeerId != c.MD.UserId {
+			given, err := c.svcCtx.Usernames.IsGenerated(c.ctx, peer.PeerId, in.GetUsername())
+			if err != nil {
+				c.Logger.Errorf("contacts.resolveUsername - cannot tell whether %q was given: %v", in.GetUsername(), err)
+			} else if given && !c.knows(peer.PeerId) {
+				c.Logger.Infof("contacts.resolveUsername - %d asked for the given %q of a stranger", c.MD.UserId, in.GetUsername())
+				return nil, mtproto.ErrUsernameNotOccupied
+			}
+		}
 	}
 
 	resolvedPeer := mtproto.MakeTLContactsResolvedPeer(&mtproto.Contacts_ResolvedPeer{
@@ -84,4 +98,52 @@ func (c *UsernamesCore) ContactsResolveUsername(in *mtproto.TLContactsResolveUse
 	}
 
 	return resolvedPeer, nil
+}
+
+// knows says whether the one asking already has a way to this account: a
+// contact either way, or a group they are both in.
+func (c *UsernamesCore) knows(target int64) bool {
+	users, err := c.svcCtx.Dao.UserClient.UserGetMutableUsers(c.ctx, &userpb.TLUserGetMutableUsers{
+		Id: []int64{c.MD.UserId, target},
+	})
+	if err != nil {
+		c.Logger.Errorf("contacts.resolveUsername - cannot read %d and %d: %v", c.MD.UserId, target, err)
+	} else {
+		if me, ok := users.GetImmutableUser(c.MD.UserId); ok {
+			if contact, _ := me.CheckContact(target); contact {
+				return true
+			}
+		}
+		if them, ok := users.GetImmutableUser(target); ok {
+			if contact, _ := them.CheckContact(c.MD.UserId); contact {
+				return true
+			}
+		}
+	}
+
+	lists, err := c.svcCtx.Dao.ChatClient.ChatGetUsersChatIdList(c.ctx, &chat.TLChatGetUsersChatIdList{
+		Id: []int64{c.MD.UserId, target},
+	})
+	if err != nil {
+		c.Logger.Errorf("contacts.resolveUsername - cannot read the groups of %d and %d: %v", c.MD.UserId, target, err)
+		return false
+	}
+	mine := map[int64]bool{}
+	for _, list := range lists.GetDatas() {
+		if list.GetUserId() == c.MD.UserId {
+			for _, id := range list.GetChatIdList() {
+				mine[id] = true
+			}
+		}
+	}
+	for _, list := range lists.GetDatas() {
+		if list.GetUserId() == target {
+			for _, id := range list.GetChatIdList() {
+				if mine[id] {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }

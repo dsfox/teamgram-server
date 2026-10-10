@@ -258,6 +258,7 @@ func (s *Server) Initialize() error {
 			contacts_helper.New(
 				contacts_helper.Config{
 					RpcServerConf: c.RpcServerConf,
+					Mysql:         c.Mysql,
 					UserClient:    c.BizServiceClient,
 					ChatClient:    c.BizServiceClient,
 					SyncClient:    c.SyncClient,
@@ -400,6 +401,7 @@ func (s *Server) Initialize() error {
 			grpcServer,
 			usernames_helper.New(usernames_helper.Config{
 				RpcServerConf: c.RpcServerConf,
+				Mysql:         c.Mysql,
 				UserClient:    c.BizServiceClient,
 				ChatClient:    c.BizServiceClient,
 				SyncClient:    c.SyncClient,

@@ -19,12 +19,16 @@
 package config
 
 import (
+	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/teamgram-server/pkg/queue"
 	"github.com/zeromicro/go-zero/zrpc"
 )
 
 type Config struct {
 	zrpc.RpcServerConf
+	// Where it is kept which usernames the server gave out rather than the
+	// person chose (#239).
+	Mysql      sqlx.Config
 	UserClient zrpc.RpcClientConf
 	ChatClient zrpc.RpcClientConf
 	SyncClient *queue.Conf

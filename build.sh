@@ -73,6 +73,10 @@ echo "build pushrelay ..."
 cd ${ROOT}/cmd/pushrelay
 go build -ldflags="-s -w" -o ${INSTALL}/bin/pushrelay
 
+echo "build usernames ..."
+cd ${ROOT}/cmd/usernames
+go build -ldflags="-s -w" -o ${INSTALL}/bin/usernames
+
 #echo "build httpserver ..."
 #cd ${TEAMGRAMAPP}/interface/httpserver/cmd/httpserver
 #go build -o ${INSTALL}/bin/httpserver

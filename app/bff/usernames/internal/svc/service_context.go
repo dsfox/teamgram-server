@@ -19,15 +19,20 @@
 package svc
 
 import (
+	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/teamgram-server/app/bff/usernames/internal/config"
 	"github.com/teamgram/teamgram-server/app/bff/usernames/internal/dao"
 	"github.com/teamgram/teamgram-server/app/bff/usernames/plugin"
+	userpb "github.com/teamgram/teamgram-server/app/service/biz/user/user"
+	"github.com/teamgram/teamgram-server/pkg/usernames"
 )
 
 type ServiceContext struct {
 	Config config.Config
 	*dao.Dao
 	Plugin plugin.UsernamesPlugin
+	// Which usernames were given out rather than chosen (#239).
+	Usernames *usernames.Store
 }
 
 func NewServiceContext(c config.Config, plugin plugin.UsernamesPlugin) *ServiceContext {
@@ -35,5 +40,8 @@ func NewServiceContext(c config.Config, plugin plugin.UsernamesPlugin) *ServiceC
 		Config: c,
 		Dao:    dao.New(c),
 		Plugin: plugin,
+		Usernames: usernames.NewStore(sqlx.NewMySQL(&c.Mysql), func(name string) bool {
+			return userpb.GetBotIdByName(name) > 0
+		}),
 	}
 }

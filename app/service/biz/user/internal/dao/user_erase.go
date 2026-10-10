@@ -57,6 +57,9 @@ var erasableByUser = []struct {
 	{"user_profile_photos", "user_id"},
 	{"user_saved_music", "user_id"},
 	{"default_history_ttl", "user_id"},
+	// The username the server gave them; the name itself goes with the
+	// username row (#239).
+	{"username_generated", "user_id"},
 
 	// Group membership: the account is gone, so it is not in any group either.
 	{"chat_participants", "user_id"},
