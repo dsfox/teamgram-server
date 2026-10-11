@@ -161,9 +161,7 @@ require (
 // github.com/panjf2000/gnet/v2 => ../gnet
 // github.com/teamgram/marmota => ../marmota
 
-// Our fork, for the four MLS methods. Incoming objects are built from a map the
-// upstream module keeps private, so there is no way to add a method without
-// this. The fork carries one file and is otherwise upstream.
+// ice9: our fork of the schema module, for the MLS methods (scripts/carry_go_mod.py)
 replace github.com/teamgram/proto => ../proto
 
 replace github.com/panjf2000/gnet/v2 v2.9.1 => github.com/teamgram/gnet/v2 v2.9.1-teamgram

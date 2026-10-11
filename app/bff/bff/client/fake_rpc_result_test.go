@@ -192,24 +192,42 @@ func TestStubAnswersHaveTheRightType(t *testing.T) {
 // and the panic it can hide would reach the phone instead of the build. So the
 // list is checked against the source of truth rather than kept by hand.
 func TestEveryStubIsCovered(t *testing.T) {
-	source, err := os.ReadFile("fake_rpc_result.go")
-	if err != nil {
-		t.Fatalf("cannot read the stubs: %v", err)
-	}
-
 	covered := make(map[string]bool)
 	for _, r := range stubRequests() {
 		covered[reflect.TypeOf(r).Elem().Name()] = true
 	}
+	registered := mtproto.GetRPCContextRegisters()
 
-	// Every quoted method name in the switch, not only the one after `case`. A
-	// case can list several - `case "A",\n"B":` - and matching the first hid the
-	// other thirteen, one of which was answering with the wrong type entirely.
-	for _, m := range regexp.MustCompile(`"(TL[A-Za-z0-9]+)"`).FindAllStringSubmatch(string(source), -1) {
-		if !covered[m[1]] {
-			t.Errorf("%s answers with a stub that no test ever encodes", m[1])
+	// Ours, and upstream's table beside it (#198).
+	for _, file := range []string{"ice9_fake_results.go", "fake_rpc_result.go"} {
+		source, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("cannot read the stubs: %v", err)
+		}
+		// Every quoted method name in the switch, not only the one after `case`. A
+		// case can list several - `case "A",\n"B":` - and matching the first hid the
+		// other thirteen, one of which was answering with the wrong type entirely.
+		for _, m := range regexp.MustCompile(`"(TL[A-Za-z0-9]+)"`).FindAllStringSubmatch(string(source), -1) {
+			name := m[1]
+			if covered[name] || answeredByAService[name] {
+				continue
+			}
+			if _, known := registered[name]; !known {
+				continue // upstream's case for a method this schema names otherwise; never matched
+			}
+			t.Errorf("%s answers with a stub that no test ever encodes", name)
 		}
 	}
+}
+
+// Upstream's table still holds stubs for these, and they are never reached: a
+// service of ours is registered for each, and the table is consulted only for
+// methods with none (app/bff/appearance, reactions, the passport service).
+var answeredByAService = map[string]bool{
+	"TLAccountGetThemes":              true,
+	"TLAccountGetChatThemes":          true,
+	"TLMessagesGetAvailableReactions": true,
+	"TLAccountGetAuthorizations":      true,
 }
 
 func typeName(o mtproto.TLObject) string {

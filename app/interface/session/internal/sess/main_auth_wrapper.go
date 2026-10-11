@@ -109,11 +109,8 @@ type MainAuthWrapper struct {
 	finish               sync.WaitGroup
 	running              *syncx.AtomicBool
 	onlineExpired        int64
-	// Whether the client itself said it went away. Kept apart from the expiry
-	// clock: traffic must not silently overrule what the client stated.
-	reportedOffline bool
-	// When the away record was last written; see stayReachable.
-	awayPublished int64
+	reportedOffline      bool  // ice9: the client said it went away (#186)
+	awayPublished        int64 // ice9: when the away record was last written (#186)
 	clientType           int
 	nextNotifyId         int64
 	nextPushId           int64
@@ -247,16 +244,11 @@ func (m *MainAuthWrapper) resetAuth(kType int, authId int64) (lastAuthId int64) 
 }
 
 func (m *MainAuthWrapper) setOnline(ctx context.Context) {
-	// A backgrounded app keeps its connection and keeps pinging, and every ping
-	// used to put the session back online. Marking it offline once therefore
-	// lasted about a second, and a message arriving after that still woke
-	// nobody. The client's own word outlives its traffic: until it says it is
-	// back, it is away - and away is still reachable.
-	if m.reportedOffline {
+	//setOnlineTTL(s.AuthUserId, s.authKeyId, getServerID(), s.Layer, 60)
+	if m.reportedOffline { // ice9: away until the client says it is back, and still reachable (#186)
 		m.stayReachable(ctx)
 		return
 	}
-
 	date := time.Now().Unix()
 	if (m.onlineExpired == 0 || date > m.onlineExpired-kPingAddTimeout) && m.AuthUserId != 0 {
 		logx.WithContext(ctx).Infof("DEBUG] setOnline - set online: (date: %d, userId:%d, onlineExpired: %d, authKeyId: %d)",
@@ -265,50 +257,14 @@ func (m *MainAuthWrapper) setOnline(ctx context.Context) {
 			m.onlineExpired,
 			m.authKeyId)
 
-		m.publishStatus(ctx, date+60)
+		// s.setOnlineTTL(s.AuthUserId, s.authKeyId, getServerID(), s.Layer, 60)
+		m.publishStatus(ctx, date+60) // ice9: the same record, and a failure is said (#186)
 		m.onlineExpired = date + 60
-	}
-}
-
-// awayRefresh is how often, in seconds, an away session writes its record
-// again: well inside the ninety seconds the record lives (StatusExpire in
-// status.yaml), so a connection that is still up never drops out of reach.
-const awayRefresh = 30
-
-// stayReachable keeps an away session in the status list with an expiry that
-// has already passed. The two halves of the record answer two questions. Its
-// presence says the connection can be reached, and every delivery goes by
-// that - a call has to ring on an Android in the background, whose push only
-// wakes a network that is already up (#186). Its expiry says whether the app
-// is on screen, and the notification path goes by that, so the phone is
-// still notified.
-func (m *MainAuthWrapper) stayReachable(ctx context.Context) {
-	date := time.Now().Unix()
-	if m.AuthUserId == 0 || date < m.awayPublished+awayRefresh {
-		return
-	}
-	m.publishStatus(ctx, date)
-	m.awayPublished = date
-}
-
-// publishStatus writes this session's record: reachable through this server,
-// on screen until expired.
-func (m *MainAuthWrapper) publishStatus(ctx context.Context, expired int64) {
-	if _, err := m.cb.Dao.StatusClient.StatusSetSessionOnline(
-		ctx,
-		&status.TLStatusSetSessionOnline{
-			UserId: m.AuthUserId,
-			Session: &status.SessionEntry{
-				UserId:        m.AuthUserId,
-				AuthKeyId:     m.authKeyId,
-				Gateway:       m.cb.Dao.MyServerId,
-				Expired:       expired,
-				Layer:         m.Layer(),
-				PermAuthKeyId: m.authKeyId,
-				Client:        m.ClientName(),
-			},
-		}); err != nil {
-		logx.WithContext(ctx).Errorf("status: cannot record session %d of %d: %v", m.authKeyId, m.AuthUserId, err)
+	} else {
+		//logx.WithContext(ctx).Infof("DEBUG] setOnline - not set online: (date: %d, onlineExpired: %d, AuthUserId: %d)",
+		//	date,
+		//	s.onlineExpired,
+		//	s.AuthUserId)
 	}
 }
 
@@ -328,31 +284,7 @@ func (m *MainAuthWrapper) trySetOffline(ctx context.Context) {
 		})
 	}
 	m.onlineExpired = 0
-	m.awayPublished = 0
-}
-
-// setOnlineNow undoes setOfflineNow: the client is back on screen.
-func (m *MainAuthWrapper) setOnlineNow(ctx context.Context) {
-	if !m.reportedOffline {
-		return
-	}
-	m.reportedOffline = false
-	logx.WithContext(ctx).Infof("online on client request: %s", m)
-	m.setOnline(ctx)
-}
-
-// setOfflineNow takes the client at its word that it went to the background:
-// the app is no longer on screen, whatever its pings say, and the record says
-// so at once - but the connection is still there, and so is the record
-// (stayReachable).
-func (m *MainAuthWrapper) setOfflineNow(ctx context.Context) {
-	m.reportedOffline = true
-	if m.AuthUserId > 0 {
-		logx.WithContext(ctx).Infof("offline on client request: %s", m)
-	}
-	m.onlineExpired = 0
-	m.awayPublished = 0
-	m.stayReachable(ctx)
+	m.awayPublished = 0 // ice9: #186
 }
 
 func (m *MainAuthWrapper) delOnline(ctx context.Context) {
@@ -365,7 +297,7 @@ func (m *MainAuthWrapper) delOnline(ctx context.Context) {
 		})
 	}
 	m.onlineExpired = 0
-	m.awayPublished = 0
+	m.awayPublished = 0 // ice9: #186
 }
 
 func (m *MainAuthWrapper) getNextNotifyId() (id int64) {
@@ -972,11 +904,7 @@ func (m *MainAuthWrapper) onSessionNew(ctx context.Context, connMsg *connData) {
 		sess = newSession(connMsg.sessionId, sList)
 		sList.sessions[connMsg.sessionId] = sess
 	} else {
-		// Announcing the session as new here looks wrong - a connection is not a
-		// session - but it is how the client learns its state was dropped and
-		// must start over. Removing it left a client whose authorisations had
-		// just been reset looping on bad_server_salt with no way out, which
-		// `active_sessions` catches.
+		// ice9: kept, it is how the client learns its state was dropped (active_sessions)
 		sess.sessionState = kSessionStateNew
 		logx.WithContext(ctx).Infof("onSessionNew - session(%d) found, conn: %s", m.authKeyId, connMsg)
 	}
@@ -1127,21 +1055,17 @@ func (m *MainAuthWrapper) onSyncData(ctx context.Context, syncMsg *syncData) {
 
 	if upds, ok := syncMsg.data.obj.(*mtproto.Updates); ok {
 		if upds.PredicateName == mtproto.Predicate_updateAccountResetAuthorization {
-			// The update names the authorisation that was terminated. Matching on
-			// the user instead of the key deleted every session that user has,
-			// including the one that asked for the reset: it lost the answer to
-			// its own request - the server had already computed boolTrue - and
-			// then had to be announced a new session to carry on. `active_sessions`
-			// hung on exactly that.
-			if upds.GetAuthKeyId() != m.authKeyId {
-				logx.WithContext(ctx).Infof(
-					"updateAccountResetAuthorization for key %d, not ours (%d) - ignoring",
-					upds.GetAuthKeyId(), m.authKeyId)
+			if m.resetIsForAnotherKey(ctx, upds) { // ice9: only the terminated key's session goes
 				return
 			}
-
 			logx.WithContext(ctx).Info("recv updateAccountResetAuthorization - ", reflect.TypeOf(syncMsg.data.obj))
+			if m.AuthUserId != upds.GetUserId() {
+				logx.WithContext(ctx).Error("upds -- ", upds)
+			}
+			// m.cb.Dao.PutCacheUserId(context.Background(), m.authKeyId, 0)
+			// m.cb.DeleteByAuthKeyId(m.authKeyId)
 			m.changeAuthState(ctx, mtproto.AuthStateDeleted, 0)
+			// m.AuthUserId = 0
 			return
 		}
 	}

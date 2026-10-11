@@ -23,12 +23,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/rand"
 	"net"
 	"time"
 
 	"github.com/teamgram/proto/mtproto"
-	"github.com/teamgram/teamgram-server/app/interface/gnetway/internal/dao"
 	httpcodec "github.com/teamgram/teamgram-server/app/interface/gnetway/internal/server/gnet/http"
 	"github.com/teamgram/teamgram-server/app/interface/gnetway/internal/server/gnet/pp"
 	"github.com/teamgram/teamgram-server/app/interface/gnetway/internal/server/gnet/ws"
@@ -40,14 +38,6 @@ import (
 	"github.com/zeromicro/go-zero/core/timex"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/protobuf/proto"
-)
-
-// How long a packet the session service did not take is tried again before
-// its connection is closed, and how often (#228). Longer than a restart of the
-// session service or a pause like the one on 31 August that ended by itself.
-const (
-	undeliveredPatience = 15 * time.Second
-	undeliveredRetry    = 500 * time.Millisecond
 )
 
 func (s *Server) asyncRunIfError(connId int64, msgId int64, execb func() error, retcb func(c gnet.Conn, msgId int64, err error)) {
@@ -62,11 +52,6 @@ func (s *Server) asyncRunIfError(connId int64, msgId int64, execb func() error, 
 	}
 }
 
-// The failing half of asyncRun answers nobody: no reply is triggered, and the
-// connection is left open with a client waiting on it. Say so. Issue #68 hid
-// here for days - a handshake refused once in every few hundred connections by
-// a length check whose error came back into this silence, so the log showed a
-// request arriving and nothing at all after it.
 func (s *Server) asyncRun(connId int64, execb func() error, retcb func(c gnet.Conn)) {
 	if err := s.pool.Submit(func() {
 		if err := execb(); err == nil {
@@ -74,7 +59,7 @@ func (s *Server) asyncRun(connId int64, execb func() error, retcb func(c gnet.Co
 				retcb(c)
 			})
 		} else {
-			logx.Errorf("asyncRun - nothing will be sent, connId: %d, err: %v", connId, err)
+			logx.Errorf("asyncRun - nothing will be sent, connId: %d, err: %v", connId, err) // ice9: #68
 		}
 	}); err != nil {
 		logx.Errorf("asyncRun - pool.Submit error: %v, connId: %d", err, connId)
@@ -220,12 +205,7 @@ func (s *Server) OnClose(c gnet.Conn, err error) (action gnet.Action) {
 // OnTraffic fires when a local socket receives data from the peer.
 func (s *Server) OnTraffic(c gnet.Conn) (action gnet.Action) {
 	ctx := c.Context().(*connContext)
-	// Every byte that reaches this process is recorded here, before any codec can
-	// swallow it. Together with the client logging its local port on each write,
-	// a packet can be followed from one side to the other without guesswork.
-	logx.Infof("traffic in: conn(%s) %d bytes buffered", c, c.InboundBuffered())
-	ctx.spoke = true
-	s.extendIdleDeadline(c, ctx)
+	s.trafficIn(c, ctx) // ice9: logged, marked as spoken, idle deadline moved
 	if ctx.ppv1 {
 		ppv1, err := c.Peek(-1)
 		if err != nil {
@@ -296,17 +276,7 @@ func (s *Server) OnTick() (delay time.Duration, action gnet.Action) {
 				return
 			}
 			if now >= ctx.closeDate {
-				// The two cases mean very different things and must not share a
-				// counter. A connection that never spoke is the client's own pool
-				// churn - measured at 34 abandoned out of 38 opened - and reaping
-				// it is the point. A connection that went quiet after carrying
-				// traffic is one the client may still believe in, and that is
-				// worth an alarm.
-				if ctx.spoke {
-					logx.Errorf("close conn(%s) by idle timeout after traffic", c)
-				} else {
-					logx.Infof("close conn(%s) by timeout, never spoke", c)
-				}
+				logClosedByTimeout(c, ctx) // ice9: never spoke or went quiet, told apart
 				metricConnTimeout.Inc()
 				_ = c.Close()
 			} else {
@@ -438,7 +408,7 @@ func (s *Server) onEncryptedMessage(c gnet.Conn, ctx *connContext, authKey *auth
 
 			ctx2, span := otel.Tracer("gnetway").Start(context.Background(), "SessionSendDataToSession")
 			defer span.End()
-			data := &session.TLSessionSendDataToSession{
+			err := s.sendToSessionPatiently(c, ctx2, permAuthKeyId, &session.TLSessionSendDataToSession{ // ice9: #228
 				Data: &session.SessionClientData{
 					ServerId:      s.svcCtx.GatewayId,
 					ConnType:      connType,
@@ -450,37 +420,14 @@ func (s *Server) onEncryptedMessage(c gnet.Conn, ctx *connContext, authKey *auth
 					Payload:       mtpRwaData[16:],
 					ClientIp:      clientIp,
 				},
-			}
-			err := s.svcCtx.Dao.SessionDispatcher.SendData(ctx2, permAuthKeyId, data)
-			if dao.Undelivered(err) {
-				// The session service did not take it: paused, restarting, or
-				// only just back. Dropped, the packet would leave its client
-				// waiting for an answer that never comes on a connection that
-				// still looks alive - a listener's getDifference was lost so on
-				// 5 October and its update loop stood still (#228). So it is
-				// tried again for as long as an outage that ends by itself lasts.
-				first := time.Now()
-				logx.Errorf("conn(%s): the session did not take a packet (%v); trying again for %s", c, err, undeliveredPatience)
-				for dao.Undelivered(err) && time.Since(first) < undeliveredPatience {
-					time.Sleep(undeliveredRetry)
-					err = s.svcCtx.Dao.SessionDispatcher.SendData(ctx2, permAuthKeyId, data)
-				}
-				if err == nil {
-					logx.Infof("conn(%s): the packet reached the session %s late", c, time.Since(first).Round(time.Millisecond))
-				}
-			}
+			})
 			if err != nil {
 				logx.Errorf("session.sendDataToSession - error: %v", err)
 			}
 			return err
 		},
 		func(c gnet.Conn, msgId int64, err error) {
-			if dao.Undelivered(err) {
-				// Still nowhere after all that patience. Closed, the
-				// connection makes the client send what it is waiting on again
-				// over the next one, instead of waiting for ever (#228).
-				logx.Errorf("conn(%s): nothing reached the session (%v); closing so the client sends it again", c, err)
-				_ = c.Close()
+			if closedUndelivered(c, err) { // ice9: #228
 				return
 			}
 			if isBindTempAuthKey && errors.Is(err, mtproto.ErrAuthKeyUnregistered) {
@@ -517,11 +464,7 @@ func (s *Server) GetConnCounts() int {
 }
 
 func (s *Server) onMTPRawMessage(ctx *connContext, c gnet.Conn, authKeyId int64, needAck bool, msg2 []byte) (action gnet.Action) {
-	// A client can retry the same 40-byte handshake message every twelve seconds
-	// and leave no trace anywhere on this side: not a handled request, not a
-	// parse error, nothing. Recording every packet as it arrives is the only way
-	// to tell "never reached us" from "reached us and was dropped silently".
-	logx.Infof("packet decoded: conn(%s) authKeyId=%d, %d bytes", c, authKeyId, len(msg2))
+	logx.Infof("packet decoded: conn(%s) authKeyId=%d, %d bytes", c, authKeyId, len(msg2)) // ice9: every packet, so silence means something
 
 	if authKeyId == 0 {
 		out, err := s.onHandshake(c, msg2)
@@ -614,25 +557,8 @@ func (s *Server) onMTPRawMessage(ctx *connContext, c gnet.Conn, authKeyId int64,
 	return gnet.None
 }
 
-// extendIdleDeadline pushes back the moment the reaper may close this
-// connection. Traffic in either direction proves the peer is there: a
-// connection that only carries updates and file chunks down to the client is
-// not idle, and reaping it left the client writing requests into a socket the
-// server had already closed - it noticed only when its own timeout fired,
-// which is the pause the user sees as "Updating".
-func (s *Server) extendIdleDeadline(c gnet.Conn, ctx *connContext) {
-	oldCloseDate := ctx.closeDate
-	if ctx.http {
-		ctx.closeDate = s.CachedNow() + kHttpIdleTimeout + rand.Int63()%10
-	} else {
-		ctx.closeDate = s.CachedNow() + kIdleTimeout + rand.Int63()%10
-	}
-	s.timeoutWheel.Move(c.ConnId(), oldCloseDate, ctx.closeDate)
-}
-
-func (s *Server) UnThreadSafeWrite(c gnet.Conn, msg interface{}) error {
+func UnThreadSafeWrite(c gnet.Conn, msg interface{}) error {
 	ctx := c.Context().(*connContext)
-	s.extendIdleDeadline(c, ctx)
 
 	if ctx.codec == nil {
 		logx.Errorf("conn(%s) c.Write(data) - error: ctx.codec == nil ", c)
