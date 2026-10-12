@@ -38,6 +38,10 @@ func (c *DraftsCore) MessagesSaveDraft(in *mtproto.TLMessagesSaveDraft) (*mtprot
 		date                = int32(time.Now().Unix())
 	)
 
+	if keepsNoDraft { // ice9: a draft stays on the phone, the server keeps none (#264)
+		return c.forgetDraft(peer)
+	}
+
 	if in.NoWebpage == true {
 		isDraftMessageEmpty = false
 	} else if in.ReplyToMsgId != nil {
