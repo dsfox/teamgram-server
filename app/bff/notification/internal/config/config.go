@@ -29,8 +29,6 @@ type Config struct {
 	UserClient zrpc.RpcClientConf
 	ChatClient zrpc.RpcClientConf
 	SyncClient *queue.Conf
-	// The database serves exactly one purpose here: remember the device token a
-	// notification is later sent to. Without it the service works as before,
-	// notifications simply do not arrive.
+	// ice9: the database holds device tokens only; without it notifications do not arrive
 	Mysql sqlx.Config `json:",optional"`
 }

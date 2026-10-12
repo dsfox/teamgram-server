@@ -78,9 +78,7 @@ func (c *MessagesCore) MessagesReadMessageContents(in *mtproto.TLMessagesReadMes
 				MediaUnread:     true,
 			})
 		} else {
-			// Reactions are not counted as unread (#18): a message carrying
-			// them has nothing to read here, and taking it for an unread
-			// reaction would count the dialog's unread reactions below zero.
+			// ice9: reactions are not unread contents, or the unread count goes below zero (#18)
 			c.Logger.Infof("content has readed")
 		}
 	}

@@ -109,8 +109,7 @@ func (c *MessagesCore) MessagesGetUnreadMentions(in *mtproto.TLMessagesGetUnread
 
 		return nil, mtproto.ErrEnterpriseIsBlocked
 	case mtproto.PEER_USER, mtproto.PEER_SELF:
-		// There was no branch for private chats at all, so the client got
-		// PEER_ID_INVALID even though mentions happen in private chats too.
+		// ice9: private chats get an empty list, not PEER_ID_INVALID
 		rValues = mtproto.MakeTLMessagesMessages(&mtproto.Messages_Messages{
 			Messages: []*mtproto.Message{},
 			Chats:    []*mtproto.Chat{},

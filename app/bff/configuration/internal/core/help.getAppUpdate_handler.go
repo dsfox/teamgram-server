@@ -25,8 +25,7 @@ import (
 // HelpGetAppUpdate
 // help.getAppUpdate#522d5a7d source:string = help.AppUpdate;
 func (c *ConfigurationCore) HelpGetAppUpdate(in *mtproto.TLHelpGetAppUpdate) (*mtproto.Help_AppUpdate, error) {
-	// No update to offer here. Ours arrive through TestFlight and Firebase,
-	// not through the protocol, so "no update" is true every time.
+	// ice9: always no update; ours arrive through TestFlight and Firebase
 
 	rValue := mtproto.MakeTLHelpNoAppUpdate(nil).To_Help_AppUpdate()
 

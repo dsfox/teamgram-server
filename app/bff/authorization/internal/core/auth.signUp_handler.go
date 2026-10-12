@@ -105,17 +105,7 @@ func (c *AuthorizationCore) AuthSignUp(in *mtproto.TLAuthSignUp) (*mtproto.Auth_
 	//    Please wait for a few days before signing up again.</string>
 	//
 
-	// Asked again for an account this session already has: answer with it.
-	//
-	// The transport resends a request it thinks went unanswered, and the client
-	// resends when somebody presses the button twice. The first call registers
-	// the person, binds this key to them and - correctly - forgets the code,
-	// which the second call then cannot find. It answered PHONE_CODE_EXPIRED,
-	// and on screen that is "Code expired, please start over" over an account
-	// that exists, is bound and is signed in. Two people hit it within an hour
-	// of each other, one of them on the first step of a checklist.
-	//
-	// Registering is not repeatable, but saying who was registered is.
+	// ice9: a repeated signUp for the account this session already has answers with that account
 	if already := c.alreadySignedUp(phoneNumber); already != nil {
 		c.Logger.Infof("auth.signUp - this session is already %d, answering with it", already.Id())
 		return mtproto.MakeTLAuthAuthorization(&mtproto.Auth_Authorization{
@@ -212,8 +202,7 @@ func (c *AuthorizationCore) AuthSignUp(in *mtproto.TLAuthSignUp) (*mtproto.Auth_
 			if err := c.svcCtx.Invitations.Adopted(ctx, phoneNumber, user.Id()); err != nil {
 				c.Logger.Errorf("auth.signUp - %v", err)
 			}
-			// And where the invitation leads: a code minted from a group puts
-			// the person into it (#164).
+			// ice9: an invitation minted from a group puts the person into it (#164)
 			if chatId, inviterId, err := c.svcCtx.Invitations.Landing(ctx, phoneNumber, user.Id()); err != nil {
 				c.Logger.Errorf("auth.signUp - %v", err)
 			} else if chatId != 0 {
@@ -261,15 +250,7 @@ func (c *AuthorizationCore) onContactSignUp(ctx context.Context, authKeyId, user
 	})
 }
 
-// alreadySignedUp is the account this session already belongs to, when the
-// number being registered is that account's own. Nil when the session belongs
-// to nobody, which is the ordinary case for a registration.
-//
-// It exists because registering is not repeatable and being told who was
-// registered is. The transport resends; people press twice. Only a match on the
-// phone number counts: a session belonging to somebody else being handed a
-// different number is not a repeat, it is a mistake, and it must go down the
-// path that refuses it.
+// ice9: alreadySignedUp is this session's account when the number is that account's own, else nil
 func (c *AuthorizationCore) alreadySignedUp(phoneNumber string) *mtproto.ImmutableUser {
 	if c.MD == nil || c.MD.UserId == 0 {
 		return nil

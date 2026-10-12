@@ -475,11 +475,7 @@ func (c *session) onRpcRequest(ctx context.Context, gatewayId, clientIp string, 
 		//	}
 	case *mtproto.TLAccountUpdateStatus:
 		c.sessList.cb.onSetMainUpdatesSession(ctx, c)
-		// The client says it is going to the background, and until now only its
-		// "last seen" was updated - what other people see. The record the
-		// notification path reads kept the session online for the full sixty
-		// seconds of its expiry, so a message arriving right after the app was
-		// closed woke nobody. Take the client at its word.
+		// ice9: account.updateStatus also marks the session offline or online for notifications
 		if mtproto.FromBool(query.(*mtproto.TLAccountUpdateStatus).GetOffline()) {
 			c.sessList.cb.setOfflineNow(ctx)
 		} else {

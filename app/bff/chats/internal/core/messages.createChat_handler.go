@@ -45,14 +45,7 @@ func (c *ChatsCore) createChat(iUsers []*mtproto.InputUser, chatTitle string, tt
 		return nil, err
 	}
 
-	// Nobody else is allowed. A group of one is a group: in this fork people
-	// arrive by a link, and the client asks for no access to anybody's address
-	// book - so the first screen of making one is empty for most people, and
-	// refusing there is refusing the ordinary way to start.
-	//
-	// It was refused, and the refusal came back to the person as "you cannot
-	// create a group with these users because of their privacy settings", about
-	// people who had never been chosen.
+	// ice9: a group of one is allowed, no USERS_TOO_FEW for an empty list
 
 	// check user too much
 	if len(iUsers) > 200-1 {
@@ -61,17 +54,7 @@ func (c *ChatsCore) createChat(iUsers []*mtproto.InputUser, chatTitle string, tt
 		return nil, err
 	}
 
-	// Zero is how a client says "off", and it arrives as a value rather than as
-	// nothing at all - iOS fills the field in unconditionally and sends 0 when
-	// auto-deletion is not wanted. Taken as nothing here, once, so that neither
-	// the chat's setting nor the service message further down is built out of
-	// it.
-	//
-	// Left in, it greeted everybody who made a group with "all new messages
-	// will be deleted 0 seconds after being sent". Nothing was deleted - it is
-	// a sentence and not a behaviour - but it is the first thing a person reads
-	// in a group they have just made, and it reads as their messages being
-	// about to vanish (#114).
+	// ice9: a ttl_period of 0 means off, not "deleted 0 seconds after being sent" (#114)
 	if ttlPeriod != nil && ttlPeriod.Value <= 0 {
 		ttlPeriod = nil
 	}
@@ -148,10 +131,7 @@ func (c *ChatsCore) createChat(iUsers []*mtproto.InputUser, chatTitle string, tt
 		}
 	}
 
-	// And none of the chosen could be added, which is not a reason to refuse
-	// either: the group is made, and whoever could not be invited comes back in
-	// missingInvitees, which is what the client shows. Refusing here threw the
-	// whole thing away over somebody else's setting.
+	// ice9: the group is made even if none of the chosen could be added; missingInvitees says who
 
 	chat, err := c.svcCtx.Dao.ChatClient.Client().ChatCreateChat2(c.ctx, &chatpb.TLChatCreateChat2{
 		CreatorId:  c.MD.UserId,

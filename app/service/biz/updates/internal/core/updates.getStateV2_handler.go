@@ -24,12 +24,7 @@ func (c *UpdatesCore) UpdatesGetStateV2(in *updates.TLUpdatesGetStateV2) (*mtpro
 		pts = c.svcCtx.Dao.IDGenClient2.NextPtsId(c.ctx, in.UserId)
 	}
 
-	// Upstream returned -1 when no updates had happened yet. To the client that
-	// is not "empty" but a non-existent number: every arriving update falls
-	// outside the known sequence, the client sees a gap and goes resynchronising
-	// — round and round. From outside it looks like an endless "Updating" with
-	// empty chats. It only hits those who have received nothing so far, that is,
-	// exactly the new users.
+	// ice9: seq 0 goes out as 0, not -1, which the client read as a gap and resynced for good
 	seq := c.svcCtx.Dao.IDGenClient2.CurrentSeqId(c.ctx, in.AuthKeyId)
 	qts := c.svcCtx.Dao.IDGenClient2.CurrentQtsId(c.ctx, in.AuthKeyId)
 	return mtproto.MakeTLUpdatesState(&mtproto.Updates_State{

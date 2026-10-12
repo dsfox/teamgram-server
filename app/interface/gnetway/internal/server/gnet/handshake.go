@@ -168,15 +168,12 @@ func mustNewHandshake(cList []config.RSAKey) *handshake {
 		dh2048g:         dh2048G,
 	}
 
-	// The first configured key is the server's own, the one `GET /key` hands
-	// out (#244): ice9's on ours, the installer's on a server of one's own.
+	// ice9: the first configured key is the server's own, the one GET /key hands out (#244)
 	var own *rsa.PublicKey
 	for i, c := range cList {
 		data, err := os.ReadFile(c.KeyFile)
 		if err != nil {
-			// A key named by its fingerprint is one the apps have built in, so
-			// it must be there. One without a fingerprint is a server's own
-			// key, which an install from before #244 never made.
+			// ice9: a key without a fingerprint is the server's own and may be missing (#244)
 			if c.KeyFingerprint == "" && errors.Is(err, fs.ErrNotExist) {
 				logx.Errorf("handshake key %s is not there: this server has no key of its own, so apps given a server code cannot reach it - run install.sh again to make one", c.KeyFile)
 				continue
@@ -187,8 +184,7 @@ func mustNewHandshake(cList []config.RSAKey) *handshake {
 		if err != nil {
 			panic(err)
 		}
-		// MTProto's RSA_PAD fills exactly 256 bytes, and the apps refuse any
-		// other exponent when they check a server's code.
+		// ice9: only RSA-2048 with e 65537, as RSA_PAD and the apps require
 		if key.N.BitLen() != 2048 || key.E != 65537 {
 			panic(fmt.Sprintf("%s: a handshake key is RSA-2048 with e 65537, this one is %d bits with e %d", c.KeyFile, key.N.BitLen(), key.E))
 		}
@@ -290,13 +286,7 @@ func (s *Server) onHandshake(c gnet.Conn, mmsg []byte) (interface{}, error) {
 			Payload: payload,
 		}, nil
 	case *mtproto.TLReq_DHParams:
-		// Every refusal below used to be silent, and silence here is the worst
-		// answer there is: the second step of a handshake is dropped, nothing
-		// is written back, the connection is left open, and the phone waits out
-		// its timeout on "Connecting" with no trace anywhere of why. One was
-		// caught by watching a hung test - the server logged that it had
-		// received req_DH_params at 18:06:05 and then said nothing at all until
-		// the client gave up 69 seconds later.
+		// ice9: every refusal below is logged, not silent
 		if ctx == nil {
 			logx.Errorf("conn(%s) handshake refused: no context for this connection", c)
 			return nil, fmt.Errorf("unknown error")
@@ -311,10 +301,7 @@ func (s *Server) onHandshake(c gnet.Conn, mmsg []byte) (interface{}, error) {
 			// state.State = STATE_DH_params_res
 			// rData = SerializeToBuffer(mtproto.GenerateMessageId(), resServerDHParam)
 		} else {
-			// The nonce names which handshake this belongs to, and there is no
-			// state under it. Said with the nonce in it, because the next
-			// question is always whether the client sent a different one or the
-			// server lost what it had.
+			// ice9: logged with the nonce, to tell a different nonce from lost state
 			logx.Errorf("conn(%s) handshake refused: no state for nonce %s",
 				c, hex.EncodeToString(request.Nonce))
 			err = fmt.Errorf("state error")
@@ -469,8 +456,7 @@ func (s *Server) onReqDHParams(c gnet.Conn, ctx *HandshakeStateCtx, request *mtp
 		logx.Errorf("conn(%s) error: %v", c, err)
 		return nil, err
 	}
-	// Which key each handshake chose: the old one is dropped only once nobody
-	// asks for it (#242).
+	// ice9: "handshake key" names the key each handshake chose, read by the tests (#242)
 	logx.Infof("conn(%s) handshake key %d", c, uint64(request.PublicKeyFingerprint))
 
 	since2 := timex.Now()

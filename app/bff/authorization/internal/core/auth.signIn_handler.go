@@ -197,12 +197,7 @@ func (c *AuthorizationCore) AuthSignIn(in *mtproto.TLAuthSignIn) (*mtproto.Auth_
 		signInN.Message_STRING, signInN.Entities = mtproto.MakeTextAndMessageEntities(builder)
 	}
 
-	// A message from 777000 in the account's history rather than the service
-	// notification it was built as. A notification is kept by each phone under
-	// a number of its own, so deleting the service chat on one device - or from
-	// any session - emptied it everywhere but on the phones, which went on
-	// showing the chat and its unread count after a restart (#216). The login
-	// code has always travelled this way.
+	// ice9: the sign-in notice is a 777000 message in history, not a service notification (#216)
 	c.pushServiceMessage(c.ctx, user.Id(), mtproto.MakeTLMessage(&mtproto.Message{
 		Out:      true,
 		Date:     int32(now.Unix()),
@@ -212,10 +207,7 @@ func (c *AuthorizationCore) AuthSignIn(in *mtproto.TLAuthSignIn) (*mtproto.Auth_
 		Entities: signInN.Entities,
 	}).To_Message())
 
-	// Whoever just got in has a device to read it on. If they got in by
-	// spending their recovery code, this is where the next one reaches them;
-	// if they never had one - an account from before this existed - this is
-	// where they finally do.
+	// ice9: a new recovery phrase reaches the device that just signed in, if one is due
 	c.ensureRecoveryPhrase(c.ctx, user.Id(), phoneNumber)
 
 	return mtproto.MakeTLAuthAuthorization(&mtproto.Auth_Authorization{

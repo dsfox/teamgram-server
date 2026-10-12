@@ -25,12 +25,7 @@ import (
 // AuthCheckPassword
 // auth.checkPassword#d18b4d16 password:InputCheckPasswordSRP = auth.Authorization;
 func (c *AuthorizationCore) AuthCheckPassword(in *mtproto.TLAuthCheckPassword) (*mtproto.Auth_Authorization, error) {
-	// Password verification is not implemented: upstream grants authorization
-	// WITHOUT checking the password. Until two-factor protection is written,
-	// password sign-in must stay closed — otherwise enabling this branch would
-	// make any password work. The branch is currently unreachable
-	// (account.getPassword always reports no password), but leaving it open is
-	// not acceptable.
+	// ice9: password sign-in is refused until the password is really checked
 	err := mtproto.ErrPasswordHashInvalid
 	c.Logger.Errorf("auth.checkPassword: password verification is not implemented, sign-in rejected")
 	return nil, err

@@ -17,18 +17,10 @@ func rpcErrorForAuthState(state int) error {
 	switch state {
 	case mtproto.AuthStateNew,
 		mtproto.AuthStateWaitInit:
-		// The transport key is not initialised yet: tell the client to restart
-		// the handshake, which it can do without losing its account.
+		// ice9: transport key not initialised yet: the client restarts the handshake
 		return mtproto.ErrAuthRestart
 	default:
-		// AuthStateUnauthorized and the terminal states: the key has a session
-		// but no user behind it - the account was deleted or the authorization
-		// revoked. AUTH_RESTART here made the client loop the handshake for
-		// ever (the A15 hung on the number screen while still making authorized
-		// calls, ice9 #179). AUTH_KEY_UNREGISTERED tells it to sign out, which
-		// both clients do. The state was refreshed against the authsession
-		// service just before this, so a key whose account still exists is
-		// already Normal and never reaches here.
+		// ice9: Unauthorized and terminal states get AUTH_KEY_UNREGISTERED, so the client signs out (#179)
 		return mtproto.ErrAuthKeyUnregistered
 	}
 }

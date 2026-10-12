@@ -38,9 +38,7 @@ func (d *Dao) MakeMessageBox(ctx context.Context, selfUserId int64, do *dataobje
 	_ = jsonx.UnmarshalFromString(do.MessageData, &box.Message)
 	box.Message = box.Message.FixData()
 
-	// Reactions (#18) are kept apart from the message and put on it here, where
-	// every box becomes a message, as the box's owner sees them. Always
-	// overwritten: what a stored copy carries is nobody's current view.
+	// ice9: reactions put on every message as the box's owner sees them, always overwritten (#18)
 	if d.Reactions != nil && box.Message != nil {
 		rows, err := d.Reactions.Of(ctx, do.DialogMessageId)
 		if err != nil {

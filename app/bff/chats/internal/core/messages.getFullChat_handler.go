@@ -60,8 +60,7 @@ func (c *ChatsCore) MessagesGetFullChat(in *mtproto.TLMessagesGetFullChat) (*mtp
 	}
 
 	dlg := dialog2.Datas[0].GetDialog()
-	// A group nobody has set reactions for takes every one this server offers
-	// (#18). Without the field both clients turn reactions off in the group.
+	// ice9: a group with no reactions set takes every one this server offers (#18)
 	allowed := chat.AvailableReactions()
 	if allowed == nil {
 		allowed = mtproto.FromChatReactions(mtproto.ChatReactionsTypeAllNoAllowCustom, nil)

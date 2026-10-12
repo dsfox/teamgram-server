@@ -177,27 +177,10 @@ func (c *SyncCore) processUpdates(syncType SyncType, userId int64, isBot bool, u
 	return needPush, nil
 }
 
-// How long a push to a session may take before it is called lost, and said so.
-//
-// Bounded because it was not. On 31 August the live server worked out 193
-// deliveries for sessions it believed were online and 192 of them vanished
-// without a line in the log: the session client had stopped answering, every
-// call waited on it for ever, and the error was thrown away by `_ =`. Clients
-// then saw only what they asked for - which is how the first thing said in a
-// new group, the one message nobody has asked about yet, became invisible for
-// good (#144).
-//
-// Three seconds is long for a call to a service on the same machine and short
-// enough that nothing is held behind it.
+// ice9: how long a push to a session may take before it is logged as lost (#144)
 const pushDeadline = 3 * time.Second
 
-// Sends one push and says when it does not arrive.
-//
-// The wording is not free either: "dropping push" is what
-// deploy/check-health.py already watches for every fifteen minutes, and it
-// never fired because a call that hangs writes nothing at all. A delivery that
-// fails silently is one nobody hears about until somebody reports a message
-// that never came.
+// ice9: sends one push and logs "dropping push", which deploy/check-health.py counts, when it fails
 func (c *SyncCore) deliver(what string, keyId int64, serverId string, push func(context.Context) error) {
 	ctx, cancel := context.WithTimeout(c.ctx, pushDeadline)
 	defer cancel()
@@ -239,10 +222,7 @@ func (c *SyncCore) pushUpdatesToSession(syncType SyncType, userId, permAuthKeyId
 		var (
 			pushExcludeList   = make([]int64, 0)
 			serverIdKeyIdList = make(map[string][]int64)
-			// Kept apart from pushExcludeList: that one lists sessions worth a
-			// delivery attempt over the connection, this one only those where the
-			// app is certainly open. The difference matters for notifications,
-			// see below.
+			// ice9: unlike pushExcludeList, only sessions where the app is certainly open
 			activeKeyIdList = make([]int64, 0)
 			now             = time.Now().Unix()
 		)
@@ -256,10 +236,7 @@ func (c *SyncCore) pushUpdatesToSession(syncType SyncType, userId, permAuthKeyId
 				continue
 			}
 			pushExcludeList = append(pushExcludeList, sess.PermAuthKeyId)
-			// The session list comes without regard to expiry, and expiry is what
-			// decides here: a backgrounded iOS app keeps the connection for a
-			// while yet shows no messages. Treating such a session as live means
-			// never sending a notification at all.
+			// ice9: only an unexpired session counts as open, so a backgrounded app is still notified
 			if sess.Expired > now {
 				activeKeyIdList = append(activeKeyIdList, sess.PermAuthKeyId)
 			}
@@ -271,8 +248,7 @@ func (c *SyncCore) pushUpdatesToSession(syncType SyncType, userId, permAuthKeyId
 			}
 		}
 
-		// ice9: info, because deploy/check-health.py counts it against the
-		// deliveries handed over, and production logs at info.
+		// ice9: info, because deploy/check-health.py counts it against the deliveries handed over
 		c.Logger.Infof("serverIdKeyIdList - #%v", serverIdKeyIdList)
 		for serverId, keyIdList := range serverIdKeyIdList {
 			for _, keyId := range keyIdList {
@@ -293,9 +269,7 @@ func (c *SyncCore) pushUpdatesToSession(syncType SyncType, userId, permAuthKeyId
 		if syncType == syncTypeUser {
 			if c.svcCtx.Dao.PushClient != nil {
 				c.Logger.Debugf("push PushClient...")
-				// Said out loud for the same reason as the rest: the fourth
-				// discarded error is the one that hides while the other three
-				// are watched.
+				// ice9: a failed notification push is logged too
 				if _, err := c.svcCtx.Dao.PushClient.SyncPushUpdatesIfNot(c.ctx, &sync.TLSyncPushUpdatesIfNot{
 					UserId:   userId,
 					Excludes: pushExcludeList,
@@ -305,14 +279,10 @@ func (c *SyncCore) pushUpdatesToSession(syncType SyncType, userId, permAuthKeyId
 				}
 			}
 
-			// The notification goes to devices where the app is not open. Only a
-			// session that has not expired counts as open.
+			// ice9: notifications go to devices without an unexpired session
 			c.notifyOfflineDevices(userId, activeKeyIdList, pushData)
 		} else if syncType == syncTypeUserNotMe && readSomething(userId, pushData) {
-			// A read mark travels to the user's other sessions - "not me" -
-			// and the devices that are asleep get the new badge (#173). The
-			// reader's own session is awake whatever the status list says of
-			// it, so it is counted as online here.
+			// ice9: a read mark sends the new badge to sleeping devices, the reader counted online (#173)
 			c.svcCtx.Dao.Notifier.ReadElsewhere(c.ctx, userId, append(activeKeyIdList, permAuthKeyId))
 		}
 	}

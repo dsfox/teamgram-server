@@ -58,42 +58,10 @@ type Session struct {
 	markedAt       atomic.Int64 // when it was set, so that it can be unset
 }
 
-// How long a session that has just failed is left alone before one push is let
-// through to find out whether it is answering again.
-//
-// The mark this clears used to be permanent: one connection error and every
-// push to that session was refused for the life of the process, with nothing
-// anywhere that could take the mark off. On 31 August that is what 192
-// undelivered updates were - the session server was back within seconds and
-// nothing here ever asked again (#146). A restart of the whole container was
-// the only cure.
-//
-// Long enough that a session which is really down is not asked on every push,
-// short enough that a person waiting for a message does not notice.
+// ice9: how long a failed session is left alone before one push tries it again (#146)
 const sessionRetryAfter = 5 * time.Second
 
-// pushCallDeadline is how long the call itself may take once it leaves the
-// queue.
-//
-// #144 put a deadline on the push and it never reached the call. `deliver` in
-// the core wraps `PushUpdates`, and `PushUpdates` only puts the work on a
-// channel and returns - the gRPC call is made later, by `process`, with the
-// context that travelled in the channel. That context comes from `detach`,
-// which is `context.WithoutCancel`, and by its contract such a context carries
-// no deadline at all. So the three seconds bounded the enqueue, which never
-// takes any time, and the call was left unbounded.
-//
-// That is the shape of what happened on 31 August: the session client stopped
-// answering, every call waited on it for ever, and 192 updates never reached
-// anybody. A refused connection answers at once and is not this; a server that
-// accepts and then says nothing is, and it is the harder half.
-//
-// The detaching itself stays and is right: the request that produced the push
-// has answered and cancelled its context by the time the queue gets to it, and
-// with the original context 30 deliveries in 35 died as "context canceled".
-// What was missing is a deadline of the call's own.
-//
-// A var so a test can shorten it.
+// ice9: how long the gRPC call itself may take; the detached context carries no deadline (#144)
 var pushCallDeadline = 3 * time.Second
 
 // markUnavailable records that this session failed, and when.
@@ -104,11 +72,7 @@ func (c *Session) markUnavailable() {
 	}
 }
 
-// refusing says whether to drop this push without trying.
-//
-// It goes false once the pause is over, while the session is still marked:
-// that one push is what finds out the server is back, and getting through
-// clears the mark. Without it there is no way back at all.
+// ice9: refusing says whether to drop this push; false once the pause is over, so one push tries
 func (c *Session) refusing() bool {
 	if !c.unavailable.Load() {
 		return false
@@ -116,9 +80,7 @@ func (c *Session) refusing() bool {
 	return time.Since(time.Unix(0, c.markedAt.Load())) < sessionRetryAfter
 }
 
-// alive records a push that got through, which is the one thing that can take
-// the mark off. Said out loud, because "delivery came back by itself" is the
-// sentence this whole issue is about.
+// ice9: alive takes the mark off after a push got through, logging "is answering again"
 func (c *Session) alive() {
 	if c.unavailable.Swap(false) {
 		logx.Infof("session(%s) is answering again", c.serverId)
@@ -153,8 +115,7 @@ func (c *Session) process(sessionChan chan sessionDataCtx) {
 				continue
 			}
 
-			// The call's own deadline. What arrives in the channel carries none:
-			// see pushCallDeadline.
+			// ice9: the call's own deadline, see pushCallDeadline
 			pushCtx, done := context.WithTimeout(sessionData.ctx, pushCallDeadline)
 
 			switch r := sessionData.updates.(type) {
@@ -223,16 +184,7 @@ func (c *Session) Close() (err error) {
 	return
 }
 
-// detach keeps the values of a request context (tracing, metadata) but drops its
-// cancellation.
-//
-// The push below is handled by another goroutine, long after the request that
-// produced it has answered and cancelled its context. With the original context
-// the delivery died with "context canceled" before it even started: measured 30
-// failures out of 35 on a live server. The update then never reached the phone
-// over its connection and the person saw the message only after the client asked
-// for it again — a notification arrived instantly while the message itself took
-// tens of seconds.
+// ice9: detach keeps a request context's values but drops its cancellation
 func detach(ctx context.Context) context.Context {
 	return context.WithoutCancel(ctx)
 }

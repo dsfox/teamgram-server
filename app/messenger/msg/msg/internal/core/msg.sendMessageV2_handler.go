@@ -45,8 +45,7 @@ func (c *MsgCore) MsgSendMessageV2(in *msg.TLMsgSendMessageV2) (*mtproto.Updates
 	}
 
 	for _, outBox := range outBoxList {
-		// A message being sent has nobody's reactions yet. A forward is made
-		// from the original as the forwarder reads it, reactions and all (#18).
+		// ice9: a message being sent, a forward too, starts with no reactions (#18)
 		if m := outBox.GetMessage(); m != nil {
 			m.Reactions = nil
 		}

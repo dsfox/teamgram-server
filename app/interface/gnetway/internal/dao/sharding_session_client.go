@@ -30,22 +30,7 @@ const (
 	maxNodeFailures = 3 // consecutive failures before removing node from ring
 )
 
-// nodeReturnsAfter is how long a node stays out of the ring before it is tried
-// again.
-//
-// It used to stay out for ever, and nothing anywhere put it back. With direct
-// addresses and no etcd - which is how this server runs - `discovery.Watch`
-// calls `update` once at startup and returns; the whole function is an if and a
-// call, so the only path that adds a node never runs a second time. On a
-// one-node install the ring is then empty, `dispatcher.Get` finds nothing, and
-// every request is answered `not found session` until somebody restarts the
-// container: nobody can sign in, and nobody can write (#150).
-//
-// Taking a failing node out is still right - with several of them the traffic
-// should go round it - so it goes out, and comes back to be tried. Five
-// seconds, which is what sync waits before trusting a session again (#146).
-//
-// A var rather than a const so a test can make the pause short enough to watch.
+// ice9: how long a failed node stays out of the ring before it is tried again (#150, #146)
 var nodeReturnsAfter = 5 * time.Second
 
 var (
@@ -58,9 +43,7 @@ type ShardingSessionClient struct {
 	dispatcher   *hash.ConsistentHash
 	sessions     map[string]sessionclient.SessionClient
 	failCounters map[string]int
-	// When each node that has been taken out of the ring may be tried again.
-	// The client itself stays in `sessions`: zrpc reconnects underneath, so
-	// what is being paused is the routing, not the connection.
+	// ice9: when each node taken out of the ring may be tried again; its client stays in sessions
 	sidelined map[string]time.Time
 }
 
@@ -131,15 +114,7 @@ func (sess *ShardingSessionClient) watch(c zrpc.RpcClientConf) {
 	}
 }
 
-// bringBackWhatIsDue puts a sidelined node into the ring once its pause is over.
-//
-// Asked before every dispatch rather than on a timer of its own: there is no
-// other moment: the one thing that used to add nodes runs at startup and never
-// again, which is why a node taken out stayed out for ever (#150).
-//
-// The read is done under the read lock and the write only when there is
-// something to write, so the ordinary call - nothing sidelined - costs a map
-// length and no contention.
+// ice9: puts a sidelined node back into the ring once its pause is over, checked per dispatch (#150)
 func (sess *ShardingSessionClient) bringBackWhatIsDue() {
 	now := time.Now()
 
@@ -163,9 +138,7 @@ func (sess *ShardingSessionClient) bringBackWhatIsDue() {
 		}
 		delete(sess.sidelined, node)
 		if _, ok := sess.sessions[node]; !ok {
-			// Taken away by an update rather than by a failure. Nothing to
-			// bring back, and adding it would put a name in the ring with no
-			// client behind it.
+			// ice9: removed by an update, not a failure: no client to bring back
 			continue
 		}
 		sess.dispatcher.Add(node)
@@ -229,19 +202,14 @@ func (sess *ShardingSessionClient) InvokeByKey(key string, cb func(client sessio
 	sess.failCounters[node]++
 	failCount := sess.failCounters[node]
 	if failCount >= maxNodeFailures && len(sess.sessions)-len(sess.sidelined) <= 1 {
-		// The only node left: there is nothing to route round it to, and taking
-		// it out turned every packet into "not found session" for five seconds
-		// - after it had answered again, too. A listener's getDifference was
-		// lost in exactly those seconds on 5 October (#228). It stays, and the
-		// next packet tries it.
+		// ice9: the only node left stays in the ring, and the next packet tries it (#228)
 		logx.Errorf("session node %s unreachable (%d consecutive failures); the only node, so it stays in the ring", node, failCount)
 		delete(sess.failCounters, node)
 	} else if failCount >= maxNodeFailures {
 		logx.Errorf("session node %s unreachable (%d consecutive failures), out of the ring for %s", node, failCount, nodeReturnsAfter)
 		sess.dispatcher.Remove(node)
 		delete(sess.failCounters, node)
-		// The client stays: it is what makes putting the node back possible,
-		// and zrpc reconnects behind it on its own.
+		// ice9: the client stays so the node can come back; zrpc reconnects behind it
 		sess.sidelined[node] = time.Now().Add(nodeReturnsAfter)
 	} else {
 		logx.Errorf("session node %s connection error (%d/%d), retrying on another node", node, failCount, maxNodeFailures)
@@ -286,11 +254,7 @@ func parseRedirectError(err error) (string, bool) {
 	return "", false
 }
 
-// Undelivered says the packet never reached a session service: no node in the
-// ring, the node did not answer, or the client's circuit breaker - opened by
-// those failures - refused to try. The breaker says so with a plain error, not
-// a gRPC status, and a new client's first packet was dropped that way for half
-// a minute after an outage (#228). Anything else is the session's own answer.
+// ice9: Undelivered says the packet never reached a session service, breaker refusals included (#228)
 func Undelivered(err error) bool {
 	return errors.Is(err, ErrSessionNotFound) || errors.Is(err, breaker.ErrServiceUnavailable) || isConnError(err)
 }

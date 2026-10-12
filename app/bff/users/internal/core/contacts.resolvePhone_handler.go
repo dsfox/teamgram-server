@@ -28,8 +28,7 @@ import (
 // ContactsResolvePhone
 // contacts.resolvePhone#8af94344 phone:string = contacts.ResolvedPeer;
 func (c *UsersCore) ContactsResolvePhone(in *mtproto.TLContactsResolvePhone) (*mtproto.Contacts_ResolvedPeer, error) {
-	// Sixty an hour per account (#170): enough to invite by number, too few to
-	// learn who is here by walking the numbers.
+	// ice9: sixty lookups an hour per account, too few to walk the numbers (#170)
 	ok, wait, err := lookupAllowed(c.ctx, c.svcCtx.Dao.KV, c.MD.UserId, time.Now())
 	if err != nil {
 		c.Logger.Errorf("contacts.resolvePhone - cannot count lookups, letting this one through: %v", err)
@@ -42,19 +41,12 @@ func (c *UsersCore) ContactsResolvePhone(in *mtproto.TLContactsResolvePhone) (*m
 		Phone: in.GetPhone(),
 	})
 	if err != nil || id.GetV() == 0 {
-		// Nobody here by that number, which is an ordinary answer and not a
-		// fault of ours. It reached the client as INTERNAL_SERVER_ERROR, and on
-		// screen that is a person who has an account being offered "Invite to
-		// ice9" - the only way anybody finds anybody here is by number.
+		// ice9: nobody on that number is PHONE_NOT_OCCUPIED, not INTERNAL_SERVER_ERROR
 		c.Logger.Infof("contacts.resolvePhone - nobody on %s", in.GetPhone())
 		return nil, mtproto.ErrPhoneNotOccupied
 	}
 
-	// Everybody may be found by their number unless they have said otherwise,
-	// which is what Telegram defaults to and what this service needs: an
-	// invitation-only messenger where knowing the number is how people find
-	// each other. It defaulted to refusing, and since no account here has ever
-	// set a privacy rule, that refused everybody - nobody could add anybody.
+	// ice9: a number finds its owner unless they said otherwise, as Telegram's default
 	var (
 		allow = true
 	)
@@ -74,10 +66,7 @@ func (c *UsersCore) ContactsResolvePhone(in *mtproto.TLContactsResolvePhone) (*m
 	resolved, _ := contactList.GetImmutableUser(id.GetV())
 
 	if me == nil || resolved == nil {
-		// The number belongs to somebody, but the pair could not be read. Said
-		// as "nobody there" rather than as a server fault: the client shows the
-		// first as "invite them" and the second as a red error, and the person
-		// looking at it can act on the first.
+		// ice9: a pair that cannot be read is PHONE_NOT_OCCUPIED too, so the client offers an invite
 		c.Logger.Errorf("contacts.resolvePhone - %s is user %d, but the pair could not be read", in.GetPhone(), id.GetV())
 		return nil, mtproto.ErrPhoneNotOccupied
 	}

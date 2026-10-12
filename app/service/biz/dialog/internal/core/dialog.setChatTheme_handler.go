@@ -28,11 +28,7 @@ import (
 
 // DialogSetChatTheme
 // dialog.setChatTheme user_id:long peer_type:int peer_id:long theme_emoticon:string = Bool;
-//
-// The theme of a chat between two, written for both of them (#23). Through
-// the dialog cache, as setChatWallpaper writes: getFullUser reads the dialog
-// through it, and a write beside the cache left both phones reading the
-// theme they had before.
+// ice9: written for both sides through the dialog cache, which getFullUser reads (#23)
 func (c *DialogCore) DialogSetChatTheme(in *dialog.TLDialogSetChatTheme) (*mtproto.Bool, error) {
 	_, _, err := c.svcCtx.Dao.CachedConn.Exec(
 		c.ctx,

@@ -163,8 +163,7 @@ func (c *InboxCore) InboxEditMessageToInboxV2(in *inbox.TLInboxEditMessageToInbo
 			return nil, tR.Err
 		}
 
-		// The edit reaches this reader with the reactions as they see them: a
-		// copy without them would take them off the message on their phone (#18).
+		// ice9: the edit carries this reader's reactions, or it would clear them on their phone (#18)
 		if rows, err := c.svcCtx.Dao.Reactions.Of(c.ctx, in.NewMessage.DialogMessageId); err != nil {
 			c.Logger.Errorf("inbox.editMessageToInboxV2 - reactions of %d: %v", in.NewMessage.DialogMessageId, err)
 		} else {

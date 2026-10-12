@@ -34,14 +34,7 @@ type VerifyCodeInterface interface {
 	VerifySmsCode(ctx context.Context, a attempt.Attempt) error
 }
 
-// NewVerifyCode picks how a sign-in code is checked.
-//
-// "none" is upstream's placeholder and compares the typed code against the
-// constant 12345, ignoring the one the server generated - anyone who knew a
-// phone number could sign in as its owner. It is kept only because removing a
-// name from a config file is not the way to close a hole; it is never selected
-// by default, and the deploy does not set it.
-// recorder may be nil: then a spent invitation is not written down (#47).
+// ice9: invitations check codes; "none" accepts 12345, never by default; nil recorder keeps no record (#47)
 func NewVerifyCode(c *conf.SmsVerifyCodeConfig, store invite.Store, recorder invite.Recorder) VerifyCodeInterface {
 	if c == nil {
 		c = new(conf.SmsVerifyCodeConfig)

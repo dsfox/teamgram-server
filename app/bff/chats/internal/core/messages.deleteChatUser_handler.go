@@ -58,17 +58,7 @@ func (c *ChatsCore) MessagesDeleteChatUser(in *mtproto.TLMessagesDeleteChatUser)
 		PeerId:   in.ChatId,
 	})
 
-	// Everybody is told, phones included. Upstream answered a phone with empty
-	// updates and left the message unsent, on the assumption that a mobile
-	// client asks for the participant list again by itself. Ours does not, and
-	// neither does anything else: adding somebody has always sent this message
-	// and removing them did not, so a group kept the person in its title and -
-	// worse - in its encrypted conversation, holding the keys of an epoch
-	// nobody rotated (#113, and #40 step 4.3).
-	//
-	// The other half of the asymmetry was that leaving is the same call: the
-	// person going is the person named, and the only device that knew was
-	// theirs.
+	// ice9: a removal or a leave is sent to everybody, phones included (#113, #40)
 	fromId := c.MD.UserId
 	if c.MD.IsAdmin {
 		fromId = chat.Creator()

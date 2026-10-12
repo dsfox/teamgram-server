@@ -33,8 +33,7 @@ type Dao struct {
 	user_client.UserClient
 	chat_client.ChatClient
 	sync_client.SyncClient
-	// Devices stays nil when no database is configured: the service keeps
-	// working, tokens are just not stored anywhere.
+	// ice9: nil without a database; the service works and stores no tokens
 	Devices *devices.Registry
 }
 

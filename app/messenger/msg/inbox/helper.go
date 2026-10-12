@@ -37,9 +37,7 @@ func New(c Config) *kafka.ConsumerGroup {
 	return mq.New(svc.NewServiceContext(c), c.InboxConsumer)
 }
 
-// RegisterServer exposes inbox work over gRPC as an alternative to the queue.
-// It registers on the shared server of the msg process: they live together
-// anyway.
+// ice9: RegisterServer exposes inbox work over gRPC, on the msg process's shared server
 func RegisterServer(grpcServer *grpc.Server, c Config) {
 	inbox.RegisterRPCInboxServer(grpcServer, service.New(svc.NewServiceContext(c)))
 }

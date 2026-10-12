@@ -48,10 +48,7 @@ type PhoneCodeTransaction struct {
 	State                 int    `json:"state"`
 }
 
-// Attempt describes this try at the code, for whoever checks it. Assembled here
-// rather than at each call site because a verifier that is handed the wrong
-// field cannot tell: one place passed the code hash where the typed code
-// belonged, and the mistake was invisible until somebody read the line.
+// ice9: Attempt assembles this try at the code for the verifier, in one place
 func (m *PhoneCodeTransaction) Attempt(phoneCode string) attempt.Attempt {
 	return attempt.Attempt{
 		CodeHash:        m.PhoneCodeHash,

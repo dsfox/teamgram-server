@@ -263,15 +263,7 @@ func (m DialogExtList) DoGetMessagesDialogs(
 	return dialogsData
 }
 
-// dropDialogsWithoutTheirPeer removes dialogs whose peer did not come back with
-// the answer.
-//
-// A client will not show a chat whose peer it does not know, but the unread
-// count of that dialog still reaches the badge - which is how a phone ends up
-// showing one unread with no chat to open and nothing to read. The service
-// account behaved exactly like this: it exists in `users`, yet the lookup that
-// fills this list skips it, silently. Sending such a dialog is worse than
-// sending nothing, and the log line is what makes the next one findable.
+// ice9: drops and logs dialogs whose peer was not loaded; their unread reached the badge with no chat
 func (d *DialogsDataHelper) dropDialogsWithoutTheirPeer(ctx context.Context, selfUserId int64) {
 	known := make(map[int64]bool, len(d.Users)+len(d.Chats))
 	for _, u := range d.Users {

@@ -25,9 +25,7 @@ import (
 // AccountUpdateDeviceLocked
 // account.updateDeviceLocked#38df3532 period:int = Bool;
 func (c *NotificationCore) AccountUpdateDeviceLocked(in *mtproto.TLAccountUpdateDeviceLocked) (*mtproto.Bool, error) {
-	// Accepted and nothing to do. The client says its screen locked so the
-	// server can hold push notifications back; we do not hold any, so there
-	// is nothing to remember and true is the whole answer.
+	// ice9: accepted with nothing to do; no push is held back for a locked screen
 
 	return mtproto.BoolTrue, nil
 }

@@ -27,22 +27,10 @@ import (
 func (c *ConfigurationCore) HelpGetNearestDc(in *mtproto.TLHelpGetNearestDc) (*mtproto.NearestDc, error) {
 	_ = in
 
-	// There is one datacentre and this is it. Upstream uses this to send a
-	// client to the closest of many; with one, the answer is always the same
-	// one and always correct.
+	// ice9: there is one datacentre, so it is always the nearest
 
 	rValue := mtproto.MakeTLNearestDc(&mtproto.NearestDc{
-		// Empty rather than upstream's "CN". This field is where the client is
-		// told which country it appears to be in, and it preselects the dialling
-		// code on the sign-in screen - so a wrong value is a person in Moscow
-		// being offered +86. We do not look anybody up, so we do not know, and
-		// an empty answer says exactly that.
-		//
-		// It never preselected China in practice: setCountry looks the value up
-		// by code and then matches it against country *names*, which cannot
-		// agree, so nothing happened. Checked on a fresh install - the field is
-		// blank. That is upstream's mistake protecting us from upstream's data,
-		// which is not a thing to leave standing.
+		// ice9: no country rather than upstream's "CN": the client's country is not known here
 		Country:   "",
 		ThisDc:    1,
 		NearestDc: 1,

@@ -25,9 +25,6 @@ import (
 // HelpTest
 // help.test#c0e202f7 = Bool;
 func (c *MiscellaneousCore) HelpTest(in *mtproto.TLHelpTest) (*mtproto.Bool, error) {
-	// This is how the client checks whether a connection is any good. Answering
-	// with an error told it "no" ninety times in three hours for one user, who
-	// sat on connecting/updating the whole time. There is nothing to implement
-	// here: the question is only whether the server answers at all.
+	// ice9: answered true; the client tests a connection with it, and an error read as a bad one
 	return mtproto.BoolTrue, nil
 }

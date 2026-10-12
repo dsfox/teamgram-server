@@ -89,11 +89,7 @@ func (m *Vector_ImmutableUser) GetUserListByIdList(selfId int64, id ...int64) []
 		if to != nil {
 			users = append(users, to.ToUnsafeUser(me))
 		} else {
-			// ice9: an id the server names gets a user even when its row is
-			// gone - an empty one, which clients draw as a deleted account
-			// (#210). Left out, a difference named somebody it gave no user
-			// for, and an iPhone back from offline could not verify it and
-			// asked again for good.
+			// ice9: an id whose row is gone gets an empty user, drawn as a deleted account (#210)
 			users = append(users, mtproto.MakeTLUserEmpty(&mtproto.User{Id: id2}).To_User())
 		}
 	}

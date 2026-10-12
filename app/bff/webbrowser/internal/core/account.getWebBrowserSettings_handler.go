@@ -24,12 +24,7 @@ import (
 // AccountGetWebBrowserSettings
 // account.getWebBrowserSettings#56655768 hash:long = account.WebBrowserSettings;
 func (c *WebBrowserCore) AccountGetWebBrowserSettings(in *mtproto.TLAccountGetWebBrowserSettings) (*mtproto.Account_WebBrowserSettings, error) {
-	// Nothing is stored, and the honest answer to "which domains open outside
-	// the app" is "none" rather than an error. It used to be an error, and the
-	// clients from 12.9 on ask this at startup: the answer they got was
-	// ERR_ENTERPRISE_IS_BLOCKED, which they back off from and retry, with the
-	// rest of their service queue waiting behind it. Found while carrying the
-	// clients forward - see ice9 #57.
+	// ice9: no exceptions stored, answered as none; an error stalled the 12.9 clients' queue (#57)
 	c.Logger.Infof("account.getWebBrowserSettings: nothing is stored, answering with no exceptions")
 
 	return mtproto.MakeTLAccountWebBrowserSettings(&mtproto.Account_WebBrowserSettings{

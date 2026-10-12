@@ -12,8 +12,7 @@ import (
 	"github.com/teamgram/teamgram-server/pkg/goffmpeg/transcoder"
 )
 
-// The transcoding tests read real media at /tmp/ffmpeg/<format>, which nothing
-// in the repository creates; without it the transcoder panics on a nil Mediafile.
+// ice9: skips a test whose media under /tmp/ffmpeg is missing; nothing in the repository makes it
 func requireFixture(t *testing.T, path string) {
 	t.Helper()
 	if _, err := os.Stat(path); err != nil {

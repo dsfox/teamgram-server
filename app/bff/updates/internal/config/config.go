@@ -24,11 +24,7 @@ import (
 	"github.com/zeromicro/go-zero/zrpc"
 )
 
-// CallRecaller rings a device that comes back while a call still rings for
-// its person (#14): a phone woken by a call push asks for its difference
-// first, and the update of a call carries no pts, so the difference itself
-// cannot bring it. The phone service implements it; the process that runs
-// both hands it over. Nil means no calls.
+// ice9: rings a device back while its call rings, which no difference carries; nil means no calls (#14)
 type CallRecaller interface {
 	RecallRinging(ctx context.Context, userId, permAuthKeyId int64)
 }

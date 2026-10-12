@@ -20,9 +20,7 @@ import (
 // SyncPushRpcResult
 // sync.pushRpcResult server_id:long auth_key_id:long req_msg_id:long result:bytes = PushUpdates;
 func (c *SyncCore) SyncPushRpcResult(in *sync.TLSyncPushRpcResult) (*mtproto.Void, error) {
-	// The same road as an update, and the same silence when it fails: an answer
-	// that never reaches the client leaves it waiting for a reply it will not
-	// get (#144).
+	// ice9: an rpc result goes through deliver, so a failure is logged (#144)
 	c.deliver("rpc result", in.PermAuthKeyId, in.ServerId, func(ctx context.Context) error {
 		return c.svcCtx.Dao.PushRpcResultToSession(
 			ctx,

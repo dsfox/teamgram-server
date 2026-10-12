@@ -120,9 +120,7 @@ func (d *Dao) GetDialogByPeerDialogId(ctx context.Context, userId, peerDialogId 
 
 	if err != nil {
 		if errors.Is(err, sqlc.ErrNotFound) {
-			// A dialog that does not exist yet is an ordinary answer about
-			// a chat nobody has opened, not a failure. At error level this
-			// line fed the alarm that reads error level, daily.
+			// ice9: a dialog not there yet is an ordinary answer, logged at info
 			logx.WithContext(ctx).Infof("dialog.getDialogById - no dialog yet for user %d, peer %d", userId, peerDialogId)
 			return nil, mtproto.ErrPeerIdInvalid
 		}

@@ -13,11 +13,7 @@ import (
 var (
 	MyAppName = "ice9"
 	MyWebSite = "teamgram.net"
-	// The host a group's invite link carries. It is the one the apps answer
-	// for and the site serves an invitation page on (#87); on t.me the link
-	// opened somebody else's messenger and handed it the hash. Written twice,
-	// here and as the flag's default below, and the flag wins at start-up -
-	// tests/test_link_domain_gate.py holds the two together.
+	// ice9: invite links on our host, repeated as the flag default; test_link_domain_gate.py (#87)
 	TDotMe = "i.ice9.app"
 	// MyWebClientSite = "web.teamgram.net"
 	MyTgScheme = "tg"

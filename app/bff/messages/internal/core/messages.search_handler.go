@@ -173,8 +173,7 @@ func (c *MessagesCore) MessagesSearch(in *mtproto.TLMessagesSearch) (*mtproto.Me
 			return rValues, nil
 		}
 	case mtproto.FilterVoice:
-		// Voice notes and round videos share one media type: take both and keep
-		// only the voice ones, otherwise the tab would be a mixture.
+		// ice9: voice notes, filtered from the audio type they share with round videos
 		boxList, err = c.svcCtx.Dao.MessageClient.MessageSearchByMediaType(c.ctx, &message.TLMessageSearchByMediaType{
 			UserId:    c.MD.UserId,
 			PeerType:  peer.PeerType,
@@ -255,19 +254,13 @@ func (c *MessagesCore) MessagesSearch(in *mtproto.TLMessagesSearch) (*mtproto.Me
 		}
 		boxList = filterMessageBoxes(boxList, mtproto.IsRoundVideoMessage)
 	case mtproto.FilterMyMentions:
-		// The storage does not support this filter: there is no dedicated media
-		// type for it. Return an empty list rather than an error, so the tab is
-		// simply empty.
+		// ice9: storage has no media type for this filter, so the tab is empty
 		return rValues, nil
 	case mtproto.FilterGeo:
-		// The storage does not support this filter: there is no dedicated media
-		// type for it. Return an empty list rather than an error, so the tab is
-		// simply empty.
+		// ice9: storage has no media type for this filter, so the tab is empty
 		return rValues, nil
 	case mtproto.FilterContacts:
-		// The storage does not support this filter: there is no dedicated media
-		// type for it. Return an empty list rather than an error, so the tab is
-		// simply empty.
+		// ice9: storage has no media type for this filter, so the tab is empty
 		return rValues, nil
 	case mtproto.FilterPinned:
 		boxList, err = c.svcCtx.Dao.MessageClient.MessageSearchByPinned(c.ctx, &message.TLMessageSearchByPinned{
@@ -367,8 +360,7 @@ func (c *MessagesCore) MessagesSearch(in *mtproto.TLMessagesSearch) (*mtproto.Me
 	return rValues, nil
 }
 
-// filterMessageBoxes keeps only the messages that match the predicate. Needed
-// where the storage has no dedicated type for a kind of message.
+// ice9: filterMessageBoxes keeps the messages the predicate accepts
 func filterMessageBoxes(boxList *mtproto.MessageBoxList, keep func(*mtproto.Message) bool) *mtproto.MessageBoxList {
 	if boxList == nil {
 		return boxList

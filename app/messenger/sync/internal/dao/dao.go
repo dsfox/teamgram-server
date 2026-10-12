@@ -42,20 +42,7 @@ type Dao struct {
 	Notifier *pushnotify.Notifier
 }
 
-// refuseTheStreamingPath says why sync will not run on the streaming session
-// client, or nil when it is not asked to.
-//
-// The path is broken and nothing measures it (#149). Its `unavailable` latch is
-// only ever set: `sendLoop` and `recvLoop` return when the stream breaks, so
-// afterwards nobody drains the channel, and merely clearing the latch would
-// replace an honest refusal with silent loss. No scenario and no test touch it,
-// and it appears in no deployed config.
-//
-// Upstream's file is left exactly as it is - it is theirs, and every carry would
-// bring it back - so what is ours is the refusal to start on it. A switch that
-// is off by default and known broken is worse than one that is not there: the
-// day somebody turns it on, delivery stops in a way that looks like anything
-// else.
+// ice9: refuseTheStreamingPath refuses UseStreamSession, a broken path that loses pushes (#149)
 func refuseTheStreamingPath(on bool) error {
 	if !on {
 		return nil

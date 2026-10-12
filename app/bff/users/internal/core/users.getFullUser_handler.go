@@ -74,11 +74,7 @@ func (c *UsersCore) UsersGetFullUser(in *mtproto.TLUsersGetFullUser) (*mtproto.U
 
 	userFull := mtproto.MakeTLUserFull(&mtproto.UserFull{
 		Blocked: false,
-		// These two flags are what the client uses to decide whether to draw
-		// the call buttons at all. Calls exist (#14): the server matches the
-		// two phones and hands out STUN and a relay, the media goes device to
-		// device. Video is the same signalling with one more track; voice
-		// was walked first, then this. Nobody calls themselves.
+		// ice9: voice and video call buttons for anybody but yourself (#14)
 		PhoneCallsAvailable:      c.MD.UserId != peerId,
 		VideoCallsAvailable:      c.MD.UserId != peerId,
 		PhoneCallsPrivate:        false,
@@ -219,8 +215,7 @@ func (c *UsersCore) UsersGetFullUser(in *mtproto.TLUsersGetFullUser) (*mtproto.U
 				})
 				if dialogExt != nil {
 					userFull.ThemeEmoticon = mtproto.MakeFlagsString(dialogExt.ThemeEmoticon)
-					// The field clients from layer 214 read; theme_emoticon
-					// is only on the wire for older ones (#23).
+					// ice9: the theme field layer 214 clients read; theme_emoticon is for older ones (#23)
 					if dialogExt.ThemeEmoticon != "" {
 						userFull.Theme = mtproto.MakeTLChatTheme(&mtproto.ChatTheme{
 							Emoticon: dialogExt.ThemeEmoticon,

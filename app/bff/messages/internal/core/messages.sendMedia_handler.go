@@ -131,8 +131,7 @@ func (c *MessagesCore) MessagesSendMedia(in *mtproto.TLMessagesSendMedia) (*mtpr
 				outMessage.ReplyTo.QuoteEntities = in.GetReplyTo().GetQuoteEntities()
 				outMessage.ReplyTo.QuoteOffset = in.GetReplyTo().GetQuoteOffset()
 			}
-			// A reply can point into another chat. This handler used to
-			// ignore the field, which dropped the reply without a word.
+			// ice9: a reply into another chat keeps that chat's peer, not dropped
 			if in.GetReplyTo().GetReplyToPeerId() != nil {
 				rPeer := mtproto.FromInputPeer2(c.MD.UserId, in.GetReplyTo().GetReplyToPeerId())
 				switch rPeer.PeerType {

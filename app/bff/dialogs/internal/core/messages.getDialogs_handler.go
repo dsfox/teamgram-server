@@ -130,12 +130,7 @@ func (c *DialogsCore) MessagesGetDialogs(in *mtproto.TLMessagesGetDialogs) (*mtp
 			return msgList
 		},
 		func(ctx context.Context, selfUserId int64, id ...int64) []*mtproto.User {
-			// Self has to be in the fetch even when no dialog is with self:
-			// GetUserListByIdList looks itself up first to work out what each
-			// user may see, and returns an empty list when it cannot find
-			// itself. A fresh account whose only chat is the service one hit
-			// exactly that - the dialog arrived with no peer to render, so the
-			// chat never appeared while its unread still counted.
+			// ice9: self is always fetched, or GetUserListByIdList returns no users at all
 			fetchIds := append(append([]int64{}, id...), selfUserId)
 			users, _ := c.svcCtx.Dao.UserClient.UserGetMutableUsersV2(c.ctx,
 				&userpb.TLUserGetMutableUsersV2{

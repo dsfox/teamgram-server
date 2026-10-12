@@ -25,11 +25,7 @@ import (
 // ChannelsCheckSearchPostsFlood
 // channels.checkSearchPostsFlood#22567115 flags:# query:flags.0?string = SearchPostsFlood;
 func (c *MessagesCore) ChannelsCheckSearchPostsFlood(in *mtproto.TLChannelsCheckSearchPostsFlood) (*mtproto.SearchPostsFlood, error) {
-	// An answer beats a refusal: the client asks this once every time the
-	// search screen opens, nothing here sells paid post search, and the
-	// refusal was logged at error level - which put ~1200 lines a day in
-	// front of an alarm that reads error level. Searching is free and
-	// nobody is ever throttled.
+	// ice9: an answer, not a refusal: searching is free and nobody is throttled
 	return mtproto.MakeTLSearchPostsFlood(&mtproto.SearchPostsFlood{
 		QueryIsFree: true,
 		TotalDaily:  100,

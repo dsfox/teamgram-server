@@ -93,11 +93,7 @@ func checkPhoneNumberInvalid(phone string) (string, string, error) {
 	// We need getRegionCode from phone_number
 	pNumber, err := phonenumber.MakePhoneNumberHelper(phone, "")
 	if err != nil {
-		// Strict validation rejects numbers absent from a country numbering plan.
-		// For a server that never calls or texts anyone this is a pointless
-		// obstacle: on a test stand the numbers are arbitrary anyway. So accept
-		// any number in international format and treat country parsing as
-		// optional.
+		// ice9: any number in international format is accepted; the country plan is optional
 		if digits, ok := plausiblePhoneNumber(phone); ok {
 			return "", digits, nil
 		}
@@ -107,9 +103,7 @@ func checkPhoneNumberInvalid(phone string) (string, string, error) {
 	return pNumber.GetRegionCode(), pNumber.GetNormalizeDigits(), nil
 }
 
-// plausiblePhoneNumber accepts a number that looks international: a plus and
-// 8-15 digits (E.164 allows up to 15). It returns the number without the plus,
-// which is how it is stored.
+// ice9: plausiblePhoneNumber accepts a plus and 8-15 digits, returning the digits as stored
 func plausiblePhoneNumber(phone string) (string, bool) {
 	digits := strings.TrimPrefix(phone, "+")
 	if len(digits) < 8 || len(digits) > 15 {
@@ -129,18 +123,9 @@ const (
 This code can be used to log in to your %s account. We never ask it for anything else.
 
 If you didn't request this code by trying to log in on another device, simply ignore this message.`
-
-	// The recovery phrase is the answer to the question this service could not
-	// answer at all: a phone is lost, there is nowhere to send a code, and there
-	// is no SMS. So it is handed over in advance and kept by the person. It is
-	// said plainly here that nobody can look it up afterwards, because that is
-	// true and because a person who does not know it will not write it down.
 )
 
-// boldRanges marks the given words bold, wherever they ended up. The offsets
-// used to be written by hand, which held only while the code was five digits
-// long: making it eight moved the text under them and the emphasis landed in
-// the middle of a word.
+// ice9: boldRanges marks the given words bold wherever they are in the message
 func boldRanges(message string, words ...string) []*mtproto.MessageEntity {
 	entities := make([]*mtproto.MessageEntity, 0, len(words))
 	for _, word := range words {
@@ -156,7 +141,6 @@ func boldRanges(message string, words ...string) []*mtproto.MessageEntity {
 	return entities
 }
 
-// pushServiceMessage delivers text from the service account to one person.
 func (c *AuthorizationCore) ensureRecoveryPhrase(ctx context.Context, userId int64, phoneNumber string) {
 	store := c.svcCtx.Dao.Store()
 	if store == nil {
@@ -164,37 +148,17 @@ func (c *AuthorizationCore) ensureRecoveryPhrase(ctx context.Context, userId int
 		return
 	}
 
-	// Delivered, not merely existing: a code minted by hand for somebody who
-	// could not sign in may never have reached them, and an account whose way
-	// back nobody knows must not look covered.
+	// ice9: only a recovery phrase that was delivered counts as a way back
 	if invite.HasDeliveredRecoveryPhrase(ctx, store, phoneNumber) {
 		return
 	}
 
-	// Nothing is minted here any more, and nothing is sent.
-	//
-	// The phrase is made on the device and only a one-way derivation of it ever
-	// reaches this server, through mls.setRecoverySecret. What used to happen
-	// instead left every phrase sitting in the message table in plain text - a
-	// phrase signs in without a code, so that was a copy of every key in one
-	// place, and it made the encrypted history backup meaningless because its
-	// key comes from the same words.
-	//
-	// An account whose device has not registered one yet has no way back, which
-	// is why this says so out loud: it is the only sign that a client is too old
-	// or that the call failed.
+	// ice9: nothing minted or sent; the device registers the phrase via mls.setRecoverySecret
 	c.Logger.Infof("recovery: %d has no way back yet - waiting for the device to register one", userId)
 }
 
 func (c *AuthorizationCore) pushSignInMessage(ctx context.Context, signInUserId int64, code string) {
-	// Delivered at once, not after a pause. The client asks for its dialog list
-	// once, right after signing in, and then lives on its local copy: a chat
-	// that does not exist yet at that moment never appears at all - not after a
-	// relaunch, not after a force quit - while its unread count still reaches
-	// the badge. Two seconds of delay cost a chat that is invisible forever.
-	//
-	// The context is detached because the request that started this returns
-	// immediately and would cancel the delivery with it.
+	// ice9: delivered at once on a detached context, so the chat exists when dialogs are listed
 	ctx = contextx.ValueOnlyFrom(ctx)
 	threading.GoSafe(func() {
 		message := mtproto.MakeTLMessage(&mtproto.Message{
@@ -203,8 +167,7 @@ func (c *AuthorizationCore) pushSignInMessage(ctx context.Context, signInUserId 
 			FromId:  mtproto.MakePeerUser(777000),
 			PeerId:  mtproto.MakeTLPeerUser(&mtproto.Peer{UserId: signInUserId}).To_Peer(),
 			Message: fmt.Sprintf(signInMessageTpl, code, env2.MyAppName, env2.MyAppName),
-			// Found in the text rather than counted out by hand: the offsets
-			// were written for a five-digit code and the code is eight now.
+			// ice9: bold offsets are found in the text, so they follow the code's length
 			Entities: boldRanges(
 				fmt.Sprintf(signInMessageTpl, code, env2.MyAppName, env2.MyAppName),
 				"Login code:", "not"),
@@ -224,9 +187,7 @@ func (c *AuthorizationCore) pushSignInMessage(ctx context.Context, signInUserId 
 	})
 }
 
-// pushServiceMessage leaves a message from the service account (777000) in this
-// person's history, where every device of theirs reads it and deleting the chat
-// on any of them takes it away for all (#216).
+// ice9: pushServiceMessage leaves a 777000 message in the person's history, read by every device (#216)
 func (c *AuthorizationCore) pushServiceMessage(ctx context.Context, userId int64, message *mtproto.Message) {
 	c.svcCtx.Dao.MsgClient.MsgPushUserMessage(
 		ctx,

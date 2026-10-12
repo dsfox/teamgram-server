@@ -30,8 +30,7 @@ type Config struct {
 	zrpc.RpcServerConf
 	KV   kv.KvConf
 	Code *conf.SmsVerifyCodeConfig
-	// For the record of who brought whom (#47): a spent invitation and the
-	// account that came in on it are written down here.
+	// ice9: where a spent invitation and the account it brought in are recorded (#47)
 	Mysql                     sqlx.Config
 	UserClient                zrpc.RpcClientConf
 	AuthsessionClient         zrpc.RpcClientConf

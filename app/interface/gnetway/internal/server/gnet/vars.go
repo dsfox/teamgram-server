@@ -41,14 +41,9 @@ const (
 )
 
 const (
-	// How long a connection may stay silent before the reaper closes it.
-	// The client goes quiet for minutes at a time while its pings are paused,
-	// yet still holds the socket and expects to write to it, so the budget has
-	// to sit well above that rather than just above the ping interval.
+	// ice9: idle seconds before the reaper closes a connection, well above the client's paused pings
 	kIdleTimeout = 900
-	// A connection that has not spoken since it opened has nothing to lose by
-	// being reaped: the client puts its first request on a connection right
-	// away, and a phone whose app went to the background is meant to lose these.
+	// ice9: a connection that has not spoken since it opened is reaped sooner
 	kSilentConnTimeout = 30
 	kHttpIdleTimeout   = 60
 )

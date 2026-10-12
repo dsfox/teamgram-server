@@ -43,9 +43,7 @@ func (c *UsernamesCore) AccountUpdateUsername(in *mtproto.TLAccountUpdateUsernam
 
 	if username2 != me.Username() {
 		// TODO: 分布式事物
-		// ice9: a refusal is answered, not swallowed (#239). The account came
-		// back unchanged, so a name already taken looked to the client like a
-		// change that went through.
+		// ice9: a refusal is answered, not swallowed (#239)
 		if err = c.updateUsername(c.MD.UserId, me.Username(), username2); err != nil {
 			c.Logger.Errorf("account.updateUsername - error: %v", err)
 			return nil, err
@@ -64,8 +62,7 @@ func (c *UsernamesCore) AccountUpdateUsername(in *mtproto.TLAccountUpdateUsernam
 			c.Logger.Errorf("account.updateUsername - the given username of %d is still marked: %v", c.MD.UserId, err)
 		}
 
-		// The account's other devices read the list, not the one name, at
-		// the layers clients speak now; sent empty, it told them there was none.
+		// ice9: the other devices are sent the username list too, which they read now
 		var names []*mtproto.Username
 		if username2 != "" {
 			names = append(names, mtproto.MakeTLUsername(&mtproto.Username{

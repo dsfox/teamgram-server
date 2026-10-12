@@ -24,13 +24,7 @@ import (
 
 // UsersGetRequirementsToContact
 // users.getRequirementsToContact#d89a83a3 id:Vector<InputUser> = Vector<RequirementToContact>;
-//
-// Asked whenever a contact list or a profile is drawn. Nobody here needs
-// anything to be written to - there is no premium and there are no paid
-// messages - so the answer is "nothing" for each person asked about. One
-// item per id, in order: both clients walk the answer by index against the
-// list they sent, and refusing instead had them asking again behind a
-// stalled queue (#159).
+// ice9: "nothing required" for each id, in order: both clients read the answer by index (#159)
 func (c *PrivacySettingsCore) UsersGetRequirementsToContact(in *mtproto.TLUsersGetRequirementsToContact) (*mtproto.Vector_RequirementToContact, error) {
 	nothing := make([]*mtproto.RequirementToContact, 0, len(in.GetId()))
 	for range in.GetId() {

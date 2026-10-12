@@ -98,24 +98,19 @@ func (s *Server) Initialize() error {
 				RpcServerConf: c.RpcServerConf,
 			}))
 
-		// mls_helper: the directory of key packages for end-to-end encryption.
-		// It shares the database this process already opens, and says one
-		// thing to a phone unasked: there is something in your box (#156).
+		// ice9: mls_helper, the key package directory; tells a phone its box has mail (#156)
 		mtproto.RegisterRPCMlsServer(
 			grpcServer,
 			mls_helper.New(mls_helper.Config{
 				RpcServerConf: c.RpcServerConf,
 				Mysql:         c.Mysql,
-				// For registering the way back into an account: the store is
-				// where a recovery secret lives, and the user directory is the
-				// only thing that can say which number is asking.
+				// ice9: recovery secrets live in KV, the user directory names the number asking
 				KV:         c.KV,
 				UserClient: c.BizServiceClient,
 				SyncClient: c.SyncClient,
 			}))
 
-		// invite_helper: invitations people send themselves (#47). A code bound
-		// to a contact's number, for the member who vouches for them.
+		// ice9: invite_helper, codes bound to a contact's number by the member vouching (#47)
 		mtproto.RegisterRPCInviteServer(
 			grpcServer,
 			invite_helper.New(invite_helper.Config{
@@ -126,9 +121,7 @@ func (s *Server) Initialize() error {
 				ChatClient:    c.BizServiceClient,
 			}))
 
-		// phone_helper: the matchmaker for 1-1 calls (#14). It carries the key
-		// exchange and the candidates between two phones and tells them which
-		// STUN to try; the media never comes here.
+		// ice9: phone_helper, the matchmaker for 1-1 calls; media never comes here (#14)
 		phone := phone_helper.New(phone_helper.Config{
 			RpcServerConf: c.RpcServerConf,
 			SyncClient:    c.SyncClient,
@@ -139,9 +132,7 @@ func (s *Server) Initialize() error {
 			Calls:         c.Calls,
 		}, phone_helper.NewRegistry())
 		mtproto.RegisterRPCVoipCallsServer(grpcServer, phone)
-		// The group a phone derives the call key in lives under the
-		// secret-chats prefix in the schema; the one method is served, the
-		// rest of that prefix stays unimplemented (secret chats are not offered).
+		// ice9: of the secret-chats service only getDhConfig, for the call key; no secret chats
 		mtproto.RegisterRPCSecretChatsServer(grpcServer, phone_helper.NewDhService())
 
 		// qrcode_helper
@@ -247,8 +238,7 @@ func (s *Server) Initialize() error {
 				UserClient:        c.BizServiceClient,
 				ChatClient:        c.BizServiceClient,
 				AuthsessionClient: c.AuthSessionClient,
-				// A device that comes back while a call rings for it is rung
-				// when it asks for its difference (#14).
+				// ice9: a device back while a call rings for it is rung at getDifference (#14)
 				Calls: phone,
 			}))
 
@@ -331,17 +321,14 @@ func (s *Server) Initialize() error {
 					UserClient:    c.BizServiceClient,
 					ChatClient:    c.BizServiceClient,
 					DialogClient:  c.BizServiceClient,
-					// For the count of phone lookups (#170). Left out once, and
-					// kv.NewStore with nothing to connect to took the whole bff
-					// down at start - found in the install-check machine.
+					// ice9: the count of phone lookups; without it bff dies at start (#170)
 					KV: c.KV,
 				},
 				nil,
 				nil,
 				nil))
 
-		// appearance_helper: chat themes and name colours (#23, #24), colours
-		// only - the lists are read from /app/appearance as it starts.
+		// ice9: appearance_helper, chat themes and name colours read from /app/appearance (#23, #24)
 		appearance := appearance_helper.New(appearance_helper.Config{
 			RpcServerConf: c.RpcServerConf,
 			DialogClient:  c.BizServiceClient,
@@ -353,8 +340,7 @@ func (s *Server) Initialize() error {
 		mtproto.RegisterRPCThemesServer(grpcServer, appearance)
 		mtproto.RegisterRPCAccentColorsServer(grpcServer, appearance)
 
-		// reactions_helper: reactions to messages (#18). The pictures it
-		// offers are put where the file service reads them as it starts.
+		// ice9: reactions_helper, reactions to messages (#18)
 		mtproto.RegisterRPCReactionsServer(
 			grpcServer,
 			reactions_helper.New(reactions_helper.Config{

@@ -27,8 +27,7 @@ import (
 
 func (s *Server) onTcpData(ctx *connContext, c gnet.Conn) (action gnet.Action) {
 	if ctx.codec == nil {
-		// The one plain HTTP request answered here: an app given a server's
-		// code fetches the server's own key before its first handshake (#244).
+		// ice9: answers the plain HTTP GET /key with the server's own key (#244)
 		if buf, _ := c.Peek(-1); len(buf) > 0 {
 			switch askedForKey(buf) {
 			case keyPartial:

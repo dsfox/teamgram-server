@@ -76,11 +76,7 @@ func (d *Dao) sendMessageToInbox(ctx context.Context, fromId int64, peer *mtprot
 	message.Id = inBoxMsgId
 	switch message.GetReplyTo().GetPredicateName() {
 	case mtproto.Predicate_messageReplyHeader:
-		// A reply that points into another chat carries that chat beside the
-		// id, and the id belongs to that chat's numbering - there is nothing
-		// to translate through this dialog's box. Looking it up here found
-		// nothing and dropped the whole header on the way in, so the reader
-		// saw an ordinary message where the sender saw a quote.
+		// ice9: a reply into another chat keeps its id as is, not translated through this box
 		if message.GetReplyTo().GetReplyToPeerId() != nil {
 			break
 		}

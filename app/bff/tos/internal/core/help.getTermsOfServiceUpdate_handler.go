@@ -27,10 +27,7 @@ import (
 // HelpGetTermsOfServiceUpdate
 // help.getTermsOfServiceUpdate#2ca51fd1 = help.TermsOfServiceUpdate;
 func (c *TosCore) HelpGetTermsOfServiceUpdate(in *mtproto.TLHelpGetTermsOfServiceUpdate) (*mtproto.Help_TermsOfServiceUpdate, error) {
-	// No update to the terms. True rather than a placeholder: ours are on the
-	// site and the client is not asked to accept a new version on the wire.
-	// Called on nearly every launch, so this used to be the loudest line in
-	// the log - 79 a day - all of it saying a correct answer was a failure.
+	// ice9: no update to the terms, without an error log; ours are on the site
 
 	rValue := mtproto.MakeTLHelpTermsOfServiceUpdateEmpty(&mtproto.Help_TermsOfServiceUpdate{
 		Expires: int32(time.Now().Unix() + 3600),

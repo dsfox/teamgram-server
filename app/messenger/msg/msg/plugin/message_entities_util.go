@@ -17,11 +17,7 @@ import (
 	"mvdan.cc/xurls/v2"
 )
 
-// markedAlready reports whether a mention already starts at this offset.
-//
-// Only mentions, and only the offset: two marks of different kinds over one
-// word are ordinary - bold over a mention is a thing people write - and it is
-// the second mention over the first that has no meaning.
+// ice9: markedAlready reports whether a mention already starts at this offset
 func markedAlready(entities mtproto.MessageEntitySlice, offset int32) bool {
 	for _, entity := range entities {
 		if entity.Offset != offset {
@@ -36,10 +32,7 @@ func markedAlready(entities mtproto.MessageEntitySlice, offset int32) bool {
 	return false
 }
 
-// urlMarkedAlready reports whether a link already starts at this offset - as a
-// plain url or as text with a link under it. The server's own scan runs over
-// the whole text whatever the client marked, and a link stored twice arrived
-// as two identical entities over one word.
+// ice9: urlMarkedAlready reports whether a url or text link already starts at this offset
 func urlMarkedAlready(entities mtproto.MessageEntitySlice, offset int32) bool {
 	for _, entity := range entities {
 		if entity.Offset != offset {
@@ -54,10 +47,7 @@ func urlMarkedAlready(entities mtproto.MessageEntitySlice, offset int32) bool {
 	return false
 }
 
-// usernameLen is how much of the tag is actually a username: letters, digits
-// and underscore. The tag scanner runs to the next space, so "@dsfox," arrives
-// here with the comma attached - and a mention that includes punctuation
-// resolves a username nobody has.
+// ice9: usernameLen is how much of the tag is a username: letters, digits and underscore
 func usernameLen(tag string) int {
 	for i := 0; i < len(tag); i++ {
 		c := tag[i]
@@ -97,8 +87,7 @@ func RemakeMessage(ctx context.Context, plugin MsgPlugin, message *mtproto.Messa
 		return idxList
 	}
 
-	// The client's own marks first: they are what the guards below compare
-	// against, and a guard that runs before the list is filled guards nothing.
+	// ice9: the client's own marks first, so the guards below compare against them
 	for _, entity := range message.Entities {
 		switch entity.PredicateName {
 		case mtproto.Predicate_inputMessageEntityMentionName:
@@ -132,8 +121,7 @@ func RemakeMessage(ctx context.Context, plugin MsgPlugin, message *mtproto.Messa
 			if idx == 0 {
 				firstUrl = message.Message[v[0]:v[1]]
 			}
-			// The client may have marked this link itself, and most do. Adding
-			// ours beside it stored the same link twice.
+			// ice9: skips a link the client already marked
 			if urlMarkedAlready(entities, int32(idxList[v[0]])) {
 				continue
 			}
@@ -157,9 +145,7 @@ func RemakeMessage(ctx context.Context, plugin MsgPlugin, message *mtproto.Messa
 	tags := mention.GetTags('@', message.Message, '(', ')')
 	if len(tags) > 0 {
 		for _, tag := range tags {
-			// The scanner runs a tag to the next space, so "@dsfox," comes
-			// back with the comma attached - marked, it is a mention of a
-			// username nobody has. The mention stops at the word.
+			// ice9: the mention stops at the word, without trailing punctuation
 			name := tag.Tag[:usernameLen(tag.Tag)]
 			if name == "" {
 				continue
@@ -190,12 +176,7 @@ func RemakeMessage(ctx context.Context, plugin MsgPlugin, message *mtproto.Messa
 			//		}
 			//	}
 			//}
-			// The client may have marked this mention itself, and most do. Its
-			// own entity is already in the list above, so adding ours beside it
-			// stores the mention twice - two marks over the same word, and the
-			// second one a byte longer or shorter whenever the two count the
-			// "@" differently. Found by the scenario that sends an @mention and
-			// reads back what arrived.
+			// ice9: skips a mention the client already marked
 			if !markedAlready(entities, mention2.Offset) {
 				entities = append(entities, mention2)
 			}

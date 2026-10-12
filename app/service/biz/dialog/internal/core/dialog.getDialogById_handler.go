@@ -21,8 +21,7 @@ import (
 func (c *DialogCore) DialogGetDialogById(in *dialog.TLDialogGetDialogById) (*dialog.DialogExt, error) {
 	dlgExt, err := c.svcCtx.Dao.GetDialog(c.ctx, in.GetUserId(), in.GetPeerType(), in.GetPeerId())
 	if err != nil {
-		// The dao already told the two cases apart: a dialog that does not
-		// exist yet comes back as PEER_ID_INVALID and is an ordinary answer.
+		// ice9: a dialog not there yet comes back as PEER_ID_INVALID and is logged at info
 		if errors.Is(err, mtproto.ErrPeerIdInvalid) {
 			c.Logger.Infof("dialog.getDialogById - no dialog yet: %v", err)
 		} else {

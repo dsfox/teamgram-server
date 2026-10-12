@@ -297,11 +297,7 @@ func (d *Dao) UnbindAuthUser(ctx context.Context, authKeyId int64, userId int64)
 			genAuthDataCacheKey(authKeyId))
 	}
 
-	// And the encryption this device published, which nothing else throws away.
-	// A phone counts the devices of its own account to know whether one of them
-	// has still to be let into a conversation, and a device that signed out and
-	// left its key packages behind is counted for ever - so leaves get added
-	// that nobody is behind (#41).
+	// ice9: a signed-out device's MLS key packages go too, or phones count it as a device (#41)
 	mls.ForgetDevice(ctx, d.DB, userId, authKeyId)
 
 	return err == nil

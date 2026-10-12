@@ -24,8 +24,7 @@ type Config struct {
 
 type RSAKey struct {
 	KeyFile string
-	// Computed from the key when left out: a server's own key, which the
-	// installer makes, has no number anybody wrote down (#244).
+	// ice9: optional, computed from the key when left out (#244)
 	KeyFingerprint string `json:",optional"`
 }
 

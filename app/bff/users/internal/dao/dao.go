@@ -51,9 +51,7 @@ func New(c config.Config, plugin1 plugin.StoryPlugin, plugin2 plugin.PersonalCha
 	}
 }
 
-// storeOrNone is the store, or nothing when the config names no node: the
-// lookup count then lets everything through and says so, rather than the
-// whole bff dying at start over a counter.
+// ice9: storeOrNone is nil when the config names no node; lookups are then not counted
 func storeOrNone(c kv.KvConf) kv.Store {
 	if len(c) == 0 {
 		return nil

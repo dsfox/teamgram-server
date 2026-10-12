@@ -13,11 +13,7 @@ import (
 
 // ContactsAcceptContact
 // contacts.acceptContact#f831a20f id:InputUser = Updates;
-//
-// This is what the "Share my phone number" button does in the bar above a chat
-// with a stranger. Upstream returned an empty answer: the button could be
-// pressed but nothing happened. In essence it adds a contact — the name comes
-// from the peer's profile because there is nowhere for the user to type one.
+// ice9: "Share my phone number" adds the peer as a contact under their profile name
 func (c *ContactsCore) ContactsAcceptContact(in *mtproto.TLContactsAcceptContact) (*mtproto.Updates, error) {
 	id := mtproto.FromInputUser(c.MD.UserId, in.Id)
 	if !id.IsUser() || id.IsSelf() || id.PeerId == c.MD.UserId {
@@ -37,8 +33,7 @@ func (c *ContactsCore) ContactsAcceptContact(in *mtproto.TLContactsAcceptContact
 		return nil, mtproto.ErrContactIdInvalid
 	}
 
-	// CheckExistUser above says both are there, and each lookup is still
-	// asked: an answer thrown away as `_` is a nil the line after it dereferences.
+	// ice9: each lookup is checked, though CheckExistUser said both are there
 	contact, ok := users.GetImmutableUser(id.PeerId)
 	if !ok {
 		c.Logger.Errorf("contacts.acceptContact - %d is not among the users just read", id.PeerId)
@@ -70,8 +65,7 @@ func (c *ContactsCore) ContactsAcceptContact(in *mtproto.TLContactsAcceptContact
 		return nil, mtproto.ErrContactIdInvalid
 	}
 
-	// The bar above the chat should disappear, so tell the client there is
-	// nothing left to offer.
+	// ice9: empty peer settings take the bar above the chat away
 	return mtproto.MakeUpdatesByUpdatesUsers(
 		[]*mtproto.User{me, cUser},
 		mtproto.MakeTLUpdatePeerSettings(&mtproto.Update{

@@ -51,10 +51,7 @@ func (c *UsernamesCore) ContactsResolveUsername(in *mtproto.TLContactsResolveUse
 
 		peer = mtproto.FromPeer(rName)
 
-		// ice9: a username the server gave out is for mentions, not a way in
-		// (#239): it resolves for the account itself, its contacts and the
-		// people in a group with it - for them a tap on the mention opens the
-		// profile - and for nobody else, as if it were not taken.
+		// ice9: a given username resolves only for the account, its contacts and group mates (#239)
 		if peer.PeerType == mtproto.PEER_USER && peer.PeerId != c.MD.UserId {
 			given, err := c.svcCtx.Usernames.IsGenerated(c.ctx, peer.PeerId, in.GetUsername())
 			if err != nil {
@@ -100,8 +97,7 @@ func (c *UsernamesCore) ContactsResolveUsername(in *mtproto.TLContactsResolveUse
 	return resolvedPeer, nil
 }
 
-// knows says whether the one asking already has a way to this account: a
-// contact either way, or a group they are both in.
+// ice9: knows says whether the asker and this account are contacts or share a group
 func (c *UsernamesCore) knows(target int64) bool {
 	users, err := c.svcCtx.Dao.UserClient.UserGetMutableUsers(c.ctx, &userpb.TLUserGetMutableUsers{
 		Id: []int64{c.MD.UserId, target},

@@ -25,8 +25,6 @@ import (
 // HelpSaveAppLog
 // help.saveAppLog#6f02f748 events:Vector<InputAppEvent> = Bool;
 func (c *MiscellaneousCore) HelpSaveAppLog(in *mtproto.TLHelpSaveAppLog) (*mtproto.Bool, error) {
-	// The client offers us its own telemetry; we do not collect any. Accepting
-	// and dropping it is the honest answer - refusing only makes the client try
-	// again, and its queue waits behind the retry.
+	// ice9: the client's telemetry is accepted and dropped; a refusal made it retry
 	return mtproto.BoolTrue, nil
 }

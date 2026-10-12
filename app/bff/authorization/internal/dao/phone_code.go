@@ -32,10 +32,7 @@ import (
 
 // CreatePhoneCode
 // for sendCode
-// codeDigits is how long a sign-in code is, and how many boxes the client
-// draws. Six: eight only just fitted across a phone screen, and the secret that
-// has to survive guessing is the recovery phrase, which is words and is typed
-// somewhere else entirely.
+// ice9: codeDigits is how long a sign-in code is, and how many boxes the client draws
 const codeDigits = 6
 
 func (d *Dao) CreatePhoneCode(ctx context.Context,
@@ -51,9 +48,7 @@ func (d *Dao) CreatePhoneCode(ctx context.Context,
 			PhoneNumber:           phoneNumber,
 			SessionId:             sessionId,
 			PhoneNumberRegistered: phoneNumberRegistered,
-			// Eight, not five. The clients draw exactly as many boxes as this
-			// is long, and the same field takes an invitation and a recovery
-			// phrase - a five-digit field cannot accept either.
+			// ice9: codeDigits long, so the same field takes an invitation and a recovery phrase
 			PhoneCode:        random2.RandomNumeric(codeDigits),
 			PhoneCodeHash:    crypto.GenerateStringNonce(16),
 			PhoneCodeExpired: int32(time.Now().Unix() + 3*60),

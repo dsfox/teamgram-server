@@ -103,12 +103,7 @@ func ReSizeImageByImage(img image.Image, extName string, isABC bool, cb func(szT
 		szList = mtproto.ReSizeInfoPhotoList
 	}
 
-	// A photo size is a JPEG whatever arrived. The encoder used to follow the
-	// uploaded file's name: a PNG made PNG previews - 32 bits with an alpha
-	// channel, and the resampler's ringing drove the 90-pixel size heavier
-	// than the whole picture, so a client picking "the photo" by weight
-	// showed a thumbnail. A file with no name made no sizes at all. And 95
-	// was paying full price for the ringing; a preview does not need it.
+	// ice9: every photo size is a JPEG, whatever the upload's name or format
 	type made struct {
 		szType  string
 		localId int
@@ -150,14 +145,7 @@ func ReSizeImageByImage(img image.Image, extName string, isABC bool, cb func(szT
 		}
 	}
 
-	// A preview never outweighs a larger size of the same photo. One quality
-	// for every class does not guarantee that on its own: the largest class
-	// is often the picture untouched while the one below it went through the
-	// resampler, whose ringing is exactly what an encoder pays for. So the
-	// classes are walked from the largest down, and any that outweighs its
-	// larger neighbour is re-encoded a step rougher until it fits under it -
-	// it is a preview, and a preview that cannot be smaller than the picture
-	// has no reason to exist at full polish.
+	// ice9: a size heavier than its larger neighbour is re-encoded rougher until it weighs less
 	for i := len(sizes) - 2; i >= 0; i-- {
 		for quality := 82; len(sizes[i].data) > len(sizes[i+1].data) && quality >= 40; quality -= 7 {
 			var data []byte

@@ -6,9 +6,7 @@ import (
 	"github.com/teamgram/proto/mtproto"
 )
 
-// users.getFullUser hands the client user.ToUnsafeUser(me) as is, so a bot's
-// username has to survive that conversion: an early ToUnsafeUser returned
-// before assigning it for bots, and the client showed a bot with no @name.
+// ice9: a bot's username survives user.ToUnsafeUser, which getFullUser hands out as is
 
 func TestUnsafeUserKeepsBotUsername(t *testing.T) {
 	me := mtproto.MakeTLImmutableUser(&mtproto.ImmutableUser{

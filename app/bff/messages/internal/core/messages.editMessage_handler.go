@@ -111,10 +111,7 @@ func (c *MessagesCore) MessagesEditMessage(in *mtproto.TLMessagesEditMessage) (*
 			return nil, err
 		}
 		outMessage.Message = in.Message.Value
-		// The marks that came with the edit are the marks of the new text -
-		// they were copied above. Wiping them here threw the bold away
-		// whenever a word was corrected; only an edit that brings no marks
-		// means a text without any.
+		// ice9: an edit keeps the entities it brings; only one without any clears them
 		if in.Entities == nil {
 			outMessage.Entities = nil
 		}

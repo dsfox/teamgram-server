@@ -82,13 +82,7 @@ func (c *MessagesCore) MessagesDeleteHistory(in *mtproto.TLMessagesDeleteHistory
 	return affectedHistory, nil
 }
 
-// deleteHistoryByDate removes the conversation messages within a period.
-//
-// Upstream deleted nothing for this request yet answered with success: the user
-// believed the conversation was wiped while it stayed in place. For a messenger
-// that promises privacy this is the worst kind of bug — a silent one.
-//
-// Both bounds are inclusive; a zero bound means "unbounded on that side".
+// ice9: deleteHistoryByDate deletes the messages between two dates, inclusive; 0 is unbounded
 func (c *MessagesCore) deleteHistoryByDate(peer *mtproto.PeerUtil, minDate, maxDate int32, revoke bool) (*mtproto.Messages_AffectedHistory, error) {
 	const pageSize = 100
 
@@ -156,8 +150,7 @@ func (c *MessagesCore) deleteHistoryByDate(peer *mtproto.PeerUtil, minDate, maxD
 		}).To_Messages_AffectedHistory(), nil
 	}
 
-	// Deleting by a list of ids is not tied to a peer: the messages are already
-	// found. The neighbouring messages.deleteMessages calls it the same way.
+	// ice9: deleting by ids needs no peer, as messages.deleteMessages does it
 	affected, err := c.svcCtx.Dao.MsgClient.MsgDeleteMessages(c.ctx, &msgpb.TLMsgDeleteMessages{
 		UserId:    c.MD.UserId,
 		AuthKeyId: c.MD.PermAuthKeyId,

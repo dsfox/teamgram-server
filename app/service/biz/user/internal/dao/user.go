@@ -67,9 +67,7 @@ func (d *Dao) getBotData(ctx context.Context, botId int64) *mtproto.BotData {
 	return botData
 }
 
-// isBuiltInBot says whether a name is one of the server's own bots, which
-// contacts.resolveUsername answers before any account - a person given it
-// would be mentioned as the bot.
+// ice9: a name of the server's own bots, which contacts.resolveUsername answers before any account
 func isBuiltInBot(name string) bool {
 	return user.GetBotIdByName(name) > 0
 }
@@ -112,11 +110,7 @@ func (d *Dao) CreateNewUserV2(
 		userDO.Id = lastInsertId
 	}
 
-	// ice9: every account has a username, made from its name, so that a
-	// mention reads the same for everybody (#239). Here, before the user is
-	// cached, so the sign-up answer carries it. A failure leaves the account
-	// without one rather than without a way in: the one-off pass
-	// (cmd/usernames) names it later.
+	// ice9: a username from the name at sign-up; on failure cmd/usernames names it later (#239)
 	if name, err := usernames.NewStore(d.DB, isBuiltInBot).Assign(ctx, userDO.Id, firstName, lastName); err != nil {
 		logx.WithContext(ctx).Errorf("CreateNewUserV2(%d) - no username given: %v", userDO.Id, err)
 	} else {
@@ -379,9 +373,7 @@ func (d *Dao) UpdateUserEmojiStatus(ctx context.Context, id int64, emojiStatusDo
 }
 
 func (d *Dao) DeleteUser(ctx context.Context, id int64, phoneNumber string, reason string) bool {
-	// Erase what the account leaves behind before the row that names it goes:
-	// if this fails, the account is still there and the caller learns the
-	// deletion did not happen, rather than the person being told it did.
+	// ice9: the account's data is erased first; if that fails the account stays and false is returned
 	if err := d.EraseUserData(ctx, id); err != nil {
 		return false
 	}

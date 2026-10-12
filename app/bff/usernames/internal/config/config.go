@@ -26,8 +26,7 @@ import (
 
 type Config struct {
 	zrpc.RpcServerConf
-	// Where it is kept which usernames the server gave out rather than the
-	// person chose (#239).
+	// ice9: where the usernames the server gave out are recorded (#239)
 	Mysql      sqlx.Config
 	UserClient zrpc.RpcClientConf
 	ChatClient zrpc.RpcClientConf

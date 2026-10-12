@@ -161,11 +161,7 @@ func (c *MessagesCore) MessagesSendMessage(in *mtproto.TLMessagesSendMessage) (*
 				outMessage.ReplyTo.QuoteOffset = replyTo.GetQuoteOffset()
 			}
 
-			// A reply can point into another chat, and the header has a place
-			// for it. It used to be dropped here whole: the message went
-			// through and arrived with no reply at all, while the sender's
-			// own copy showed the quote they meant - the worst shape of
-			// failure, the one that looks like it worked.
+			// ice9: a reply into another chat keeps that chat's peer, not dropped
 			if replyTo.ReplyToPeerId != nil {
 				rPeer := mtproto.FromInputPeer2(c.MD.UserId, replyTo.ReplyToPeerId)
 				switch rPeer.PeerType {

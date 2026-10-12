@@ -28,10 +28,7 @@ import (
 
 // AccountRegisterDevice
 // account.registerDevice#ec86017a flags:# no_muted:flags.0?true token_type:int token:string app_sandbox:Bool secret:bytes other_uids:Vector<long> = Bool;
-//
-// The app calls this on every launch: Apple hands out the device token anew and
-// rotates it from time to time. The row is overwritten per authorization key —
-// one device, one token.
+// ice9: called on every launch; the row is overwritten per authorization key, one token a device
 func (c *NotificationCore) AccountRegisterDevice(in *mtproto.TLAccountRegisterDevice) (*mtproto.Bool, error) {
 	if c.svcCtx.Dao.Devices == nil {
 		c.Logger.Errorf("account.registerDevice - notifications disabled: no database configured")
@@ -51,9 +48,7 @@ func (c *NotificationCore) AccountRegisterDevice(in *mtproto.TLAccountRegisterDe
 		Token:      token,
 		NoMuted:    in.GetNoMuted(),
 		AppSandbox: mtproto.FromBool(in.GetAppSandbox()),
-		// The secret is only needed to encrypt text inside a notification. We do
-		// not send the text, yet we keep the secret — otherwise adding an app
-		// extension later would force every device to register anew.
+		// ice9: the secret is kept though no text is sent, so an extension needs no re-registering
 		Secret:    hex.EncodeToString(in.GetSecret()),
 		OtherUids: devices.JoinUids(in.GetOtherUids()),
 	})

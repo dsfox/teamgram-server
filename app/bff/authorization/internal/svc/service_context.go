@@ -34,8 +34,7 @@ type ServiceContext struct {
 	*dao.Dao
 	*logic.AuthLogic
 	Plugin plugin.AuthorizationPlugin
-	// The record of who brought whom (#47): the verifier writes the
-	// redemption, signUp writes who came in.
+	// ice9: who brought whom; the verifier writes the redemption, signUp who came in (#47)
 	Invitations *invite.MysqlInvitations
 }
 

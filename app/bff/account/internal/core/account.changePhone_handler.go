@@ -95,10 +95,7 @@ func (c *AccountCore) AccountChangePhone(in *mtproto.TLAccountChangePhone) (*mtp
 		return nil, mtproto.ErrPhoneNumberOccupied
 	}
 
-	// Two things were wrong here and they hid each other: the code hash went in
-	// where the typed code belonged, so the check could never pass, and the
-	// result was thrown away, so it never had to. Anyone signed in could move
-	// their account onto any free number without a code at all.
+	// ice9: the typed code is checked, and a refusal stops the change
 	_, err = c.svcCtx.AuthLogic.DoAuthChangePhone(c.ctx,
 		c.MD.PermAuthKeyId,
 		phoneNumber,
@@ -133,8 +130,7 @@ func (c *AccountCore) AccountChangePhone(in *mtproto.TLAccountChangePhone) (*mtp
 		return nil, err
 	}
 
-	// The way back has to follow the account onto the new number, or the person
-	// keeps a code that opens a number they no longer have.
+	// ice9: the recovery phrase moves with the account onto the new number
 	if store := c.svcCtx.Dao.Store(); store != nil {
 		invite.MoveRecoveryPhrase(c.ctx, store, user.User.Phone, phoneNumber)
 	}

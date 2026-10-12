@@ -26,10 +26,7 @@ import (
 
 // AuthResetAuthorizations
 // auth.resetAuthorizations#9fab0d1a = Bool;
-// Terminates every session except the current one. Upstream answered with an
-// error, so the "Terminate all other sessions" button raised an alert and the
-// only way out was one by one. A zero hash means "all but the given key" to the
-// service.
+// ice9: terminates every session but the current one; hash 0 means all but the given key
 func (c *AuthorizationCore) AuthResetAuthorizations(in *mtproto.TLAuthResetAuthorizations) (*mtproto.Bool, error) {
 	keyIdList, err := c.svcCtx.AuthsessionClient.AuthsessionResetAuthorization(c.ctx, &authsession.TLAuthsessionResetAuthorization{
 		UserId:    c.MD.UserId,
@@ -41,9 +38,7 @@ func (c *AuthorizationCore) AuthResetAuthorizations(in *mtproto.TLAuthResetAutho
 		return nil, err
 	}
 
-	// Tell every terminated session it is no longer valid, otherwise the device
-	// keeps working until its next reconnect. Same order as in
-	// account.resetAuthorization for a single session.
+	// ice9: each terminated session is told at once, in account.resetAuthorization's order
 	for _, keyId := range keyIdList.GetDatas() {
 		c.svcCtx.SyncClient.SyncUpdatesMe(c.ctx, &sync.TLSyncUpdatesMe{
 			UserId:        c.MD.UserId,

@@ -71,11 +71,7 @@ func (c *ContactsCore) ContactsSearch(in *mtproto.TLContactsSearch) (*mtproto.Co
 	//
 
 	// Check query string and limit
-	// No directory (the owner's decision of 5 October): a stranger is found by
-	// the exact username they gave out, or by their number - never by a name
-	// or part of one. Upstream searched every account by username prefix and
-	// by first and last name, while the App Store listing said strangers
-	// cannot look you up. The person's own contacts are searched on the phone.
+	// ice9: no directory, a stranger is found by exact username or number, never by name
 	if limit > 0 {
 		peer, err := c.svcCtx.Dao.UserClient.UserResolveUsername(c.ctx, &userpb.TLUserResolveUsername{
 			Username: q,
@@ -83,8 +79,7 @@ func (c *ContactsCore) ContactsSearch(in *mtproto.TLContactsSearch) (*mtproto.Co
 		if err != nil {
 			c.Logger.Infof("contacts.search - %d: no username %q (%v)", c.MD.UserId, q, err)
 		} else if peer.GetPredicateName() == mtproto.Predicate_peerUser && peer.GetUserId() != c.MD.UserId {
-			// A username the server gave out is for mentions, not a way in:
-			// only one the person chose finds them (#239).
+			// ice9: a username the server gave out does not find its owner (#239)
 			given, err := c.svcCtx.Usernames.IsGenerated(c.ctx, peer.GetUserId(), q)
 			if err != nil {
 				c.Logger.Errorf("contacts.search - cannot tell whether %q was given: %v", q, err)

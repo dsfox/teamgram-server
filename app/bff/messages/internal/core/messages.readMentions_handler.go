@@ -25,12 +25,8 @@ import (
 )
 
 // MessagesReadMentions
-// messages.readMentions#f0189d3 flags:# peer:InputPeer top_msg_id:flags.0?int = messages.AffectedHistory;
-//
-// Marks mentions in a conversation as read. Upstream answered with an error, so
-// the mention badge in a group never cleared — it hung there even when
-// everything had been read. Marking follows the same path as other unread
-// attachments.
+// messages.readMentions#f0189d3 peer:InputPeer = messages.AffectedHistory;
+// ice9: marks the mentions in a conversation read, the way other unread contents are
 func (c *MessagesCore) MessagesReadMentions(in *mtproto.TLMessagesReadMentions) (*mtproto.Messages_AffectedHistory, error) {
 	peer := mtproto.FromInputPeer2(c.MD.UserId, in.GetPeer())
 	if !peer.IsChatOrUser() {
@@ -85,8 +81,7 @@ func (c *MessagesCore) MessagesReadMentions(in *mtproto.TLMessagesReadMentions) 
 	return mtproto.MakeTLMessagesAffectedHistory(&mtproto.Messages_AffectedHistory{
 		Pts:      affected.GetPts(),
 		PtsCount: affected.GetPtsCount(),
-		// A non-zero offset asks the client to call again: one pass marks a
-		// single page, the rest follows with the next request.
+		// ice9: one page per call; a non-zero offset would make the client call again
 		Offset: 0,
 	}).To_Messages_AffectedHistory(), nil
 }

@@ -131,9 +131,7 @@ func makeEmojiStatus(documentId int64, until int32) *mtproto.EmojiStatus {
 	}
 }
 
-// makePeerColor is the colour a user shows, or nil when they chose none.
-// "None" is -1 (sql-patches/15): 0 is red, the first of the clients' seven,
-// and has to reach them as a colour rather than vanish as an empty flag (#24).
+// ice9: no colour is -1 (sql-patches/15), so 0, red, reaches the clients as a colour (#24)
 func makePeerColor(color int32, backgroundEmojiId int64) *mtproto.PeerColor {
 	if color < 0 && backgroundEmojiId == 0 {
 		return nil

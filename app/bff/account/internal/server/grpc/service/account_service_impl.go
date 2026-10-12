@@ -92,8 +92,7 @@ func (s *Service) AccountChangePhone(ctx context.Context, request *mtproto.TLAcc
 	return r, err
 }
 
-// AccountGetAuthorizations
-// account.getAuthorizations#e320c158 = account.Authorizations;
+// ice9: AccountGetAuthorizations serves account.getAuthorizations#e320c158
 func (s *Service) AccountGetAuthorizations(ctx context.Context, request *mtproto.TLAccountGetAuthorizations) (*mtproto.Account_Authorizations, error) {
 	c := core.New(ctx, s.svcCtx)
 	c.Logger.Debugf("account.getAuthorizations - metadata: {%s}, request: {%s}", c.MD, request)

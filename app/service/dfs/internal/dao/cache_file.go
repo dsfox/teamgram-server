@@ -53,10 +53,7 @@ func (d *Dao) SetCacheFileInfo(ctx context.Context, id int64, dfsFileInfo *model
 func (d *Dao) GetCacheDfsFileInfo(ctx context.Context, id int64) (*model.DfsFileInfo, error) {
 	ownerId, fileId, err := d.getCacheFileInfo(ctx, id)
 	if err != nil {
-		// The cache entry lives two hours by design, so asking after it has
-		// gone is an ordinary answer, not a failure - and the inner lookup
-		// already said it once at info. Only something other than a miss is
-		// an error here.
+		// ice9: an expired cache entry (two hours) is logged at info, anything else at error
 		if err == model.ErrorDfsFileNotFound {
 			logx.WithContext(ctx).Infof("getCacheFileInfo (%d): the cache entry has expired", id)
 		} else {

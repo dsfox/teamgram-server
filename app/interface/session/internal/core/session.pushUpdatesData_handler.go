@@ -32,8 +32,7 @@ func (c *SessionCore) SessionPushUpdatesData(in *session.TLSessionPushUpdatesDat
 		return nil, err
 	}
 	_ = mainAuth.SyncDataArrived(c.ctx, in.Notification, in.Updates)
-	// ice9: the other half of what deploy/check-health.py counts, at info and
-	// without the updates themselves.
+	// ice9: the other half of what deploy/check-health.py counts, at info, without the updates
 	c.Logger.Infof("session.pushUpdatesData - handed over to %d", in.PermAuthKeyId)
 
 	return mtproto.BoolTrue, nil

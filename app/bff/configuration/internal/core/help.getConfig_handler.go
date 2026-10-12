@@ -37,8 +37,7 @@ import (
 
 const (
 	configFile = "./config.json"
-	// What ICE9_ADDRESS means when it names a host and no port. The clients
-	// dial this one; see clients' seed lists and deploy/production.
+	// ice9: the port ICE9_ADDRESS means when it names only a host
 	defaultPort = "10443"
 	// date = 1509066502,    2017/10/27 09:08:22
 	// expires = 1509070295, 2017/10/27 10:11:35
@@ -53,13 +52,7 @@ var (
 	configOnce sync.Once
 )
 
-// The file is read on first use rather than at import. It used to panic in
-// init(), which meant the package could not be imported anywhere the file was
-// not sitting in the working directory - a test in this package could not run
-// at all, and the rule below is exactly the kind of thing that wants one.
-//
-// A missing config is still fatal for the server, and says so; it simply says it
-// when somebody asks for the config rather than when the binary loads.
+// ice9: loadConfig reads the file on first use instead of panicking in init()
 func loadConfig() {
 	configData, err := os.ReadFile(configFile)
 	if err != nil {
@@ -74,15 +67,7 @@ func loadConfig() {
 	adoptAddressFromEnvironment()
 }
 
-// The address this server answers on, which is not ours to know at build time.
-//
-// dc_options is the list a client keeps and dials from then on: whatever stands
-// here replaces what the phone was seeded with. So a server put up by somebody
-// else must say its own address, or its people would be handed ours and quietly
-// end up on our machine. ICE9_ADDRESS is how install.sh says it. Our own
-// production does not set it and serves the address written in config.json.
-//
-// Empty means "use the file", which is what the local stand does.
+// ice9: ICE9_ADDRESS, when set, replaces dc_options with this server's own address
 func adoptAddressFromEnvironment() {
 	address := strings.TrimSpace(os.Getenv("ICE9_ADDRESS"))
 	if address == "" {
@@ -123,18 +108,13 @@ func (c *ConfigurationCore) HelpGetConfig(in *mtproto.TLHelpGetConfig) (*mtproto
 	rValue.SetExpires(now + expiresTimeout)
 	rValue.SetSuggestedLangCode(wrapperspb.String(suggestedLanguage(c.MD.GetLangCode())))
 
-	// The version of the pack this client would be given, rather than the number
-	// the file inherited from upstream. A client asks for a newer pack only when
-	// this is larger than the version it holds, so a constant here means a phone
-	// that already has a pack never learns of a new one - which is what ours did:
-	// every string we changed reached fresh installs and nobody else.
+	// ice9: the version of the pack this client would get, so a phone learns of a new pack
 	rValue.SetLangPackVersion(wrapperspb.Int32(langpack.Version(languageOf(c.MD.GetLangCode()), c.MD.GetClient())))
 
 	return rValue.To_Config(), nil
 }
 
-// languageOf reduces what the client reports - "ru-RU", "ru_ru" - to the code a
-// pack is filed under.
+// ice9: languageOf reduces "ru-RU" or "ru_ru" to the code a pack is filed under
 func languageOf(clientLangCode string) string {
 	code := strings.ToLower(clientLangCode)
 	if i := strings.IndexAny(code, "-_"); i > 0 {
@@ -143,14 +123,7 @@ func languageOf(clientLangCode string) string {
 	return code
 }
 
-// We offer two languages, and this decides which one a phone is offered before
-// anybody chooses. Russian where it is what people read, English everywhere
-// else. The decision lives here rather than in each client so that both make it
-// the same way - and because the file this config comes from suggested
-// "classic-zh-cn", inherited from upstream, to everyone who asked.
-//
-// The client reports the language its system is set to; that is the only signal
-// we have, and it is the right one - a phone set to Russian is not ambiguous.
+// ice9: suggestedLanguage offers Russian to ru, uk, kk and be phones, English to the rest
 func suggestedLanguage(clientLangCode string) string {
 	code := strings.ToLower(clientLangCode)
 	if i := strings.IndexAny(code, "-_"); i > 0 {

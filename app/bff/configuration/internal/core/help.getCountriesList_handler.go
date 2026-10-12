@@ -15,10 +15,7 @@ import (
 
 // HelpGetCountriesList
 // help.getCountriesList#735787a8 lang_code:string hash:int = help.CountriesList;
-//
-// Upstream returns an empty list here ("license key required"), which leaves the
-// country picker on the sign-in screen unable to open. The reference data lives
-// in pkg/countries.
+// ice9: answers with the countries in pkg/countries, so the sign-in picker opens
 func (c *ConfigurationCore) HelpGetCountriesList(in *mtproto.TLHelpGetCountriesList) (*mtproto.Help_CountriesList, error) {
 	russian := strings.HasPrefix(strings.ToLower(in.GetLangCode()), "ru")
 

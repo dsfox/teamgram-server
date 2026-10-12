@@ -13,9 +13,7 @@ import (
 	userpb "github.com/teamgram/teamgram-server/app/service/biz/user/user"
 )
 
-// normalizePhone brings a number to the shape stored in the database: digits
-// only, without a plus, brackets or spaces. Numbers come from the address book
-// in any form — "+7 999 123-45-67" must be found just like "79991234567".
+// ice9: normalizePhone keeps only the digits, the shape the database stores
 func normalizePhone(phone string) string {
 	var digits strings.Builder
 	for _, r := range phone {
@@ -28,10 +26,7 @@ func normalizePhone(phone string) string {
 
 // ContactsImportContacts
 // contacts.importContacts#2c800be5 contacts:Vector<InputContact> = contacts.ImportedContacts;
-//
-// The client sends the address book and expects to learn who is already
-// registered. Upstream returned an empty answer, so the contact list stayed
-// empty no matter how many numbers the book held.
+// ice9: adds whoever of the address book is registered as a contact and returns them
 func (c *ContactsCore) ContactsImportContacts(in *mtproto.TLContactsImportContacts) (*mtproto.Contacts_ImportedContacts, error) {
 	var (
 		imported = make([]*mtproto.ImportedContact, 0, len(in.GetContacts()))
@@ -95,8 +90,7 @@ func (c *ContactsCore) ContactsImportContacts(in *mtproto.TLContactsImportContac
 			LastName:                 contact.GetLastName(),
 			Phone:                    normalizePhone(contact.GetPhone()),
 		}); err != nil {
-			// A single failed contact must not sink the whole import: the client
-			// will retry it separately if it sees fit.
+			// ice9: a failed contact goes to retry_contacts, the import goes on
 			c.Logger.Errorf("contacts.importContacts - adding %d: %v", id, err)
 			retry = append(retry, contact.GetClientId())
 		}

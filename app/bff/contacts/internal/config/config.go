@@ -26,8 +26,7 @@ import (
 
 type Config struct {
 	zrpc.RpcServerConf
-	// Where it is kept which usernames the server gave out rather than the
-	// person chose: search does not find those (#239).
+	// ice9: which usernames the server gave out, so search skips them (#239)
 	Mysql      sqlx.Config
 	UserClient zrpc.RpcClientConf
 	ChatClient zrpc.RpcClientConf

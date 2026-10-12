@@ -30,10 +30,7 @@ import (
 type Config struct {
 	zrpc.RpcServerConf
 	KV kv.KvConf
-	// The only place where bff touches the database directly: device tokens for
-	// notifications. There is nowhere else to put them — the app reports the
-	// token via account.registerDevice, which lands right here, and the build has
-	// no separate notification service.
+	// ice9: bff opens the database itself, for device tokens and the services of ours
 	Mysql                     sqlx.Config `json:",optional"`
 	Code                      *conf.SmsVerifyCodeConfig
 	BizServiceClient          zrpc.RpcClientConf
@@ -46,8 +43,6 @@ type Config struct {
 	StatusClient              zrpc.RpcClientConf
 	SignInServiceNotification []conf.MessageEntityConfig `json:",optional"`
 	SignInMessage             []conf.MessageEntityConfig `json:",optional"`
-	// What a phone is told to try for a 1-1 call (#14). Optional so a
-	// config without it still starts; a call is then refused at confirm
-	// with a logged error rather than the whole process refusing to boot.
+	// ice9: what a phone is told to try for a 1-1 call; optional, a call is refused without it (#14)
 	Calls phone_helper.Calls `json:",optional"`
 }
