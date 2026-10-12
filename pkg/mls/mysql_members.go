@@ -398,3 +398,176 @@ func placeholders(n int) string {
 	}
 	return string(out)
 }
+
+// Present says whether anything is known about who holds this conversation,
+// and how many of its leaves somebody is still behind - which is what a claim
+// on the chat has to ask before it is told to wait (#147, #247).
+//
+// Asked of leaves, not of people. Asked of people, a person whose current
+// phone was never let in but who had any phone answering made the
+// conversation "live": on 12 October a pair whose every leaf was a phone wiped
+// since - and whose current phones were both outside - was told to wait, and
+// nobody alive could let either of them in for a fortnight.
+func (m *MysqlMembers) Present(ctx context.Context, groupId []byte) (bool, int, error) {
+	held, err := m.leavesOf(ctx, groupId)
+	if err != nil || len(held) == 0 {
+		return false, 0, err
+	}
+	names := make([][]byte, 0, len(held))
+	people := map[int64]bool{}
+	for _, row := range held {
+		names = append(names, row.Leaf)
+		people[row.UserId] = true
+	}
+	behind, err := m.devicesBehind(ctx, names)
+	if err != nil {
+		return true, 0, err
+	}
+	seen, err := m.signedInSeen(ctx, people, int32(time.Now().Unix())-DeviceLife)
+	if err != nil {
+		return true, 0, err
+	}
+	named, err := m.namedDevices(ctx, people)
+	if err != nil {
+		return true, 0, err
+	}
+	missed, err := m.missedIn(ctx, groupId)
+	if err != nil {
+		return true, 0, err
+	}
+	counted := presentLeaves(held, behind, seen, named, missed)
+	logx.WithContext(ctx).Infof("mls: %x holds %d leaves: %d present, %d unaccounted but held, %d gone, %d replaced",
+		groupId, len(held), counted.present, counted.unaccounted, counted.gone, counted.replaced)
+	return true, counted.present + counted.unaccounted, nil
+}
+
+// How much later than a leaf's device another phone of the same person must
+// have been seen for the leaf to count as replaced. A running app is seen every
+// few minutes, so two phones in use stay well inside it.
+const replacedAfter = int32(3600)
+
+// What a conversation's leaves say about whether anybody is still in it.
+type presence struct {
+	present     int // a device behind it, answering, signed in, caught up, not replaced
+	unaccounted int // matching no device, held for an unnamed phone of its owner's that could be behind it
+	gone        int // nobody answering behind it, signed out, or it missed a commit
+	replaced    int // its owner has a newer phone, outside this conversation, seen since
+}
+
+// presentLeaves sorts a conversation's leaves by whether somebody is behind them.
+//
+// seen holds only devices answering within the fortnight and still signed in;
+// named the devices that published a key package under a name, which is what
+// makes a phone provably outside a conversation whose leaves do not carry its
+// name. A phone that publishes no name (a build before #136, a test client)
+// proves nothing either way, so it is what keeps an unmatched leaf held.
+func presentLeaves(held []memberRow, behind map[string]deviceKey, seen map[deviceKey]int32,
+	named map[deviceKey]bool, missed map[deviceKey]int32) presence {
+	inside := map[deviceKey]bool{}
+	for _, row := range held {
+		if device, known := behind[string(row.Leaf)]; known {
+			inside[device] = true
+		}
+	}
+	replaced := func(device deviceKey) bool {
+		for other, at := range seen {
+			if other.user == device.user && other != device && named[other] && !inside[other] &&
+				at > seen[device]+replacedAfter {
+				return true
+			}
+		}
+		return false
+	}
+
+	var counted presence
+	for _, row := range held {
+		device, known := behind[string(row.Leaf)]
+		if known {
+			_, answering := seen[device]
+			switch {
+			case !answering || missed[device] > row.JoinedAt:
+				counted.gone++
+			case replaced(device):
+				counted.replaced++
+			default:
+				counted.present++
+			}
+			continue
+		}
+		heldFor := false
+		for other := range seen {
+			if other.user == row.UserId && !named[other] && !replaced(other) {
+				heldFor = true
+				break
+			}
+		}
+		if heldFor {
+			counted.unaccounted++
+		} else {
+			counted.gone++
+		}
+	}
+	return counted
+}
+
+// One device and when it was last seen, of the people a conversation holds.
+type deviceSeenRow struct {
+	UserId    int64 `db:"user_id"`
+	AuthKeyId int64 `db:"auth_key_id"`
+	LastSeen  int32 `db:"last_seen"`
+}
+
+// When each device of these people that is still signed in was last seen,
+// within the fortnight. Signed in is asked as everywhere else (hasASession):
+// a phone signed out keeps its row here, and must not stand for anybody.
+func (m *MysqlMembers) signedInSeen(ctx context.Context, people map[int64]bool, since int32) (map[deviceKey]int32, error) {
+	seen := map[deviceKey]int32{}
+	if len(people) == 0 {
+		return seen, nil
+	}
+	var rows []deviceSeenRow
+	query := "select user_id, auth_key_id, last_seen from mls_devices " +
+		"where user_id in (" + placeholders(len(people)) + ") and last_seen > ? " +
+		"and exists (select 1 from auth_users a where a.auth_key_id = mls_devices.auth_key_id " +
+		"and a.user_id = mls_devices.user_id and a.deleted = 0)"
+	args := make([]any, 0, len(people)+1)
+	for who := range people {
+		args = append(args, who)
+	}
+	args = append(args, since)
+	if err := m.db.QueryRowsPartial(ctx, &rows, query, args...); err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			logx.WithContext(ctx).Errorf("mls members - cannot read when devices were seen: %v", err)
+			return nil, err
+		}
+	}
+	for _, row := range rows {
+		seen[deviceKey{user: row.UserId, key: row.AuthKeyId}] = row.LastSeen
+	}
+	return seen, nil
+}
+
+// Which devices of these people have published a key package under a name.
+func (m *MysqlMembers) namedDevices(ctx context.Context, people map[int64]bool) (map[deviceKey]bool, error) {
+	named := map[deviceKey]bool{}
+	if len(people) == 0 {
+		return named, nil
+	}
+	var rows []packageOfRow
+	query := "select name, user_id, auth_key_id from mls_key_packages " +
+		"where user_id in (" + placeholders(len(people)) + ") and name <> ''"
+	args := make([]any, 0, len(people))
+	for who := range people {
+		args = append(args, who)
+	}
+	if err := m.db.QueryRowsPartial(ctx, &rows, query, args...); err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			logx.WithContext(ctx).Errorf("mls members - cannot read which devices publish a name: %v", err)
+			return nil, err
+		}
+	}
+	for _, row := range rows {
+		named[deviceKey{user: row.UserId, key: row.AuthKeyId}] = true
+	}
+	return named, nil
+}

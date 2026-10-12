@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"time"
 
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
 
@@ -194,42 +193,19 @@ func (s *MysqlConversations) Claim(ctx context.Context, peerId, withId int64, gr
 const DeviceLife = int32(14 * 86400)
 
 // stillThere says whether anything is known about who holds this conversation,
-// and how many of them have a device that has been seen lately.
+// and how many of its leaves somebody is still behind.
 //
 // The two answers are separate on purpose. "Nobody is in it" and "nobody has
 // told us who is in it" look identical from a count of zero, and they call for
 // opposite things: the first releases the chat, the second must not.
 //
-// Asked about people rather than about leaves, because a leaf names a device by
-// the MLS identity's own number and the mapping to an auth key lives in
-// mls_key_packages.name - which step 3 of #147 reads and this does not need: a
-// conversation with a live member in it is being used, whichever of their
-// phones is doing the using.
+// Asked about leaves, not people (#247). Asked about people, a conversation
+// whose every leaf was a phone set up again since stayed "live" as long as
+// either person had any phone answering - their current phones, which were
+// outside it - and nobody alive could let anybody in for a fortnight.
+// MysqlMembers.Present says which leaves still have somebody behind them.
 func (s *MysqlConversations) stillThere(ctx context.Context, groupId []byte) (known bool, live int, err error) {
-	var held int
-	if err = s.db.QueryRowPartial(ctx, &held,
-		"select count(*) from mls_members where group_id = ?", groupId); err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			logx.WithContext(ctx).Errorf("mls: cannot read who holds %x: %v", groupId, err)
-			return false, 0, err
-		}
-		err = nil
-	}
-	if held == 0 {
-		return false, 0, nil
-	}
-
-	if err = s.db.QueryRowPartial(ctx, &live,
-		"select count(*) from mls_members m join mls_devices d on d.user_id = m.user_id "+
-			"where m.group_id = ? and d.last_seen > ?",
-		groupId, int32(time.Now().Unix())-DeviceLife); err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			logx.WithContext(ctx).Errorf("mls: cannot count who is still in %x: %v", groupId, err)
-			return true, 0, err
-		}
-		err = nil
-	}
-	return true, live, nil
+	return (&MysqlMembers{db: s.db}).Present(ctx, groupId)
 }
 
 // Of answers which conversation this chat has, or nothing when it has none.
