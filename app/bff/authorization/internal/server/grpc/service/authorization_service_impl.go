@@ -451,3 +451,65 @@ func (s *Service) AuthToggleBan(ctx context.Context, request *mtproto.TLAuthTogg
 	c.Logger.Debugf("auth.toggleBan - reply: {%s}", r)
 	return r, err
 }
+
+// ice9: layer 231's sign-in methods, refused by their handlers (#276)
+
+// AuthCancelWebTokenAuthorization
+// auth.cancelWebTokenAuthorization#490dada1 web_auth_token:string = Bool;
+func (s *Service) AuthCancelWebTokenAuthorization(ctx context.Context, request *mtproto.TLAuthCancelWebTokenAuthorization) (*mtproto.Bool, error) {
+	c := core.New(ctx, s.svcCtx)
+	c.Logger.Debugf("auth.cancelWebTokenAuthorization - metadata: {%s}, request: {%s}", c.MD, request)
+
+	r, err := c.AuthCancelWebTokenAuthorization(request)
+	if err != nil {
+		return nil, err
+	}
+
+	c.Logger.Debugf("auth.cancelWebTokenAuthorization - reply: {%s}", r)
+	return r, err
+}
+
+// AuthInitFirebasePnvLogin
+// auth.initFirebasePnvLogin#644f15c0 flags:# except_ids:flags.0?Vector<long> api_id:int api_hash:string = auth.FirebasePnvIntent;
+func (s *Service) AuthInitFirebasePnvLogin(ctx context.Context, request *mtproto.TLAuthInitFirebasePnvLogin) (*mtproto.Auth_FirebasePnvIntent, error) {
+	c := core.New(ctx, s.svcCtx)
+	c.Logger.Debugf("auth.initFirebasePnvLogin - metadata: {%s}, request: {%s}", c.MD, request)
+
+	r, err := c.AuthInitFirebasePnvLogin(request)
+	if err != nil {
+		return nil, err
+	}
+
+	c.Logger.Debugf("auth.initFirebasePnvLogin - reply: {%s}", r)
+	return r, err
+}
+
+// AuthFinishFirebasePnvLogin
+// auth.finishFirebasePnvLogin#2c85094c google_token:string = auth.Authorization;
+func (s *Service) AuthFinishFirebasePnvLogin(ctx context.Context, request *mtproto.TLAuthFinishFirebasePnvLogin) (*mtproto.Auth_Authorization, error) {
+	c := core.New(ctx, s.svcCtx)
+	c.Logger.Debugf("auth.finishFirebasePnvLogin - metadata: {%s}, request: {%s}", c.MD, request)
+
+	r, err := c.AuthFinishFirebasePnvLogin(request)
+	if err != nil {
+		return nil, err
+	}
+
+	c.Logger.Debugf("auth.finishFirebasePnvLogin - reply: {%s}", r)
+	return r, err
+}
+
+// AuthFirebasePnvSignUp
+// auth.firebasePnvSignUp#783f6b56 flags:# no_joined_notifications:flags.0?true first_name:string last_name:string = auth.Authorization;
+func (s *Service) AuthFirebasePnvSignUp(ctx context.Context, request *mtproto.TLAuthFirebasePnvSignUp) (*mtproto.Auth_Authorization, error) {
+	c := core.New(ctx, s.svcCtx)
+	c.Logger.Debugf("auth.firebasePnvSignUp - metadata: {%s}, request: {%s}", c.MD, request)
+
+	r, err := c.AuthFirebasePnvSignUp(request)
+	if err != nil {
+		return nil, err
+	}
+
+	c.Logger.Debugf("auth.firebasePnvSignUp - reply: {%s}", r)
+	return r, err
+}
