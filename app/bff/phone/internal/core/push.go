@@ -14,7 +14,7 @@ import (
 // Serialization.swift). The user object's constructor changes between layers,
 // and the push cannot ask which layer the phone speaks - so it speaks this
 // one, and follows the client when the client moves.
-const pushLayer = 228
+const pushLayer = 230
 
 // connectedDevices is every device of a person the session layer will hand
 // the ring to: the ones the status service lists, expired or not, because

@@ -7,7 +7,7 @@ import (
 )
 
 // Every object a call pushes has to encode at the layer each phone speaks -
-// iOS 228, Android 229 - or the session layer drops the push without a word
+// iOS 230, Android 231 - or the session layer drops the push without a word
 // and the phone waits for ever. Seen live: the callee got the signalling
 // blobs and the hang-up, and never the confirmed call.
 func TestEveryCallUpdateEncodesAtBothPhonesLayers(t *testing.T) {
@@ -35,7 +35,7 @@ func TestEveryCallUpdateEncodesAtBothPhonesLayers(t *testing.T) {
 		"active":     c.updatesFor(active, nowish()),
 		"signalling": mtproto.MakeTLUpdateShort(&mtproto.Updates{Update: mtproto.MakeTLUpdatePhoneCallSignalingData(&mtproto.Update{PhoneCallId: 1, Data_FLAGBYTES: []byte("x")}).To_Update(), Date: 1}).To_Updates(),
 	}
-	for _, layer := range []int32{228, 229} {
+	for _, layer := range []int32{230, 231} {
 		for name, u := range objects {
 			buf := mtproto.NewEncodeBuf(2048)
 			if err := u.Encode(buf, layer); err != nil {
