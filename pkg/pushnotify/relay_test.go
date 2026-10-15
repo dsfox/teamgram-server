@@ -66,7 +66,7 @@ func TestAnIPhoneIsHandedASealedEnvelopeAndNothingElse(t *testing.T) {
 	n, _, got := notifierForTest(t, 200)
 	secret := secretForTest()
 	n.send(context.Background(), devices.DeviceDO{TokenType: devices.TokenTypeAPNs, Token: "tok", AppSandbox: true, Secret: secret, UserId: 7, AuthKeyId: 9},
-		3, "", int32(mtproto.PEER_CHAT), 120099, 42)
+		3, "", int32(mtproto.PEER_CHAT), 120099, 42, "default")
 	if len(*got) != 1 {
 		t.Fatalf("the relay saw %d pushes", len(*got))
 	}
@@ -94,7 +94,7 @@ func TestAnAndroidIsHandedItsOwnShape(t *testing.T) {
 	n, _, got := notifierForTest(t, 200)
 	secret := secretForTest()
 	n.send(context.Background(), devices.DeviceDO{TokenType: devices.TokenTypeFCM, Token: "tok2", Secret: secret, UserId: 7, AuthKeyId: 9},
-		1, "5", int32(mtproto.PEER_USER), 5, 1)
+		1, "5", int32(mtproto.PEER_USER), 5, 1, "default")
 	sent := (*got)[0]
 	if sent["platform"] != "fcm" || sent["from_id"] != "5" {
 		t.Fatalf("sent %v", sent)
@@ -110,12 +110,12 @@ func TestAnAndroidIsHandedItsOwnShape(t *testing.T) {
 
 func TestADeadTokenIsForgottenAndAFailureIsNot(t *testing.T) {
 	n, registry, _ := notifierForTest(t, 410)
-	n.send(context.Background(), devices.DeviceDO{TokenType: devices.TokenTypeAPNs, Token: "dead", UserId: 7, AuthKeyId: 9}, 0, "", 0, 0, 0)
+	n.send(context.Background(), devices.DeviceDO{TokenType: devices.TokenTypeAPNs, Token: "dead", UserId: 7, AuthKeyId: 9}, 0, "", 0, 0, 0, "default")
 	if len(registry.forgotten) != 1 || registry.forgotten[0] != "dead" {
 		t.Fatalf("410 did not forget the token: %v", registry.forgotten)
 	}
 	n, registry, _ = notifierForTest(t, 502)
-	n.send(context.Background(), devices.DeviceDO{TokenType: devices.TokenTypeAPNs, Token: "alive", UserId: 7, AuthKeyId: 9}, 0, "", 0, 0, 0)
+	n.send(context.Background(), devices.DeviceDO{TokenType: devices.TokenTypeAPNs, Token: "alive", UserId: 7, AuthKeyId: 9}, 0, "", 0, 0, 0, "default")
 	if len(registry.forgotten) != 0 {
 		t.Fatalf("a relay failure forgot a token: %v", registry.forgotten)
 	}

@@ -17,6 +17,7 @@ import (
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/pkg/devices"
+	"github.com/teamgram/teamgram-server/pkg/notifysound"
 	"github.com/teamgram/teamgram-server/pkg/pushrelay"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/threading"
@@ -143,7 +144,7 @@ func (n *Notifier) badgeOnly(ctx context.Context, userId int64, onlineAuthKeyIds
 		return
 	}
 	for _, d := range targets {
-		n.sendPush(ctx, d, badge, "", 0, 0, 0, true)
+		n.sendPush(ctx, d, badge, "", 0, 0, 0, true, notifysound.Default)
 	}
 }
 
@@ -170,8 +171,9 @@ func (n *Notifier) notify(ctx context.Context, userId int64, peerType int32, pee
 	if peerType == int32(mtproto.PEER_USER) {
 		fromId = strconv.FormatInt(peerId, 10)
 	}
+	sound := n.sound(ctx, userId, peerType, peerId)
 	for _, d := range targets {
-		n.send(ctx, d, badge, fromId, peerType, peerId, msgId)
+		n.send(ctx, d, badge, fromId, peerType, peerId, msgId, sound)
 	}
 }
 
@@ -195,13 +197,13 @@ func offlineTargets(list []devices.DeviceDO, onlineAuthKeyIds []int64) []devices
 	return targets
 }
 
-func (n *Notifier) send(ctx context.Context, d devices.DeviceDO, badge int, fromId string, peerType int32, peerId int64, msgId int32) {
-	n.sendPush(ctx, d, badge, fromId, peerType, peerId, msgId, false)
+func (n *Notifier) send(ctx context.Context, d devices.DeviceDO, badge int, fromId string, peerType int32, peerId int64, msgId int32, sound string) {
+	n.sendPush(ctx, d, badge, fromId, peerType, peerId, msgId, false, sound)
 }
 
 // sendPush is send with one more choice: the badge alone (#173), which
 // carries no words and, on an iPhone, nothing for the extension to open.
-func (n *Notifier) sendPush(ctx context.Context, d devices.DeviceDO, badge int, fromId string, peerType int32, peerId int64, msgId int32, silent bool) {
+func (n *Notifier) sendPush(ctx context.Context, d devices.DeviceDO, badge int, fromId string, peerType int32, peerId int64, msgId int32, silent bool, sound string) {
 	var err error
 
 	// Said before the attempt, whatever Apple or Google then answer: whether
@@ -214,7 +216,11 @@ func (n *Notifier) sendPush(ctx context.Context, d devices.DeviceDO, badge int, 
 	if silent {
 		carrying = "badge only"
 	}
-	logx.WithContext(ctx).Infof("notification for user %d, device %d: %s (badge %d)", d.UserId, d.AuthKeyId, carrying, badge)
+	sounding := ""
+	if !silent {
+		sounding = ", sound " + notifysound.Describe(sound)
+	}
+	logx.WithContext(ctx).Infof("notification for user %d, device %d: %s (badge %d)%s", d.UserId, d.AuthKeyId, carrying, badge, sounding)
 
 	relay := n.relay.Load()
 	if relay == nil {
@@ -225,13 +231,13 @@ func (n *Notifier) sendPush(ctx context.Context, d devices.DeviceDO, badge int, 
 	// on from here - to the relay, and through it to Apple or Google - carries
 	// no key and no words of ours. An envelope that cannot be sealed does not
 	// stop the push: the alert alone still says a message came.
-	push := pushrelay.Push{Token: d.Token, Sandbox: d.AppSandbox, Badge: badge, FromId: fromId, Silent: silent}
+	push := pushrelay.Push{Token: d.Token, Sandbox: d.AppSandbox, Badge: badge, FromId: fromId, Silent: silent, NoSound: sound == notifysound.None}
 	switch {
 	case d.IsAPNs():
 		push.Platform = pushrelay.PlatformApple
 		// A badge-only push names no message, so there is nothing to seal.
 		if d.Secret != "" && !silent {
-			if push.P, err = pushrelay.SealForApple(d.Secret, n.title, n.body, badge, peerType, peerId, msgId); err != nil {
+			if push.P, err = pushrelay.SealForApple(d.Secret, n.title, n.body, badge, peerType, peerId, msgId, sound); err != nil {
 				logx.WithContext(ctx).Errorf("cannot seal the envelope for user %d, device %d, sending the alert alone: %v", d.UserId, d.AuthKeyId, err)
 			}
 		}
@@ -267,6 +273,32 @@ func (n *Notifier) sendPush(ctx context.Context, d devices.DeviceDO, badge int, 
 // muted reports whether the recipient muted this chat. Mute settings belong to
 // the biz layer, but a network call per message is expensive and the table is
 // simple.
+// sound is the chat's sound as the phone that chose it stored it (#282):
+// the chat's own row when it says more than "as the kind says", else the
+// kind's row ("all private chats", "all groups"), else the default - the same
+// precedence as muted.
+func (n *Notifier) sound(ctx context.Context, userId int64, peerType int32, peerId int64) string {
+	var stored string
+	query := "select sound from user_notify_settings where user_id = ? and peer_type = ? and peer_id = ? and deleted = 0"
+	if err := n.db.QueryRow(ctx, &stored, query, userId, peerType, peerId); err == nil && notifysound.IsChosen(stored) {
+		return stored
+	}
+	var kind int32
+	switch peerType {
+	case int32(mtproto.PEER_USER):
+		kind = int32(mtproto.PEER_USERS)
+	case int32(mtproto.PEER_CHAT):
+		kind = int32(mtproto.PEER_CHATS)
+	default:
+		return notifysound.Default
+	}
+	query = "select sound from user_notify_settings where user_id = ? and peer_type = ? and deleted = 0 limit 1"
+	if err := n.db.QueryRow(ctx, &stored, query, userId, kind); err == nil && notifysound.IsChosen(stored) {
+		return stored
+	}
+	return notifysound.Default
+}
+
 func (n *Notifier) muted(ctx context.Context, userId int64, peerType int32, peerId int64) bool {
 	now := time.Now().Unix()
 	var muteUntil int32

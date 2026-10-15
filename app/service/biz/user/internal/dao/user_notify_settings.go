@@ -25,6 +25,7 @@ import (
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/app/service/biz/user/internal/dal/dataobject"
+	"github.com/teamgram/teamgram-server/pkg/notifysound"
 
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -91,6 +92,7 @@ func setPeerNotifySettingsByDO(settings *mtproto.PeerNotifySettings, do *dataobj
 	}
 	if do.Sound != "-1" {
 		settings.Sound = &wrapperspb.StringValue{Value: do.Sound}
+		notifysound.Apply(settings, do.Sound) // ice9: the same choice on every platform, as layer 139+ reads it (#282)
 	}
 }
 

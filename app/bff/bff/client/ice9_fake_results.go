@@ -9,6 +9,7 @@ import (
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/proto/mtproto/rpc/metadata"
 	"github.com/teamgram/teamgram-server/pkg/langpack"
+	"github.com/teamgram/teamgram-server/pkg/tones"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
@@ -242,7 +243,7 @@ func ice9FakeAnswer(ctx context.Context, md *metadata.RpcMetadata, object mtprot
 			StealthMode: mtproto.MakeTLStoriesStealthMode(nil).To_StoriesStealthMode(),
 		}).To_Stories_AllStories(), nil
 
-	// Stories, ringtones, attachment bots, sticker sets, gift options: features we
+	// Stories, attachment bots, sticker sets, gift options: features we
 	// do not have. Same reasoning as above — an error makes the client back off
 	// and retry, blocking its service queue, and a file download can then wait
 	// minutes behind it.
@@ -264,8 +265,18 @@ func ice9FakeAnswer(ctx context.Context, md *metadata.RpcMetadata, object mtprot
 			Users:   []*mtproto.User{},
 		}).To_Stories_Stories(), nil
 
+	// The notification sounds are the three tones that ship in the binary
+	// (pkg/tones, #282). A phone asking with hash 0 holds nothing, and iOS
+	// draws Default and None only once it holds a list, so "not modified" is
+	// only for a phone that already has this list.
 	case "TLAccountGetSavedRingtones":
-		return mtproto.MakeTLAccountSavedRingtonesNotModified(nil).To_Account_SavedRingtones(), nil
+		if object.(*mtproto.TLAccountGetSavedRingtones).GetHash() == tones.Hash() {
+			return mtproto.MakeTLAccountSavedRingtonesNotModified(nil).To_Account_SavedRingtones(), nil
+		}
+		return mtproto.MakeTLAccountSavedRingtones(&mtproto.Account_SavedRingtones{
+			Hash:      tones.Hash(),
+			Ringtones: tones.Documents(),
+		}).To_Account_SavedRingtones(), nil
 
 	case "TLAccountGetConnectedBots":
 		return mtproto.MakeTLAccountConnectedBots(&mtproto.Account_ConnectedBots{

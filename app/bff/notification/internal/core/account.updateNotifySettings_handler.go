@@ -23,6 +23,8 @@ import (
 	"github.com/teamgram/teamgram-server/app/messenger/sync/sync"
 	"github.com/teamgram/teamgram-server/app/service/biz/chat/chat"
 	userpb "github.com/teamgram/teamgram-server/app/service/biz/user/user"
+	"github.com/teamgram/teamgram-server/pkg/notifysound"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 /*
@@ -58,6 +60,9 @@ func (c *NotificationCore) AccountUpdateNotifySettings(in *mtproto.TLAccountUpda
 	if err != nil {
 		c.Logger.Errorf("account.updateNotifySettings - error: %v", err)
 		return nil, err
+	}
+	if sound := in.Settings.GetSound_FLAGNOTIFICATIONSOUND(); sound != nil { // ice9: the sound as sent since layer 139, kept as one short string (#282)
+		settings.Sound = &wrapperspb.StringValue{Value: notifysound.Encode(sound)}
 	}
 
 	peer := mtproto.FromInputNotifyPeer(c.MD.UserId, in.GetPeer())

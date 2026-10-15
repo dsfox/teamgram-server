@@ -6,20 +6,28 @@ import (
 
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/pkg/fcm"
+	"github.com/teamgram/teamgram-server/pkg/notifysound"
 )
 
 // SealForApple is the envelope an iPhone's notification extension opens: the
 // alert again, so the extension starts from the same words the phone would
-// show, and the ids as decimal strings at the top level - the shape upstream's
-// extension reads (#42). Sealed with the phone's own registered secret, so the
-// relay that carries it cannot open it.
-func SealForApple(secretHex, title, body string, badge int, peerType int32, peerId int64, msgId int32) (string, error) {
+// show, the chat's sound as the phone chose it (#282, notifysound), and the
+// ids as decimal strings at the top level - the shape upstream's extension
+// reads (#42). Sealed with the phone's own registered secret, so the relay
+// that carries it cannot open it.
+func SealForApple(secretHex, title, body string, badge int, peerType int32, peerId int64, msgId int32, sound string) (string, error) {
+	aps := map[string]any{
+		"alert": map[string]any{"title": title, "body": body},
+		"badge": badge,
+	}
+	if apsSound, ringtone := notifysound.ForApple(sound); apsSound != "" {
+		aps["sound"] = apsSound
+		if ringtone != "" {
+			aps["ringtone"] = ringtone
+		}
+	}
 	inside := map[string]any{
-		"aps": map[string]any{
-			"alert": map[string]any{"title": title, "body": body},
-			"sound": "default",
-			"badge": badge,
-		},
+		"aps":             aps,
 		peerKey(peerType): strconv.FormatInt(peerId, 10),
 		"msg_id":          strconv.FormatInt(int64(msgId), 10),
 	}

@@ -178,3 +178,17 @@ func TestACallIsAVoipPushCarryingOnlyTheEnvelope(t *testing.T) {
 		t.Fatalf("a message push changed: %q on %q until %v", message.PushType, message.Topic, message.Expiration)
 	}
 }
+
+// A chat whose sound is "none" gets a banner without a sound (#282); every
+// other chat keeps Apple's default as the fallback for when the extension
+// does not run.
+func TestNoSoundIsABannerWithoutOne(t *testing.T) {
+	quiet := sent(t, Notify{Title: "ice9", Body: "New message", Badge: 1, NoSound: true})
+	if _, there := quiet["aps"].(map[string]any)["sound"]; there {
+		t.Fatalf("the banner would sound: %v", quiet["aps"])
+	}
+	loud := sent(t, Notify{Title: "ice9", Body: "New message", Badge: 1})
+	if loud["aps"].(map[string]any)["sound"] != "default" {
+		t.Fatalf("the fallback banner lost its sound: %v", loud["aps"])
+	}
+}

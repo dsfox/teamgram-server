@@ -21,6 +21,7 @@ package core
 import (
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/app/service/dfs/dfs"
+	"github.com/teamgram/teamgram-server/pkg/tones"
 )
 
 // UploadGetFile
@@ -120,6 +121,9 @@ func (c *FilesCore) UploadGetFile(in *mtproto.TLUploadGetFile) (*mtproto.Upload_
 		return nil, mtproto.ErrLocationInvalid
 	}
 
+	if uploadFile, ok := tones.ServeFile(location, offset, limit); ok { // ice9: the tones ship in the binary (#282)
+		return uploadFile, nil
+	}
 	uploadFile, err := c.svcCtx.Dao.DfsClient.DfsDownloadFile(c.ctx, &dfs.TLDfsDownloadFile{
 		Location: location,
 		Offset:   offset,

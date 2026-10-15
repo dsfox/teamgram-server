@@ -18,7 +18,7 @@ func testSecret() string {
 
 func TestSealForAppleNamesTheChatAndNothingElse(t *testing.T) {
 	secret := testSecret()
-	p, err := SealForApple(secret, "ice9", "New message", 3, int32(mtproto.PEER_CHAT), 120099, 42)
+	p, err := SealForApple(secret, "ice9", "New message", 3, int32(mtproto.PEER_CHAT), 120099, 42, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestSealForApplePicksTheKeyByPeer(t *testing.T) {
 		int32(mtproto.PEER_CHAT):    "chat_id",
 		int32(mtproto.PEER_CHANNEL): "channel_id",
 	} {
-		p, err := SealForApple(secret, "ice9", "New message", 0, kind, 7, 1)
+		p, err := SealForApple(secret, "ice9", "New message", 0, kind, 7, 1, "default")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -74,7 +74,7 @@ func TestSealForGoogleIsTheShapeTheAppReads(t *testing.T) {
 // A secret that cannot key anything is an error here, and the caller sends
 // the alert alone: the push still says a message came.
 func TestASecretThatIsNotOneIsRefused(t *testing.T) {
-	if _, err := SealForApple("not hex", "ice9", "New message", 0, 0, 1, 1); err == nil {
+	if _, err := SealForApple("not hex", "ice9", "New message", 0, 0, 1, 1, "default"); err == nil {
 		t.Error("an envelope was sealed with a key that is not one")
 	}
 	if _, err := SealForGoogle("not hex", 0, "1"); err == nil {
@@ -118,5 +118,33 @@ func TestSealForGoogleCallIsTheWakeUpTheAppReads(t *testing.T) {
 	custom, _ := inside["custom"].(map[string]any)
 	if inside["user_id"] != "1002" || inside["loc_key"] != "PHONE_CALL_REQUEST" || custom["from_id"] != "1001" || custom["call_id"] != "777" {
 		t.Fatalf("not the shape the app reads: %v", inside)
+	}
+}
+
+// The chat's sound travels inside the envelope, where the extension reads it
+// (#282): Apple's default; none at all; a tone of ours by id, with the
+// extension's own fallback file as the sound.
+func TestTheEnvelopeCarriesTheChatsSound(t *testing.T) {
+	secret := testSecret()
+	open := func(sound string) map[string]any {
+		t.Helper()
+		p, err := SealForApple(secret, "ice9", "New message", 1, int32(mtproto.PEER_USER), 7, 1, sound)
+		if err != nil {
+			t.Fatal(err)
+		}
+		inside, err := fcm.OpenEnvelope(secret, p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return inside["aps"].(map[string]any)
+	}
+	if aps := open("default"); aps["sound"] != "default" || aps["ringtone"] != nil {
+		t.Fatalf("default: %v", aps)
+	}
+	if aps := open("none"); aps["sound"] != nil || aps["ringtone"] != nil {
+		t.Fatalf("none should carry no sound at all: %v", aps)
+	}
+	if aps := open("ringtone:77"); aps["sound"] != "0.m4a" || aps["ringtone"] != "77" {
+		t.Fatalf("a tone: %v", aps)
 	}
 }

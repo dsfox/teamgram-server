@@ -38,6 +38,9 @@ type Push struct {
 	// and must carry the call inside the envelope; Google is told not to hold
 	// the message past the ringing. A flag, no words.
 	Call bool `json:"call,omitempty"`
+	// The chat's sound is "none" (#282): Apple is asked for a banner without
+	// a sound. A flag, no words; which tone to play travels in the envelope.
+	NoSound bool `json:"no_sound,omitempty"`
 }
 
 var ErrBadPush = errors.New("pushrelay: not a push")

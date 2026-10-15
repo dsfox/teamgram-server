@@ -55,3 +55,17 @@ func TestACallPushIsAcceptedAsAFlag(t *testing.T) {
 		t.Fatalf("decoded wrong: %+v", p)
 	}
 }
+
+// No sound is the eighth field (#282): a flag, no words.
+func TestANoSoundPushIsAcceptedAsAFlag(t *testing.T) {
+	p, err := Decode(strings.NewReader(`{"platform":"apns","token":"t","badge":1,"no_sound":true}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.NoSound {
+		t.Fatalf("decoded wrong: %+v", p)
+	}
+	if _, err := Decode(strings.NewReader(`{"platform":"apns","token":"t","badge":1,"sound":"Drop"}`)); err == nil {
+		t.Error("a sound by name was accepted: a field words could travel in")
+	}
+}

@@ -159,6 +159,9 @@ type Notify struct {
 	// so the envelope is all there is, no alert and no badge, and it is never
 	// held for later.
 	Call bool
+	// The chat's sound is "none" (#282): the banner comes without one. Which
+	// tone to play otherwise is inside the envelope, for the extension.
+	NoSound bool
 }
 
 // buildPayload is the payload as sent, on its own so a test can read it.
@@ -180,8 +183,10 @@ func buildPayload(n Notify) any {
 	}
 	p := payload.NewPayload().
 		AlertTitle(n.Title).
-		AlertBody(n.Body).
-		Sound("default")
+		AlertBody(n.Body)
+	if !n.NoSound {
+		p = p.Sound("default")
+	}
 	if n.Badge >= 0 {
 		p = p.Badge(n.Badge)
 	}
