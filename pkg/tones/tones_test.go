@@ -60,8 +60,9 @@ func TestADocumentNamesTheToneAndItsSize(t *testing.T) {
 }
 
 func TestTheHashIsStableAndPositive(t *testing.T) {
-	if Hash() <= 0 || Hash() != Hash() {
-		t.Fatalf("hash %d", Hash())
+	first := Hash()
+	if first <= 0 || Hash() != first {
+		t.Fatalf("hash %d, then %d", first, Hash())
 	}
 }
 
