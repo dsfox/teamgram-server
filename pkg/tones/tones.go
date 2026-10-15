@@ -87,7 +87,6 @@ func (tone Tone) Document() *mtproto.Document {
 				Duration_INT32:   tone.Duration,
 				Duration_FLOAT64: float64(tone.Duration),
 				Title:            &wrapperspb.StringValue{Value: tone.Name},
-				Performer:        &wrapperspb.StringValue{Value: "ice9"},
 			}).To_DocumentAttribute(),
 			mtproto.MakeTLDocumentAttributeFilename(&mtproto.DocumentAttribute{
 				FileName: tone.Name + ".mp3",

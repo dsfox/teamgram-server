@@ -66,6 +66,7 @@ func (d *Dao) GetUserNotifySettings(ctx context.Context, id int64, peerType int3
 					notifySettings.Silent = mtproto.BoolFalse
 					notifySettings.MuteUntil = &wrapperspb.Int32Value{Value: 0}
 					notifySettings.Sound = &wrapperspb.StringValue{Value: "default"}
+					notifysound.Apply(notifySettings, notifysound.Default) // ice9: said out loud, or Android ticks "No sound" (#282)
 				}
 			} else {
 				setPeerNotifySettingsByDO(notifySettings, do)
