@@ -103,6 +103,10 @@ func (c *MessagesCore) MessagesEditMessage(in *mtproto.TLMessagesEditMessage) (*
 	}
 	// message
 	if in.Message != nil {
+		if tooLong := checkStoredLength(in.Message.Value); tooLong != nil {
+			c.Logger.Errorf("messages.editMessage - %d bytes: %v", len(in.Message.Value), tooLong)
+			return nil, tooLong
+		}
 		if in.Message.Value == "" &&
 			(outMessage.Media == nil ||
 				outMessage.Media.PredicateName == mtproto.Predicate_messageMediaEmpty) {
