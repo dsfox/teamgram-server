@@ -39,6 +39,10 @@ func (c *MessagesCore) MessagesEditMessage(in *mtproto.TLMessagesEditMessage) (*
 		err          error
 	)
 
+	if refused := refuseSavedMessages(c.MD.UserId, peer); refused != nil {
+		c.Logger.Errorf("messages.editMessage - into Saved Messages: %v", refused)
+		return nil, refused
+	}
 	switch peer.PeerType {
 	case mtproto.PEER_SELF, mtproto.PEER_USER, mtproto.PEER_CHAT:
 		if peer.PeerType == mtproto.PEER_SELF {

@@ -38,6 +38,10 @@ func (c *MessagesCore) MessagesSendMedia(in *mtproto.TLMessagesSendMedia) (*mtpr
 	)
 
 	peer = mtproto.FromInputPeer2(c.MD.UserId, in.Peer)
+	if refused := refuseSavedMessages(c.MD.UserId, peer); refused != nil {
+		c.Logger.Errorf("messages.sendMedia - into Saved Messages: %v", refused)
+		return nil, refused
+	}
 	switch peer.PeerType {
 	case mtproto.PEER_SELF:
 		peer.PeerType = mtproto.PEER_USER

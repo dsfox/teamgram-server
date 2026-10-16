@@ -35,6 +35,10 @@ func (c *MessagesCore) MessagesSendMessage(in *mtproto.TLMessagesSendMessage) (*
 		peer = mtproto.FromInputPeer2(c.MD.UserId, in.Peer)
 	)
 
+	if refused := refuseSavedMessages(c.MD.UserId, peer); refused != nil {
+		c.Logger.Errorf("messages.sendMessage - into Saved Messages: %v", refused)
+		return nil, refused
+	}
 	if !peer.IsChatOrUser() {
 		c.Logger.Errorf("invalid peer: %v", in.Peer)
 		err := mtproto.ErrEnterpriseIsBlocked

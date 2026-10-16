@@ -63,6 +63,10 @@ func (c *MessagesCore) MessagesForwardMessages(in *mtproto.TLMessagesForwardMess
 	   }
 	*/
 
+	if refused := refuseSavedMessages(c.MD.UserId, toPeer); refused != nil {
+		c.Logger.Errorf("messages.forwardMessages - into Saved Messages: %v", refused)
+		return nil, refused
+	}
 	switch toPeer.PeerType {
 	case mtproto.PEER_SELF:
 		toPeer.PeerType = mtproto.PEER_USER
