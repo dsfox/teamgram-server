@@ -293,23 +293,50 @@ type deviceKey struct {
 	key  int64
 }
 
+// One leaf name and the device it was published by, as mls_device_names keeps it.
+type deviceNameRow struct {
+	Name      []byte `db:"name"`
+	UserId    int64  `db:"user_id"`
+	AuthKeyId int64  `db:"auth_key_id"`
+	NamedAt   int32  `db:"named_at"`
+}
+
 // Which device each of these leaves belongs to, where anybody can say.
 //
 // The mapping lives in the name a device publishes its key packages under
-// (#136). A leaf missing from the answer is one nobody can account for, and the
-// caller treats that as alive.
+// (#136), kept in mls_device_names after the packages are gone (#263). Read
+// from the packages alone, a signed-out device - whose packages ForgetDevice
+// throws away - matched nothing, and a leaf that matches nothing is called
+// alive: a stolen phone signed out stayed in every conversation for good.
+// Kept, it matches its device, which has no session and so is dead.
+//
+// The packages are still asked: a device that published before the names were
+// kept is in them and not yet in the table. A leaf missing from both is one
+// nobody can account for, and the caller treats that as alive.
 func (m *MysqlMembers) devicesBehind(ctx context.Context, names [][]byte) (map[string]deviceKey, error) {
 	behind := map[string]deviceKey{}
 	if len(names) == 0 {
 		return behind, nil
 	}
-	var rows []packageOfRow
-	published := "select name, user_id, auth_key_id from mls_key_packages " +
-		"where name in (" + placeholders(len(names)) + ")"
 	args := make([]any, 0, len(names))
 	for _, name := range names {
 		args = append(args, name)
 	}
+	var kept []deviceNameRow
+	keptQuery := "select name, user_id, auth_key_id, named_at from mls_device_names " +
+		"where name in (" + placeholders(len(names)) + ")"
+	if err := m.db.QueryRowsPartial(ctx, &kept, keptQuery, args...); err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			logx.WithContext(ctx).Errorf("mls members - cannot read whose leaf names these are: %v", err)
+			return nil, err
+		}
+	}
+	for _, row := range kept {
+		behind[string(row.Name)] = deviceKey{user: row.UserId, key: row.AuthKeyId}
+	}
+	var rows []packageOfRow
+	published := "select name, user_id, auth_key_id from mls_key_packages " +
+		"where name in (" + placeholders(len(names)) + ")"
 	if err := m.db.QueryRowsPartial(ctx, &rows, published, args...); err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			logx.WithContext(ctx).Errorf("mls members - cannot match leaves to devices: %v", err)
@@ -353,7 +380,9 @@ type deviceOfRow struct {
 	AuthKeyId int64 `db:"auth_key_id"`
 }
 
-// Which devices of these people have been heard from lately.
+// Which devices of these people have been heard from lately, and are still
+// signed in. A signed-out phone keeps its row in mls_devices, and without the
+// session asked about it was answering for a fortnight after it left (#263).
 func (m *MysqlMembers) answering(ctx context.Context, people map[int64]bool, since int32) (map[int64]map[int64]bool, error) {
 	answered := map[int64]map[int64]bool{}
 	if len(people) == 0 {
@@ -361,7 +390,9 @@ func (m *MysqlMembers) answering(ctx context.Context, people map[int64]bool, sin
 	}
 	var rows []deviceOfRow
 	live := "select user_id, auth_key_id from mls_devices " +
-		"where user_id in (" + placeholders(len(people)) + ") and last_seen > ?"
+		"where user_id in (" + placeholders(len(people)) + ") and last_seen > ? " +
+		"and exists (select 1 from auth_users a where a.auth_key_id = mls_devices.auth_key_id " +
+		"and a.user_id = mls_devices.user_id and a.deleted = 0)"
 	args := make([]any, 0, len(people)+1)
 	for who := range people {
 		args = append(args, who)

@@ -78,12 +78,30 @@ func (s *MysqlStore) Insert(ctx context.Context, p KeyPackage) (bool, error) {
 	_, err := s.db.Exec(ctx, query, p.UserId, p.AuthKeyId, p.Bytes, p.Fingerprint, p.Name, p.LastResort, p.Date)
 	if err != nil {
 		if isDuplicate(err) {
+			s.rememberName(ctx, p)
 			return false, nil
 		}
 		logx.WithContext(ctx).Errorf("mls: cannot insert a key package: %v", err)
 		return false, err
 	}
+	s.rememberName(ctx, p)
 	return true, nil
+}
+
+// rememberName writes down which device a leaf name belongs to, in a table that
+// outlives the packages (#263). Only a name carrying the publisher's own user
+// id: a device naming itself after somebody else would be claiming their leaf.
+func (s *MysqlStore) rememberName(ctx context.Context, p KeyPackage) {
+	if who, ok := userOf(p.Name); !ok || who != p.UserId {
+		return
+	}
+	const remember = "insert into mls_device_names(name, user_id, auth_key_id, named_at) values (?, ?, ?, ?) " +
+		"on duplicate key update named_at = values(named_at)"
+	if _, err := s.db.Exec(ctx, remember, p.Name, p.UserId, p.AuthKeyId, p.Date); err != nil {
+		// Said and not acted on: the package itself is stored, and the name is
+		// still matched through it while it lasts.
+		logx.WithContext(ctx).Errorf("mls: cannot remember whose name %q is: %v", p.Name, err)
+	}
 }
 
 // TakeOne removes and returns the oldest ordinary package for a device.
