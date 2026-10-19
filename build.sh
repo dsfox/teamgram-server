@@ -77,6 +77,10 @@ echo "build usernames ..."
 cd ${ROOT}/cmd/usernames
 go build -ldflags="-s -w" -o ${INSTALL}/bin/usernames
 
+echo "build forgetsaved ..."
+cd ${ROOT}/cmd/forgetsaved
+go build -ldflags="-s -w" -o ${INSTALL}/bin/forgetsaved
+
 # Apple as the stand sees it: the stand's relay sends here (#188). Built into
 # the image the stand runs; build-linux.sh, which ships the live server, leaves
 # it out.

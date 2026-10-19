@@ -62,8 +62,9 @@ done
 # The tools live outside app/, so they are built separately: alert turns a
 # finding in the health check into a notification on the owner's phone, and
 # invite mints the code somebody types to get in; usernames names the accounts
-# from before every account was given a username (#239).
-for tool in alert invite pushrelay usernames; do
+# from before every account was given a username (#239); forgetsaved empties
+# Saved Messages, kept in the clear before the server refused it (#284).
+for tool in alert invite pushrelay usernames forgetsaved; do
   printf '%-14s ' "$tool"
   (cd "$PWD/cmd/$tool" && eval go build -ldflags=\"$LDFLAGS\" -o "$INSTALL/bin/$tool" .)
   echo "done"
