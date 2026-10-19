@@ -35,7 +35,7 @@ func (c *MessagesCore) MessagesSendMessage(in *mtproto.TLMessagesSendMessage) (*
 		peer = mtproto.FromInputPeer2(c.MD.UserId, in.Peer)
 	)
 
-	if refused := refuseSavedMessages(c.MD.UserId, peer); refused != nil {
+	if refused := refuseSavedMessages(c.MD.UserId, peer, in.Message, nil); refused != nil {
 		c.Logger.Errorf("messages.sendMessage - into Saved Messages: %v", refused)
 		return nil, refused
 	}

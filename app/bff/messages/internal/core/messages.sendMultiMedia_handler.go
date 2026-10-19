@@ -39,9 +39,11 @@ func (c *MessagesCore) MessagesSendMultiMedia(in *mtproto.TLMessagesSendMultiMed
 	)
 
 	peer = mtproto.FromInputPeer2(c.MD.UserId, in.Peer)
-	if refused := refuseSavedMessages(c.MD.UserId, peer); refused != nil {
-		c.Logger.Errorf("messages.sendMultiMedia - into Saved Messages: %v", refused)
-		return nil, refused
+	for _, item := range in.MultiMedia {
+		if refused := refuseSavedMessages(c.MD.UserId, peer, item.GetMessage(), item.GetMedia()); refused != nil {
+			c.Logger.Errorf("messages.sendMultiMedia - into Saved Messages: %v", refused)
+			return nil, refused
+		}
 	}
 	switch peer.PeerType {
 	case mtproto.PEER_SELF:

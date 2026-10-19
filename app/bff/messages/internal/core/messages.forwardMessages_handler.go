@@ -63,7 +63,7 @@ func (c *MessagesCore) MessagesForwardMessages(in *mtproto.TLMessagesForwardMess
 	   }
 	*/
 
-	if refused := refuseSavedMessages(c.MD.UserId, toPeer); refused != nil {
+	if refused := refuseCopyIntoSavedMessages(c.MD.UserId, toPeer); refused != nil {
 		c.Logger.Errorf("messages.forwardMessages - into Saved Messages: %v", refused)
 		return nil, refused
 	}

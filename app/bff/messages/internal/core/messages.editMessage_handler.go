@@ -39,7 +39,11 @@ func (c *MessagesCore) MessagesEditMessage(in *mtproto.TLMessagesEditMessage) (*
 		err          error
 	)
 
-	if refused := refuseSavedMessages(c.MD.UserId, peer); refused != nil {
+	var editText *string
+	if in.Message != nil {
+		editText = &in.Message.Value
+	}
+	if refused := refuseSavedEdit(c.MD.UserId, peer, editText, in.Media); refused != nil {
 		c.Logger.Errorf("messages.editMessage - into Saved Messages: %v", refused)
 		return nil, refused
 	}
