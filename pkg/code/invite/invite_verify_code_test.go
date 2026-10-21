@@ -182,7 +182,8 @@ func newTestVerifier() (*verifier, *mapStore) {
 // mapStore is the smallest thing that behaves like the store: enough to count
 // attempts and spend invitations.
 type mapStore struct {
-	data map[string]string
+	data     map[string]string
+	expiring map[string]int // keys written with an expiry, and its seconds
 }
 
 // A missing key is an empty string and no error, which is what the store this
@@ -195,11 +196,16 @@ func (m *mapStore) GetCtx(_ context.Context, key string) (string, error) {
 
 func (m *mapStore) SetCtx(_ context.Context, key, value string) error {
 	m.data[key] = value
+	delete(m.expiring, key)
 	return nil
 }
 
-func (m *mapStore) SetexCtx(_ context.Context, key, value string, _ int) error {
+func (m *mapStore) SetexCtx(_ context.Context, key, value string, seconds int) error {
 	m.data[key] = value
+	if m.expiring == nil {
+		m.expiring = map[string]int{}
+	}
+	m.expiring[key] = seconds
 	return nil
 }
 

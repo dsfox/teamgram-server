@@ -79,6 +79,13 @@ type Invitation struct {
 	// with this code (#164). Zero - every code minted before the field - is
 	// ice9 alone.
 	Chat int64 `json:"chat,omitempty"`
+
+	// Lasting, for the one number the owner lets in again and again: Apple's
+	// reviewer, whose code sits in App Store Connect and has to open the demo
+	// account on every review, first or tenth, without anybody awake (#214).
+	// It is not spent and does not expire; it is honoured only together with
+	// Phone, so a lasting code can never be a key to anybody else's account.
+	Lasting bool `json:"lasting,omitempty"`
 }
 
 type verifier struct {
@@ -235,6 +242,12 @@ func (v *verifier) useInvitation(ctx context.Context, a attempt.Attempt) bool {
 		return false
 	}
 
+	// A lasting invitation opens its number every time and is left where it
+	// is; allows has already required that it names one (#214).
+	if Decode(value).Lasting {
+		return true
+	}
+
 	// The deletion is the proof. Reading said the invitation was there; only
 	// the delete says this attempt is the one that took it, which is what stops
 	// two people racing the same code from both getting in.
@@ -263,6 +276,11 @@ func (v *verifier) useInvitation(ctx context.Context, a attempt.Attempt) bool {
 // naming a number opens that number, and one naming nobody opens only a number
 // that has no account behind it yet.
 func allows(inv Invitation, a attempt.Attempt) bool {
+	if inv.Lasting && inv.Phone == "" {
+		// Never minted that way (Mint refuses it); refused here as well, since
+		// a lasting code for anybody new would be a door nobody can close.
+		return false
+	}
 	if inv.Phone != "" {
 		return Digits(inv.Phone) == Digits(a.PhoneNumber)
 	}

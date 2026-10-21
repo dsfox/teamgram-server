@@ -14,6 +14,7 @@
 //	invite --phone +79991234567        # for that number only - a lost phone
 //	invite --hours 2 --note "Natalya"
 //	invite --list                      # what is outstanding
+//	invite --phone +1555... --lasting --replace   # Apple's reviewer (#214)
 //	invite --recovery --phone +7999...  # a recovery phrase for an account
 //
 // The recovery phrase is normally handed to a person by the server itself, at
@@ -50,6 +51,8 @@ func main() {
 	list := flag.Bool("list", false, "show outstanding invitations")
 	recovery := flag.Bool("recovery", false, "mint this number's recovery phrase instead of an invitation")
 	force := flag.Bool("force", false, "with --recovery: replace a phrase that already exists")
+	lasting := flag.Bool("lasting", false, "with --phone: never spent, never expires - Apple's reviewer only")
+	replace := flag.Bool("replace", false, "with --phone: revoke every other outstanding code for that number")
 	flag.Parse()
 
 	store := kv.NewStore(kv.KvConf{{
@@ -86,7 +89,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	code, err := invite.Mint(ctx, store, *hours*3600, invite.Invitation{Phone: *phone, Note: *note})
+	if (*lasting || *replace) && *phone == "" {
+		fmt.Fprintln(os.Stderr, "--lasting and --replace need --phone: they are about one number")
+		os.Exit(1)
+	}
+
+	code, err := invite.Mint(ctx, store, *hours*3600, invite.Invitation{Phone: *phone, Note: *note, Lasting: *lasting})
 	if err != nil && code == "" {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -96,8 +104,20 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 	}
 
+	if *replace {
+		gone, err := invite.RevokeFor(ctx, store, *phone, code)
+		if err != nil {
+			// The new code works; an old one still working is said, not hidden.
+			fmt.Fprintf(os.Stderr, "revoked %d earlier code(s) for %s, then: %v\n", gone, *phone, err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "revoked %d earlier code(s) for %s\n", gone, *phone)
+	}
+
 	fmt.Println(code)
-	if *phone != "" {
+	if *lasting {
+		fmt.Fprintf(os.Stderr, "never expires, works every time, opens %s only\n", *phone)
+	} else if *phone != "" {
 		fmt.Fprintf(os.Stderr, "good for %d hour(s), works once, opens %s only\n", *hours, *phone)
 	} else {
 		fmt.Fprintf(os.Stderr, "good for %d hour(s), works once, for a number with no account\n", *hours)
@@ -144,6 +164,9 @@ func showOutstanding(ctx context.Context, store kv.Store) {
 		who := item.Invitation.Phone
 		if who == "" {
 			who = "(anybody new)"
+		}
+		if item.Invitation.Lasting {
+			who += " (lasting)"
 		}
 		fmt.Printf("%s  %-16s %s\n", item.Code, who, item.Invitation.Note)
 	}
