@@ -20,7 +20,7 @@ func TestAnOlderBuildSaysItsBitrateAndNothingMore(t *testing.T) {
 
 func TestTheSummaryOfANewerBuildIsWrittenOut(t *testing.T) {
 	log := `{"bitrate":[{"b":0},{"b":40},{"b":0}],"network":[],
-	 "ice9":{"build":"13.0.2","incoming":true,"answer_visible":false,"silenced":"no","mic_max":0,"mic_heard":0,"peer_max":0.4,"peer_heard":12}}`
+	 "ice9":{"build":"13.0.2","incoming":true,"answer_visible":false,"silenced":"no","peer_max":0.4,"peer_heard":12}}`
 	a, ok := AudioOf([]byte(log))
 	if !ok {
 		t.Fatal("not read")
@@ -29,7 +29,7 @@ func TestTheSummaryOfANewerBuildIsWrittenOut(t *testing.T) {
 		t.Fatalf("bitrate read as %+v", a)
 	}
 	line := a.String()
-	for _, want := range []string{"build=13.0.2", "answer_visible=false", "silenced=no", "mic_heard=0", "peer_heard=12"} {
+	for _, want := range []string{"build=13.0.2", "answer_visible=false", "silenced=no", "peer_max=0.4", "peer_heard=12"} {
 		if !strings.Contains(line, want) {
 			t.Errorf("%q is missing %q", line, want)
 		}

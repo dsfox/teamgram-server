@@ -8,11 +8,13 @@ import (
 )
 
 // Audio is what a phone says it did with sound in a call, read from the stats
-// log it sends afterwards (#288). The send bitrate tgcalls records is there
-// from every build; the "ice9" summary - microphone and peer levels, whether
-// Android silenced the recording, how the app stood when the call was
-// answered - only from builds that write it. Together they say which side
-// was not heard, where until now only the person could.
+// log it sends afterwards (#288). The "bitrate" tgcalls records is there from
+// every build, but it is the send bandwidth estimate, not the sound: it stays
+// up while the microphone gives silence, so it tells a dead transport, not a
+// silent phone. The "ice9" summary - the other side's level, whether Android
+// silenced the recording, how the app stood when the call was answered - comes
+// only from builds that write it. Whether a phone was heard is the OTHER
+// phone's peer_heard; neither engine reports a phone's own level.
 type Audio struct {
 	// Send bitrate in kbit/s, as tgcalls sampled it: how many samples, the
 	// highest, and how many were zero.
@@ -56,7 +58,7 @@ func (a Audio) String() string {
 	}
 	keys := []string{"build", "device", "sdk", "incoming", "process_ms", "answer_visible", "answer_screen_on",
 		"answer_started_service", "answer_importance", "answer_to_connect_ms", "fgs_types", "mic_granted",
-		"silenced", "samples", "mic_max", "mic_heard", "mic_first_ms", "peer_max", "peer_heard", "peer_first_ms"}
+		"silenced", "samples", "peer_max", "peer_heard", "peer_first_ms"}
 	parts := make([]string, 0, len(a.Ice9))
 	known := make(map[string]bool, len(keys))
 	for _, k := range keys {
