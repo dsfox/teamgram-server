@@ -62,7 +62,21 @@ func (c *PhoneCore) PhoneDiscardCall(in *mtproto.TLPhoneDiscardCall) (*mtproto.U
 
 	c.leaveEntry(call, reason, duration, call.Video, now)
 
-	return c.updatesFor(discarded, now), nil
+	// The one who hung up gets the call back as a full updates container, not
+	// updateShort: both clients read need_debug - and send their stats log -
+	// only from an "updates" answer to their own discardCall (#288). With the
+	// short form the phone that hung up never sent its log.
+	return c.hangUpReply(discarded, now), nil
+}
+
+// hangUpReply is the discarded call as the phone that hung up reads it.
+func (c *PhoneCore) hangUpReply(pc *mtproto.PhoneCall, now time.Time) *mtproto.Updates {
+	return mtproto.MakeTLUpdates(&mtproto.Updates{
+		Updates: []*mtproto.Update{mtproto.MakeTLUpdatePhoneCall(&mtproto.Update{PhoneCall: pc}).To_Update()},
+		Users:   []*mtproto.User{},
+		Chats:   []*mtproto.Chat{},
+		Date:    int32(now.Unix()),
+	}).To_Updates()
 }
 
 // leaveEntry writes the call into the chat of the two, from the caller: the

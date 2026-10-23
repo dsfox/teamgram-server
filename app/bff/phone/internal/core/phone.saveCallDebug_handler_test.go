@@ -16,7 +16,12 @@ func TestAHangUpAsksForTheStatsLogAndTheLogIsTaken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ended := reply.GetUpdate().GetPhoneCall()
+	// A full updates container: both clients read need_debug only from that
+	// shape, so from updateShort the phone that hung up sent nothing (#288).
+	if reply.GetPredicateName() != mtproto.Predicate_updates || len(reply.GetUpdates()) != 1 {
+		t.Fatalf("the hang-up is answered with %s of %d updates; the phone that hung up reads need_debug only from updates", reply.GetPredicateName(), len(reply.GetUpdates()))
+	}
+	ended := reply.GetUpdates()[0].GetPhoneCall()
 	if !ended.GetNeedDebug() {
 		t.Error("the one who hung up is not asked for the stats log")
 	}
