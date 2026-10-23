@@ -3,6 +3,7 @@ package calls
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -56,11 +57,25 @@ func (a Audio) String() string {
 	keys := []string{"build", "device", "sdk", "incoming", "process_ms", "answer_visible", "answer_screen_on",
 		"answer_started_service", "answer_importance", "answer_to_connect_ms", "fgs_types", "mic_granted",
 		"silenced", "samples", "mic_max", "mic_heard", "mic_first_ms", "peer_max", "peer_heard", "peer_first_ms"}
-	parts := make([]string, 0, len(keys))
+	parts := make([]string, 0, len(a.Ice9))
+	known := make(map[string]bool, len(keys))
 	for _, k := range keys {
+		known[k] = true
 		if v, ok := a.Ice9[k]; ok {
 			parts = append(parts, fmt.Sprintf("%s=%v", k, v))
 		}
+	}
+	// Whatever else a client puts in its summary is written too, sorted, so a
+	// key added on one platform is not lost on the server (iOS sends its own).
+	rest := make([]string, 0, len(a.Ice9))
+	for k := range a.Ice9 {
+		if !known[k] {
+			rest = append(rest, k)
+		}
+	}
+	sort.Strings(rest)
+	for _, k := range rest {
+		parts = append(parts, fmt.Sprintf("%s=%v", k, a.Ice9[k]))
 	}
 	return out + "; " + strings.Join(parts, " ")
 }

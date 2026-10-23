@@ -41,3 +41,16 @@ func TestSomethingElseIsNotAStatsLog(t *testing.T) {
 		t.Error("text read as a stats log")
 	}
 }
+
+func TestKeysTheServerDoesNotKnowAreWrittenToo(t *testing.T) {
+	a, _ := AudioOf([]byte(`{"bitrate":[],"ice9":{"build":"13.0 (1)","input_ports":"MicrophoneBuiltIn","audio_session_ms":412}}`))
+	line := a.String()
+	for _, want := range []string{"build=13.0 (1)", "audio_session_ms=412", "input_ports=MicrophoneBuiltIn"} {
+		if !strings.Contains(line, want) {
+			t.Errorf("%q is missing %q", line, want)
+		}
+	}
+	if strings.Index(line, "audio_session_ms") > strings.Index(line, "input_ports") {
+		t.Errorf("the unknown keys are not sorted: %q", line)
+	}
+}
