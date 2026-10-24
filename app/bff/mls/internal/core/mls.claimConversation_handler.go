@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"time"
 
 	"github.com/teamgram/proto/mtproto"
@@ -89,6 +90,19 @@ func (c *MlsCore) MlsClaimConversation(in *mtproto.TLMlsClaimConversation) (*mtp
 		} else {
 			c.Logger.Infof("mls.claimConversation - %x holds %d leaf/leaves",
 				claimed, len(in.GetHolds()))
+		}
+	}
+
+	// ice9: a device the roster holds, claiming another conversation, lost this one (#291)
+	if len(held) > 0 && !bytes.Equal(held, claimed) {
+		lost, err := c.svcCtx.Members.LostByClaim(c.ctx, c.svcCtx.Welcomes, c.svcCtx.Commits,
+			held, c.MD.UserId, c.MD.PermAuthKeyId, peerId, now)
+		if err != nil {
+			c.Logger.Errorf("mls.claimConversation - cannot tell whether %d/%d lost %x: %v",
+				c.MD.UserId, c.MD.PermAuthKeyId, held, err)
+		} else if lost {
+			c.Logger.Infof("mls.claimConversation - %d/%d is held in %x and asked for another, so it lost it: its leaf there is dead",
+				c.MD.UserId, c.MD.PermAuthKeyId, held)
 		}
 	}
 
