@@ -9620,6 +9620,8 @@
     "HashtagSearch.SearchPlaceholder": "Поиск хештегов",
     "HashtagSearch.StoriesFoundInfo": "Смотреть истории с %@",
     "HashtagSearch.ThisChat": "Этот чат",
+    "Ice9.CallCatchUpAfterPause": "Догонять разговор после паузы",
+    "Ice9.CallCatchUpAfterPauseInfo": "Если будильник или другое приложение прервёт звонок, сказанное за это время прозвучит быстрее, пока разговор не догонит. Выключено: звонок продолжается с того места, где он сейчас, с обычной скоростью.",
     "Ice9.MessageFromAnotherDevice": "🔒 Сообщение с другого устройства",
     "ImportStickerPack.AddToExistingStickerSet": "Добавить к существующему набору",
     "ImportStickerPack.CheckingLink": "проверка доступности...",
@@ -15502,5 +15504,5 @@
     "Your_cards_number_is_invalid": "Вы ввели неверный номер карты.",
     "Your_cards_security_code_is_invalid": "Вы ввели неверный код безопасности."
   },
-  "version": 21604151
+  "version": 21604152
 }
