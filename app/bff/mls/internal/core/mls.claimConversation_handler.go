@@ -103,23 +103,6 @@ func (c *MlsCore) MlsClaimConversation(in *mtproto.TLMlsClaimConversation) (*mtp
 		} else if lost {
 			c.Logger.Infof("mls.claimConversation - %d/%d is held in %x and asked for another, so it lost it: its leaf there is dead",
 				c.MD.UserId, c.MD.PermAuthKeyId, held)
-			// ice9: a chat between two nobody let the lost device back into goes to its new conversation (#291)
-			if withId != 0 && chatId != withId {
-				over, err := c.svcCtx.Members.LostLongEnough(c.ctx, held, c.MD.UserId, c.MD.PermAuthKeyId, now)
-				if err != nil {
-					c.Logger.Errorf("mls.claimConversation - cannot tell how long %d/%d has waited: %v",
-						c.MD.UserId, c.MD.PermAuthKeyId, err)
-				} else if over {
-					took, err := c.svcCtx.Conversations.HandOver(c.ctx, chatId, withId, held, claimed, now)
-					if err != nil {
-						c.Logger.Errorf("mls.claimConversation - %v", err)
-					} else if took {
-						c.Logger.Infof("mls.claimConversation - nobody let %d/%d back into %x, so %d/%d goes to %x",
-							c.MD.UserId, c.MD.PermAuthKeyId, held, chatId, withId, claimed)
-						held = claimed
-					}
-				}
-			}
 		}
 	}
 

@@ -183,21 +183,6 @@ func (s *MysqlConversations) Claim(ctx context.Context, peerId, withId int64, gr
 	return s.Of(ctx, peerId, withId)
 }
 
-// HandOver moves a chat from one conversation to another, and only if it is
-// still held by the first: two devices arriving together must not both move
-// it, which is the split the row exists to prevent (#291).
-func (s *MysqlConversations) HandOver(ctx context.Context, peerId, withId int64, from, to []byte, date int32) (bool, error) {
-	const handOver = "update mls_conversations set group_id = ?, date = ? " +
-		"where peer_id = ? and with_id = ? and group_id = ?"
-	result, err := s.db.Exec(ctx, handOver, to, date, peerId, withId, from)
-	if err != nil {
-		logx.WithContext(ctx).Errorf("mls: cannot hand over the conversation of %d/%d: %v", peerId, withId, err)
-		return false, err
-	}
-	taken, err := result.RowsAffected()
-	return err == nil && taken == 1, nil
-}
-
 // How long a device may go without asking the server anything before it is
 // taken for gone.
 //
