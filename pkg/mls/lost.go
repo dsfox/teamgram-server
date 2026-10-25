@@ -24,6 +24,24 @@ import (
 // Not while an invitation to this chat waits for the device: a phone that has
 // not read its welcome yet claims as well, and the welcome is its way in.
 
+// JustJoinedFor is how long after a device confirms a welcome its claims are
+// not taken as a loss.
+//
+// A claim the device began before it joined arrives after: on 25 October the
+// owner's iPhone asked for Edik's key packages at 13:15:25.738, confirmed the
+// welcome into the chat's conversation at .881, and its claim reached the
+// server at .965. The claim was read as "lost", and Edik's phone took the
+// freshly joined leaf out and let it in a second time. Two minutes covers any
+// claim in flight; a device that really loses a conversation that soon claims
+// again on its next send.
+const JustJoinedFor = 120
+
+// JustJoinedKey is where a device's last confirmed welcome is kept, in the KV
+// store, for JustJoinedFor seconds.
+func JustJoinedKey(userId, authKeyId int64) string {
+	return fmt.Sprintf("mls_just_joined#%d_%d", userId, authKeyId)
+}
+
 // LostByClaim writes down that this device lost groupId, when the roster holds
 // a leaf of it there and no invitation to this chat waits for it. peerId is the
 // chat as the claiming device names it, which is how its welcomes name it too.

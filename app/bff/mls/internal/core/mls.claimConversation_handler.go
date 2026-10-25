@@ -94,7 +94,18 @@ func (c *MlsCore) MlsClaimConversation(in *mtproto.TLMlsClaimConversation) (*mtp
 	}
 
 	// ice9: a device the roster holds, claiming another conversation, lost this one (#291)
-	if len(held) > 0 && !bytes.Equal(held, claimed) {
+	justJoined := false
+	if len(held) > 0 && !bytes.Equal(held, claimed) && c.svcCtx.Store != nil {
+		if mark, err := c.svcCtx.Store.GetCtx(c.ctx, mls.JustJoinedKey(c.MD.UserId, c.MD.PermAuthKeyId)); err != nil {
+			c.Logger.Errorf("mls.claimConversation - cannot tell whether %d/%d just joined: %v",
+				c.MD.UserId, c.MD.PermAuthKeyId, err)
+		} else if mark != "" {
+			justJoined = true
+			c.Logger.Infof("mls.claimConversation - %d/%d confirmed a welcome a moment ago; a claim begun before that is not a loss",
+				c.MD.UserId, c.MD.PermAuthKeyId)
+		}
+	}
+	if len(held) > 0 && !bytes.Equal(held, claimed) && !justJoined {
 		lost, err := c.svcCtx.Members.LostByClaim(c.ctx, c.svcCtx.Welcomes, c.svcCtx.Commits,
 			held, c.MD.UserId, c.MD.PermAuthKeyId, peerId, now)
 		if err != nil {

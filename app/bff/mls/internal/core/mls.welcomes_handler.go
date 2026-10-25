@@ -118,6 +118,15 @@ func (c *MlsCore) MlsConfirmWelcomes(in *mtproto.TLMlsConfirmWelcomes) (*mtproto
 		return nil, mtproto.ErrInternalServerError
 	}
 
+	// A claim this device began before joining may still be on its way (#291).
+	if confirmed > 0 && c.svcCtx.Store != nil {
+		key := mls.JustJoinedKey(c.MD.UserId, c.MD.PermAuthKeyId)
+		if err := c.svcCtx.Store.SetexCtx(c.ctx, key, "1", mls.JustJoinedFor); err != nil {
+			c.Logger.Errorf("mls.confirmWelcomes - cannot note that %d/%d just joined: %v",
+				c.MD.UserId, c.MD.PermAuthKeyId, err)
+		}
+	}
+
 	c.Logger.Infof("mls.confirmWelcomes - %d forgotten", confirmed)
 	return &mtproto.Mls_Ok{Ok: true}, nil
 }
