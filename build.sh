@@ -81,6 +81,10 @@ echo "build forgetsaved ..."
 cd ${ROOT}/cmd/forgetsaved
 go build -ldflags="-s -w" -o ${INSTALL}/bin/forgetsaved
 
+echo "build forgetdeleted ..."
+cd ${ROOT}/cmd/forgetdeleted
+go build -ldflags="-s -w" -o ${INSTALL}/bin/forgetdeleted
+
 # Apple as the stand sees it: the stand's relay sends here (#188). Built into
 # the image the stand runs; build-linux.sh, which ships the live server, leaves
 # it out.

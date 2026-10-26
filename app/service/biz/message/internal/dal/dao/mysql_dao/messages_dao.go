@@ -21,6 +21,7 @@ import (
 
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
 	"github.com/teamgram/teamgram-server/app/service/biz/message/internal/dal/dataobject"
+	"github.com/teamgram/teamgram-server/pkg/deletion"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
@@ -774,22 +775,10 @@ func (dao *MessagesDAO) DeleteMessagesByMessageIdList(ctx context.Context, userI
 		return
 	}
 
-	var (
-		query   string
-		rResult sql.Result
-	)
-	query = fmt.Sprintf(strings.Replace("update __TABLE__ set deleted = 1 where user_id = ? and user_message_box_id in (%s) and deleted = 0", "__TABLE__", dao.CalcTableName(userId), -1), sqlx.InInt32List(idList))
-
-	rResult, err = dao.db.Exec(ctx, query, userId)
-
+	// ice9: the rows go, and their copies in user_pts_updates and reactions with them (#220)
+	rowsAffected, err = deletion.Forget(func(q string, args ...interface{}) (sql.Result, error) { return dao.db.Exec(ctx, q, args...) }, dao.CalcTableName(userId), userId, idList)
 	if err != nil {
 		logx.WithContext(ctx).Errorf("exec in DeleteMessagesByMessageIdList(_), error: %v", err)
-		return
-	}
-
-	rowsAffected, err = rResult.RowsAffected()
-	if err != nil {
-		logx.WithContext(ctx).Errorf("rowsAffected in DeleteMessagesByMessageIdList(_), error: %v", err)
 	}
 
 	return
@@ -802,22 +791,10 @@ func (dao *MessagesDAO) DeleteMessagesByMessageIdListTx(tx *sqlx.Tx, userId int6
 	if len(idList) == 0 {
 		return
 	}
-	var (
-		query   string
-		rResult sql.Result
-	)
-	query = fmt.Sprintf(strings.Replace("update __TABLE__ set deleted = 1 where user_id = ? and user_message_box_id in (%s) and deleted = 0", "__TABLE__", dao.CalcTableName(userId), -1), sqlx.InInt32List(idList))
-
-	rResult, err = tx.Exec(query, userId)
-
+	// ice9: the rows go, and their copies in user_pts_updates and reactions with them (#220)
+	rowsAffected, err = deletion.Forget(tx.Exec, dao.CalcTableName(userId), userId, idList)
 	if err != nil {
 		logx.WithContext(tx.Context()).Errorf("exec in DeleteMessagesByMessageIdList(_), error: %v", err)
-		return
-	}
-
-	rowsAffected, err = rResult.RowsAffected()
-	if err != nil {
-		logx.WithContext(tx.Context()).Errorf("rowsAffected in DeleteMessagesByMessageIdList(_), error: %v", err)
 	}
 
 	return
