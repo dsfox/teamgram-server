@@ -17,11 +17,12 @@ in a log line.
 bodies from go-zero's stat interceptor, which logs every call's content at info
 - sign-in numbers and whole address books among them. The stand keeps debug.
 
---ice9-key puts ice9's own MTProto key in front of teamgram's stock one (#242).
-The stock key's private half is public, so anybody could be the server to a
-client that knew only it; ours lives in secrets and is mounted at the path
-below. The stock key stays second for clients installed before the switch.
-Only our servers take the flag: the public image has no such secret to mount.
+--ice9-key makes ice9's own MTProto key the one our servers offer (#242), in
+place of teamgram's stock one. The stock key's private half is public, so
+anybody could be the server to a client that knew only it; ours lives in
+secrets and is mounted at the path below. The stock key was kept second for
+clients installed before the switch until 26 October (#243). Only our servers
+take the flag: the public image has no such secret to mount.
 
 --own-key puts the server's own key first (#244): /app/secrets/server_rsa.key,
 which install.sh makes once per installed server, with no fingerprint - gnetway
@@ -123,10 +124,13 @@ LOG_LEVEL = re.compile(r"^(?P<indent>[ ]+)Level:[ ]*\w+[ ]*$", re.M)
 ICE9_KEY = ('  - KeyFile: "/app/secrets/ice9_server_rsa.key"\n'
             '    KeyFingerprint: "9317290418914058974"\n')
 RSA_KEY_LIST = re.compile(r"^RSAKey:\n", re.M)
+# The list with its entries, which are indented under it.
+RSA_KEY_ENTRIES = re.compile(r"^RSAKey:\n(?:  .*\n)+", re.M)
 
 
 def ice9_key(text: str) -> str:
-    return RSA_KEY_LIST.sub(lambda m: m.group(0) + ICE9_KEY, text, count=1)
+    """Ours alone: the stock entry etc2 carries goes (#243)."""
+    return RSA_KEY_ENTRIES.sub(lambda m: "RSAKey:\n" + ICE9_KEY, text, count=1)
 
 
 OWN_KEY = '  - KeyFile: "/app/secrets/server_rsa.key"\n'
