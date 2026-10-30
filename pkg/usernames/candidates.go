@@ -27,7 +27,21 @@ var shape = regexp.MustCompile(`^[a-z][a-z0-9_]{4,31}$`)
 
 // Valid says whether name can be somebody's username.
 func Valid(name string) bool {
-	return shape.MatchString(name) && !strings.Contains(name, "__") && !strings.HasSuffix(name, "_")
+	return shape.MatchString(name) && !strings.Contains(name, "__") && !strings.HasSuffix(name, "_") && !Reserved(name)
+}
+
+// The paths of i.ice9.app that are pages of their own rather than a person:
+// /server is the page a server of one's own is handed on by (#244), so a
+// person called @server could never be reached by link (#245). Every other
+// path of the link host is shorter than five letters or starts with a dot.
+var reserved = map[string]bool{
+	"server": true,
+}
+
+// Reserved says whether name is kept for a page of the link host. Usernames
+// are compared without regard to case, as the server stores them.
+func Reserved(name string) bool {
+	return reserved[strings.ToLower(name)]
 }
 
 // Steps are the names tried before any counter, in order: the first name, the

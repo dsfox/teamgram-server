@@ -24,6 +24,7 @@ import (
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/app/messenger/sync/sync"
 	userpb "github.com/teamgram/teamgram-server/app/service/biz/user/user"
+	"github.com/teamgram/teamgram-server/pkg/usernames"
 )
 
 // AccountUpdateUsername
@@ -91,7 +92,8 @@ func (c *UsernamesCore) updateUsername(userId int64, from, username2 string) err
 	if username2 != "" {
 		if len(username2) < userpb.MinUsernameLen ||
 			!strings2.IsAlNumString(username2) ||
-			utils.IsNumber(username2[0]) {
+			utils.IsNumber(username2[0]) ||
+			usernames.Reserved(username2) {
 			err := mtproto.ErrUsernameInvalid
 			c.Logger.Errorf("account.updateUsername - format error: %v", err)
 			return err

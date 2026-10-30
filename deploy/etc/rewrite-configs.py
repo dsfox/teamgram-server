@@ -27,9 +27,10 @@ take the flag: the public image has no such secret to mount.
 --own-key puts the server's own key first (#244): /app/secrets/server_rsa.key,
 which install.sh makes once per installed server, with no fingerprint - gnetway
 works it out, and `GET /key` hands that key to an app given the server's code.
-A server installed before #244 has no such file; gnetway passes over it and
-offers the stock key alone. The public image and the stand take this flag; our
-own live server does not.
+The stock key goes from the list (#245): no app knows it since #243, and its
+private half is public. A server installed before #244 has no key of its own,
+so gnetway says to run install.sh again and stops. The public image and the
+stand take this flag; our own live server does not.
 
 Usage: python3 deploy/etc/rewrite-configs.py <source> <output> [--telemetry host:port] [--production] [--ice9-key] [--own-key]
 """
@@ -136,8 +137,20 @@ def ice9_key(text: str) -> str:
 OWN_KEY = '  - KeyFile: "/app/secrets/server_rsa.key"\n'
 
 
+STOCK_FINGERPRINT = "12240908862933197005"
+# One entry of the list: the dash line and the lines indented under it.
+RSA_KEY_ENTRY = re.compile(r"^  - [^\n]*\n(?:    [^\n]*\n)*", re.M)
+
+
 def own_key(text: str) -> str:
-    return RSA_KEY_LIST.sub(lambda m: m.group(0) + OWN_KEY, text, count=1)
+    """The server's own key first, and the stock one gone: no app knows it any
+    more (#243), and its private half is public, so offering it only lets
+    somebody else be this server (#245)."""
+    def entries(match):
+        kept = [entry for entry in RSA_KEY_ENTRY.findall(match.group(0))
+                if f'KeyFingerprint: "{STOCK_FINGERPRINT}"' not in entry]
+        return "RSAKey:\n" + OWN_KEY + "".join(kept)
+    return RSA_KEY_ENTRIES.sub(entries, text, count=1)
 
 
 def production(text: str) -> str:

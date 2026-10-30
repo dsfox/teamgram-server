@@ -35,6 +35,9 @@ type readWrite struct {
 	io.Writer
 }
 
+// ice9: whether the handshake is done, so a plain GET /key can be told apart before it (#245)
+func (w *WsCodec) Upgraded() bool { return w.upgraded }
+
 func (w *WsCodec) Upgrade(c gnet.Conn) (ok bool, action gnet.Action) {
 	if w.upgraded {
 		ok = true

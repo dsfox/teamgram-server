@@ -257,6 +257,81 @@ func ice9FakeAnswer(ctx context.Context, md *metadata.RpcMetadata, object mtprot
 			Users: []*mtproto.User{},
 		}).To_Stories_PeerStories(), nil
 
+	// Doors that are shut in the apps and asked for anyway: the sticker
+	// search behind the emoji panel, a story archive, whether a story may be
+	// sent, who a group call joins as. Each was a licence refusal the health
+	// check counted as an alarm (30 October: 40 in fifteen minutes from one
+	// phone typing into the emoji search). Nothing is there, and an empty
+	// answer says so (#294).
+	case "TLMessagesSearchEmojiStickerSets":
+		return mtproto.MakeTLMessagesFoundStickerSets(&mtproto.Messages_FoundStickerSets{
+			Hash: 0,
+			Sets: []*mtproto.StickerSetCovered{},
+		}).To_Messages_FoundStickerSets(), nil
+
+	case "TLMessagesSearchStickers":
+		return mtproto.MakeTLMessagesFoundStickers(&mtproto.Messages_FoundStickers{
+			Hash:     0,
+			Stickers: []*mtproto.Document{},
+		}).To_Messages_FoundStickers(), nil
+
+	case "TLStoriesGetStoriesArchive":
+		return mtproto.MakeTLStoriesStories(&mtproto.Stories_Stories{
+			Count:   0,
+			Stories: []*mtproto.StoryItem{},
+			Chats:   []*mtproto.Chat{},
+			Users:   []*mtproto.User{},
+		}).To_Stories_Stories(), nil
+
+	case "TLStoriesCanSendStory30EB63F0":
+		return mtproto.MakeTLStoriesCanSendStoryCount(&mtproto.Stories_CanSendStoryCount{
+			CountRemains: 0,
+		}).To_Stories_CanSendStoryCount(), nil
+
+	case "TLStoriesCanSendStoryC7DFDFDD", "TLStoriesCanSendStoryB100D45D":
+		return mtproto.BoolFalse, nil
+
+	case "TLPhoneGetGroupCallJoinAs":
+		return mtproto.MakeTLPhoneJoinAsPeers(&mtproto.Phone_JoinAsPeers{
+			Peers: []*mtproto.Peer{},
+			Chats: []*mtproto.Chat{},
+			Users: []*mtproto.User{},
+		}).To_Phone_JoinAsPeers(), nil
+
+	// A wallpaper by reference is one we never handed out; the client asked
+	// for a thing that does not exist, which is the error its own type has.
+	case "TLAccountGetWallPaper":
+		return nil, mtproto.ErrWallpaperInvalid
+
+	// Choosing a wallpaper is kept on the phone; the server has nothing to
+	// remember it in.
+	case "TLAccountInstallWallPaper":
+		return mtproto.BoolTrue, nil
+
+	// The link preview while typing. A preview would mean the server fetching
+	// what the person is writing, so there is none, said the way Telegram
+	// says it for text without a link.
+	case "TLMessagesGetWebPagePreview570D6F6F":
+		return mtproto.MakeTLMessagesWebPagePreview(&mtproto.Messages_WebPagePreview{
+			Media: mtproto.MakeTLMessageMediaEmpty(nil).To_MessageMedia(),
+			Chats: []*mtproto.Chat{},
+			Users: []*mtproto.User{},
+		}).To_Messages_WebPagePreview(), nil
+
+	case "TLMessagesGetCustomEmojiDocuments":
+		return &mtproto.Vector_Document{Datas: []*mtproto.Document{}}, nil
+
+	// Reaction notification settings are not stored (the getter above answers
+	// the defaults); what the phone sets is what it keeps.
+	case "TLAccountSetReactionsNotifySettings":
+		if settings := object.(*mtproto.TLAccountSetReactionsNotifySettings).GetSettings(); settings != nil {
+			return settings, nil
+		}
+		return mtproto.MakeTLReactionsNotifySettings(&mtproto.ReactionsNotifySettings{
+			Sound:        mtproto.MakeTLNotificationSoundDefault(nil).To_NotificationSound(),
+			ShowPreviews: mtproto.BoolTrue,
+		}).To_ReactionsNotifySettings(), nil
+
 	case "TLStoriesGetPinnedStories":
 		return mtproto.MakeTLStoriesStories(&mtproto.Stories_Stories{
 			Count:   0,

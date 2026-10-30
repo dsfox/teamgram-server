@@ -21,6 +21,20 @@ func (s *Server) onWebsocketData(ctx *connContext, c gnet.Conn) (action gnet.Act
 	if ws.ReadBufferBytes(c) == gnet.Close {
 		return gnet.Close
 	}
+	// ice9: GET /key answers here as on the TCP ports, before any upgrade (#245)
+	if !ws.Upgraded() {
+		switch askedForKey(ws.Buf.Bytes()) {
+		case keyPartial:
+			return gnet.None
+		case keyWhole:
+			if _, err := c.Write(s.handshake.keyAnswer); err != nil {
+				logx.Errorf("conn(%s) GET /key could not be answered: %v", c, err)
+			}
+			return gnet.Close
+		case keyTooLong:
+			return gnet.Close
+		}
+	}
 	ok, action := ws.Upgrade(c)
 	if !ok {
 		return

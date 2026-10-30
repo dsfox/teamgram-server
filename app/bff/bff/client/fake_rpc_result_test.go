@@ -93,6 +93,17 @@ func stubRequests() []mtproto.TLObject {
 		&mtproto.TLStoriesGetAllStories{},
 		&mtproto.TLStoriesGetPeerStories{},
 		&mtproto.TLStoriesGetPinnedStories{},
+		&mtproto.TLMessagesSearchEmojiStickerSets{},
+		&mtproto.TLMessagesSearchStickers{},
+		&mtproto.TLStoriesGetStoriesArchive{},
+		&mtproto.TLStoriesCanSendStory30EB63F0{},
+		&mtproto.TLStoriesCanSendStoryC7DFDFDD{},
+		&mtproto.TLStoriesCanSendStoryB100D45D{},
+		&mtproto.TLPhoneGetGroupCallJoinAs{},
+		&mtproto.TLAccountInstallWallPaper{},
+		&mtproto.TLMessagesGetWebPagePreview570D6F6F{},
+		&mtproto.TLMessagesGetCustomEmojiDocuments{},
+		&mtproto.TLAccountSetReactionsNotifySettings{},
 		&mtproto.TLStoriesGetAlbums{},
 		&mtproto.TLStoriesGetAllReadPeerStories{},
 		&mtproto.TLMessagesGetAttachMenuBots{},
@@ -209,7 +220,7 @@ func TestEveryStubIsCovered(t *testing.T) {
 		// other thirteen, one of which was answering with the wrong type entirely.
 		for _, m := range regexp.MustCompile(`"(TL[A-Za-z0-9]+)"`).FindAllStringSubmatch(string(source), -1) {
 			name := m[1]
-			if covered[name] || answeredByAService[name] {
+			if covered[name] || answeredByAService[name] || refusedOnPurpose[name] != nil {
 				continue
 			}
 			if _, known := registered[name]; !known {
@@ -228,6 +239,29 @@ var answeredByAService = map[string]bool{
 	"TLAccountGetChatThemes":          true,
 	"TLMessagesGetAvailableReactions": true,
 	"TLAccountGetAuthorizations":      true,
+}
+
+// Stubs whose answer is an error of the method's own kind, not a refusal for
+// want of a licence: the thing asked for does not exist here.
+var refusedOnPurpose = map[string]error{
+	"TLAccountGetWallPaper": mtproto.ErrWallpaperInvalid,
+}
+
+func TestARefusalOnPurposeIsTheMethodsOwnError(t *testing.T) {
+	var proxy *BFFProxyClient
+	requests := map[string]mtproto.TLObject{
+		"TLAccountGetWallPaper": &mtproto.TLAccountGetWallPaper{},
+	}
+	for name, want := range refusedOnPurpose {
+		request, ok := requests[name]
+		if !ok {
+			t.Fatalf("%s is refused on purpose and nothing here asks for it", name)
+		}
+		_, err := proxy.TryReturnFakeRpcResult(context.Background(), nil, request)
+		if err != want {
+			t.Errorf("%s answered %v, want %v", name, err, want)
+		}
+	}
 }
 
 func typeName(o mtproto.TLObject) string {

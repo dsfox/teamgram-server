@@ -23,6 +23,7 @@ import (
 	"github.com/teamgram/marmota/pkg/utils"
 	"github.com/teamgram/proto/mtproto"
 	"github.com/teamgram/teamgram-server/app/service/biz/user/user"
+	"github.com/teamgram/teamgram-server/pkg/usernames"
 )
 
 // AccountCheckUsername
@@ -39,7 +40,8 @@ func (c *UsernamesCore) AccountCheckUsername(in *mtproto.TLAccountCheckUsername)
 	//
 	if len(in.Username) < user.MinUsernameLen ||
 		!strings2.IsAlNumString(in.Username) ||
-		utils.IsNumber(in.Username[0]) {
+		utils.IsNumber(in.Username[0]) ||
+		usernames.Reserved(in.Username) {
 		err := mtproto.ErrUsernameInvalid
 		c.Logger.Errorf("account.checkUsername#2714d86c - format error: %v", err)
 		return nil, err

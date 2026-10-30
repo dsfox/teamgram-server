@@ -215,6 +215,11 @@ def say_code(address: str, port: int, offered: list) -> int:
         print(f"REFUSED KEY: {refused}")
         return 1
     served = fingerprint(check_own_key(der), 65537)
+    # A server with a key of its own has no reason to offer the stock one,
+    # whose private half is public: an image that still did went unseen (#245).
+    if STOCK_FINGERPRINT in offered:
+        print(f"STOCK KEY OFFERED: the handshake still lists {STOCK_FINGERPRINT}, whose private half is public")
+        return 1
     if not offered or offered[0] != served:
         print(f"WRONG KEY: GET /key hands out {served}, but the handshake offers {offered[0] if offered else 'nothing'} first")
         return 1

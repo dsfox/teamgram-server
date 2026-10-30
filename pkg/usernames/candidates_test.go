@@ -101,6 +101,8 @@ func TestValid(t *testing.T) {
 		"alice": true, "bob10": true, "a_b_c": true,
 		"bob": false, "1alice": false, "alice_": false, "al__ce": false,
 		"Alice": false, strings.Repeat("a", 32): true, strings.Repeat("a", 33): false,
+		// The link host's server page (#245); a person called this is unreachable by link.
+		"server": false, "servers": true,
 	} {
 		if got := Valid(name); got != want {
 			t.Errorf("Valid(%q) = %v, want %v", name, got, want)

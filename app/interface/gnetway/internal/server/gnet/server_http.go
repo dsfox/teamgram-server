@@ -57,6 +57,14 @@ func (s *Server) onHttpData(ctx *connContext, c gnet.Conn) gnet.Action {
 		return gnet.None
 	}
 
+	// ice9: GET /key answers here as on the TCP ports (#245)
+	if method == "GET" && path == "/key" {
+		if _, err := c.Write(s.handshake.keyAnswer); err != nil {
+			logx.Errorf("conn(%s) GET /key could not be answered: %v", c, err)
+		}
+		return gnet.Close
+	}
+
 	// Validate method
 	if method != "POST" {
 		_, _ = c.Write(httpcodec.FormatErrorResponse(405, "Method Not Allowed"))
