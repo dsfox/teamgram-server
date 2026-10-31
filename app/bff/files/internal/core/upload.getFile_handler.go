@@ -134,6 +134,9 @@ func (c *FilesCore) UploadGetFile(in *mtproto.TLUploadGetFile) (*mtproto.Upload_
 		// err = mtproto.ErrOffsetInvalid
 		return nil, err
 	}
+	if answeredNothing(uploadFile, offset) { // ice9: say who asked for a file that is not there (#295)
+		c.Logger.Infof("%s", missingFileLine(c.MD.UserId, c.MD.Client, c.MD.Layer, location, offset, limit))
+	}
 	if uploadFile.GetType().GetPredicateName() == mtproto.Predicate_storage_fileUnknown {
 		uploadFile.Type.PredicateName = mtproto.Predicate_storage_filePartial
 	}
