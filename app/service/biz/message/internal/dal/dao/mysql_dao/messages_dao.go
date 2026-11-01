@@ -1043,14 +1043,15 @@ func (dao *MessagesDAO) SelectPhoneCallListWithCB(ctx context.Context, userId in
 	return
 }
 
+// ice9: ciphertext is never matched, the words are only on the phones
 // Search
-// select user_id, user_message_box_id, dialog_id1, dialog_id2, dialog_message_id, sender_user_id, peer_type, peer_id, random_id, message_filter_type, message_data, message, mentioned, media_unread, pinned, has_reaction, reaction, reaction_date, reaction_unread, saved_peer_type, saved_peer_id, date2, ttl_period from messages where user_id = :user_id and (dialog_id1 = :dialog_id1 and dialog_id2 = :dialog_id2) and user_message_box_id < :user_message_box_id and deleted = 0 and message != ” and message like :q2 order by user_message_box_id desc limit :limit
+// select user_id, user_message_box_id, dialog_id1, dialog_id2, dialog_message_id, sender_user_id, peer_type, peer_id, random_id, message_filter_type, message_data, message, mentioned, media_unread, pinned, has_reaction, reaction, reaction_date, reaction_unread, saved_peer_type, saved_peer_id, date2, ttl_period from messages where user_id = :user_id and (dialog_id1 = :dialog_id1 and dialog_id2 = :dialog_id2) and user_message_box_id < :user_message_box_id and deleted = 0 and message != ” and message not like 'mls1:%' and message like :q2 order by user_message_box_id desc limit :limit
 func (dao *MessagesDAO) Search(ctx context.Context, userId int64, dialogId1 int64, dialogId2 int64, userMessageBoxId int32, q2 string, limit int32) (rList []dataobject.MessagesDO, err error) {
 	var (
 		query  string
 		values []dataobject.MessagesDO
 	)
-	query = strings.Replace("select user_id, user_message_box_id, dialog_id1, dialog_id2, dialog_message_id, sender_user_id, peer_type, peer_id, random_id, message_filter_type, message_data, message, mentioned, media_unread, pinned, has_reaction, reaction, reaction_date, reaction_unread, saved_peer_type, saved_peer_id, date2, ttl_period from __TABLE__ where user_id = ? and (dialog_id1 = ? and dialog_id2 = ?) and user_message_box_id < ? and deleted = 0 and message != '' and message like ? order by user_message_box_id desc limit ?", "__TABLE__", dao.CalcTableName(userId), -1)
+	query = strings.Replace("select user_id, user_message_box_id, dialog_id1, dialog_id2, dialog_message_id, sender_user_id, peer_type, peer_id, random_id, message_filter_type, message_data, message, mentioned, media_unread, pinned, has_reaction, reaction, reaction_date, reaction_unread, saved_peer_type, saved_peer_id, date2, ttl_period from __TABLE__ where user_id = ? and (dialog_id1 = ? and dialog_id2 = ?) and user_message_box_id < ? and deleted = 0 and message != '' and message not like 'mls1:%' and message like ? order by user_message_box_id desc limit ?", "__TABLE__", dao.CalcTableName(userId), -1)
 
 	err = dao.db.QueryRowsPartial(ctx, &values, query, userId, dialogId1, dialogId2, userMessageBoxId, q2, limit)
 
@@ -1065,13 +1066,13 @@ func (dao *MessagesDAO) Search(ctx context.Context, userId int64, dialogId1 int6
 }
 
 // SearchWithCB
-// select user_id, user_message_box_id, dialog_id1, dialog_id2, dialog_message_id, sender_user_id, peer_type, peer_id, random_id, message_filter_type, message_data, message, mentioned, media_unread, pinned, has_reaction, reaction, reaction_date, reaction_unread, saved_peer_type, saved_peer_id, date2, ttl_period from messages where user_id = :user_id and (dialog_id1 = :dialog_id1 and dialog_id2 = :dialog_id2) and user_message_box_id < :user_message_box_id and deleted = 0 and message != ” and message like :q2 order by user_message_box_id desc limit :limit
+// select user_id, user_message_box_id, dialog_id1, dialog_id2, dialog_message_id, sender_user_id, peer_type, peer_id, random_id, message_filter_type, message_data, message, mentioned, media_unread, pinned, has_reaction, reaction, reaction_date, reaction_unread, saved_peer_type, saved_peer_id, date2, ttl_period from messages where user_id = :user_id and (dialog_id1 = :dialog_id1 and dialog_id2 = :dialog_id2) and user_message_box_id < :user_message_box_id and deleted = 0 and message != ” and message not like 'mls1:%' and message like :q2 order by user_message_box_id desc limit :limit
 func (dao *MessagesDAO) SearchWithCB(ctx context.Context, userId int64, dialogId1 int64, dialogId2 int64, userMessageBoxId int32, q2 string, limit int32, cb func(sz, i int, v *dataobject.MessagesDO)) (rList []dataobject.MessagesDO, err error) {
 	var (
 		query  string
 		values []dataobject.MessagesDO
 	)
-	query = strings.Replace("select user_id, user_message_box_id, dialog_id1, dialog_id2, dialog_message_id, sender_user_id, peer_type, peer_id, random_id, message_filter_type, message_data, message, mentioned, media_unread, pinned, has_reaction, reaction, reaction_date, reaction_unread, saved_peer_type, saved_peer_id, date2, ttl_period from __TABLE__ where user_id = ? and (dialog_id1 = ? and dialog_id2 = ?) and user_message_box_id < ? and deleted = 0 and message != '' and message like ? order by user_message_box_id desc limit ?", "__TABLE__", dao.CalcTableName(userId), -1)
+	query = strings.Replace("select user_id, user_message_box_id, dialog_id1, dialog_id2, dialog_message_id, sender_user_id, peer_type, peer_id, random_id, message_filter_type, message_data, message, mentioned, media_unread, pinned, has_reaction, reaction, reaction_date, reaction_unread, saved_peer_type, saved_peer_id, date2, ttl_period from __TABLE__ where user_id = ? and (dialog_id1 = ? and dialog_id2 = ?) and user_message_box_id < ? and deleted = 0 and message != '' and message not like 'mls1:%' and message like ? order by user_message_box_id desc limit ?", "__TABLE__", dao.CalcTableName(userId), -1)
 
 	err = dao.db.QueryRowsPartial(ctx, &values, query, userId, dialogId1, dialogId2, userMessageBoxId, q2, limit)
 
@@ -1093,13 +1094,13 @@ func (dao *MessagesDAO) SearchWithCB(ctx context.Context, userId int64, dialogId
 }
 
 // SearchGlobal
-// select user_id, user_message_box_id, dialog_id1, dialog_id2, dialog_message_id, sender_user_id, peer_type, peer_id, random_id, message_filter_type, message_data, message, mentioned, media_unread, pinned, has_reaction, reaction, reaction_date, reaction_unread, saved_peer_type, saved_peer_id, date2, ttl_period from messages where user_id = :user_id and user_message_box_id < :user_message_box_id and deleted = 0 and message != ” and message like :q2 order by user_message_box_id desc limit :limit
+// select user_id, user_message_box_id, dialog_id1, dialog_id2, dialog_message_id, sender_user_id, peer_type, peer_id, random_id, message_filter_type, message_data, message, mentioned, media_unread, pinned, has_reaction, reaction, reaction_date, reaction_unread, saved_peer_type, saved_peer_id, date2, ttl_period from messages where user_id = :user_id and user_message_box_id < :user_message_box_id and deleted = 0 and message != ” and message not like 'mls1:%' and message like :q2 order by user_message_box_id desc limit :limit
 func (dao *MessagesDAO) SearchGlobal(ctx context.Context, userId int64, userMessageBoxId int32, q2 string, limit int32) (rList []dataobject.MessagesDO, err error) {
 	var (
 		query  string
 		values []dataobject.MessagesDO
 	)
-	query = strings.Replace("select user_id, user_message_box_id, dialog_id1, dialog_id2, dialog_message_id, sender_user_id, peer_type, peer_id, random_id, message_filter_type, message_data, message, mentioned, media_unread, pinned, has_reaction, reaction, reaction_date, reaction_unread, saved_peer_type, saved_peer_id, date2, ttl_period from __TABLE__ where user_id = ? and user_message_box_id < ? and deleted = 0 and message != '' and message like ? order by user_message_box_id desc limit ?", "__TABLE__", dao.CalcTableName(userId), -1)
+	query = strings.Replace("select user_id, user_message_box_id, dialog_id1, dialog_id2, dialog_message_id, sender_user_id, peer_type, peer_id, random_id, message_filter_type, message_data, message, mentioned, media_unread, pinned, has_reaction, reaction, reaction_date, reaction_unread, saved_peer_type, saved_peer_id, date2, ttl_period from __TABLE__ where user_id = ? and user_message_box_id < ? and deleted = 0 and message != '' and message not like 'mls1:%' and message like ? order by user_message_box_id desc limit ?", "__TABLE__", dao.CalcTableName(userId), -1)
 
 	err = dao.db.QueryRowsPartial(ctx, &values, query, userId, userMessageBoxId, q2, limit)
 
@@ -1114,13 +1115,13 @@ func (dao *MessagesDAO) SearchGlobal(ctx context.Context, userId int64, userMess
 }
 
 // SearchGlobalWithCB
-// select user_id, user_message_box_id, dialog_id1, dialog_id2, dialog_message_id, sender_user_id, peer_type, peer_id, random_id, message_filter_type, message_data, message, mentioned, media_unread, pinned, has_reaction, reaction, reaction_date, reaction_unread, saved_peer_type, saved_peer_id, date2, ttl_period from messages where user_id = :user_id and user_message_box_id < :user_message_box_id and deleted = 0 and message != ” and message like :q2 order by user_message_box_id desc limit :limit
+// select user_id, user_message_box_id, dialog_id1, dialog_id2, dialog_message_id, sender_user_id, peer_type, peer_id, random_id, message_filter_type, message_data, message, mentioned, media_unread, pinned, has_reaction, reaction, reaction_date, reaction_unread, saved_peer_type, saved_peer_id, date2, ttl_period from messages where user_id = :user_id and user_message_box_id < :user_message_box_id and deleted = 0 and message != ” and message not like 'mls1:%' and message like :q2 order by user_message_box_id desc limit :limit
 func (dao *MessagesDAO) SearchGlobalWithCB(ctx context.Context, userId int64, userMessageBoxId int32, q2 string, limit int32, cb func(sz, i int, v *dataobject.MessagesDO)) (rList []dataobject.MessagesDO, err error) {
 	var (
 		query  string
 		values []dataobject.MessagesDO
 	)
-	query = strings.Replace("select user_id, user_message_box_id, dialog_id1, dialog_id2, dialog_message_id, sender_user_id, peer_type, peer_id, random_id, message_filter_type, message_data, message, mentioned, media_unread, pinned, has_reaction, reaction, reaction_date, reaction_unread, saved_peer_type, saved_peer_id, date2, ttl_period from __TABLE__ where user_id = ? and user_message_box_id < ? and deleted = 0 and message != '' and message like ? order by user_message_box_id desc limit ?", "__TABLE__", dao.CalcTableName(userId), -1)
+	query = strings.Replace("select user_id, user_message_box_id, dialog_id1, dialog_id2, dialog_message_id, sender_user_id, peer_type, peer_id, random_id, message_filter_type, message_data, message, mentioned, media_unread, pinned, has_reaction, reaction, reaction_date, reaction_unread, saved_peer_type, saved_peer_id, date2, ttl_period from __TABLE__ where user_id = ? and user_message_box_id < ? and deleted = 0 and message != '' and message not like 'mls1:%' and message like ? order by user_message_box_id desc limit ?", "__TABLE__", dao.CalcTableName(userId), -1)
 
 	err = dao.db.QueryRowsPartial(ctx, &values, query, userId, userMessageBoxId, q2, limit)
 
