@@ -58,6 +58,18 @@
    "code": "138485278689309020570713"
   },
   {
+   "link": "https://ice9.ru/server#talk.example.org:10443/138485278689309020570713",
+   "host": "talk.example.org",
+   "port": 10443,
+   "code": "138485278689309020570713"
+  },
+  {
+   "link": "HTTPS://ICE9.RU/server#203.0.113.7:10444",
+   "host": "203.0.113.7",
+   "port": 10444,
+   "code": ""
+  },
+  {
    "link": "HTTPS://I.ICE9.APP/server#talk.example.org:10443",
    "host": "talk.example.org",
    "port": 10443,
@@ -102,6 +114,14 @@
   {
    "link": "https://i.ice9.app/alice",
    "other": true
+  },
+  {
+   "link": "https://ice9.ru.evil.example/server#talk.example.org:10443",
+   "other": true
+  },
+  {
+   "link": "https://ice9.ru/privacy",
+   "other": true
   }
  ],
  "typed": [
@@ -134,12 +154,35 @@
    "digits": null
   },
   {
-   "typed": "\u0661\u0663\u0668\u0664 8527 8689 3090 2057 0713",
+   "typed": "١٣٨٤ 8527 8689 3090 2057 0713",
    "digits": null
   },
   {
    "typed": "1384x8527",
    "digits": null
+  }
+ ],
+ "made": [
+  {
+   "host": "talk.example.org",
+   "port": 10443,
+   "code": "138485278689309020570713",
+   "russian": false,
+   "link": "https://i.ice9.app/server#talk.example.org:10443/138485278689309020570713"
+  },
+  {
+   "host": "203.0.113.7",
+   "port": 10444,
+   "code": "062092320587167923146172",
+   "russian": true,
+   "link": "https://ice9.ru/server#203.0.113.7:10444/062092320587167923146172"
+  },
+  {
+   "host": "talk.example.org",
+   "port": 10443,
+   "code": "",
+   "russian": true,
+   "link": "https://ice9.ru/server#talk.example.org:10443"
   }
  ]
 }

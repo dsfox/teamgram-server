@@ -9062,6 +9062,8 @@
   "Ice9ServerOwnKey": "свой ключ",
   "Ice9ServerOwnKeyNeedsCode": "У этого сервера свой ключ. Если это ваш сервер, впишите его код — установщик напечатал его рядом с адресом.",
   "Ice9ServerSameServer": "Это устройство уже говорит с этим сервером.",
+  "Ice9ServerShare": "Поделиться сервером",
+  "Ice9ServerShareInfo": "Ссылка и QR-код, по которым ice9 откроется с уже вписанным этим сервером и его кодом.",
   "Ice9ServerSetDefault": "Сервер по умолчанию",
   "Ice9ServerTitle": "Выберите сервер",
   "IfInactiveFor": "Если сеанс неактивен",
@@ -9173,6 +9175,7 @@
   "InviteChannelRestrictedUsersOne": "**%s** запретил(а) добавлять себя в каналы, но Вы можете отправить пригласительную ссылку.",
   "InviteCodeHint": "Код — в SMS от того, кто вас пригласил.",
   "InviteCodeLine": "Ваш код приглашения: %1$s",
+  "InviteServerLine": "Потом открой эту ссылку, и приложение откроется с уже вписанным моим сервером: %1$s",
   "InviteExpired": "Срок действия ссылки истёк.",
   "InviteFriends": "Пригласить друзей",
   "InviteFriendsHelp": "Выберите людей, которых хотите пригласить в ice9",
@@ -14730,5 +14733,5 @@
   "login_with_telegram": "Войти через ice9",
   "telegram_passport": "ice9 Passport"
  },
- "version": 60209814
+ "version": 60209815
 }

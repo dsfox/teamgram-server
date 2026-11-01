@@ -113,7 +113,17 @@ def digits(typed: str):
     return bare if len(bare) == 24 else None
 
 
-LINK_PREFIXES = ("https://i.ice9.app/server#", "http://i.ice9.app/server#", "tg2://server#")
+# ice9.ru is the same page from our own machine, for networks that cannot reach
+# i.ice9.app (#245); the two clients take both.
+LINK_PREFIXES = ("https://i.ice9.app/server#", "http://i.ice9.app/server#",
+                 "https://ice9.ru/server#", "http://ice9.ru/server#", "tg2://server#")
+
+
+def server_link(host: str, port: int, code: str, russian: bool) -> str:
+    """The link an app hands on for a server (#245): through ice9.ru for a
+    number on a Russian network, which often cannot reach i.ice9.app."""
+    base = "https://ice9.ru/server#" if russian else "https://i.ice9.app/server#"
+    return f"{base}{host}:{port}" + (f"/{code}" if code else "")
 
 
 def parse_link(url: str):

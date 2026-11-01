@@ -9707,6 +9707,7 @@
     "Invite.NotInGroup": "Вы не состоите в этой группе.",
     "Invite.NumberBySms": "Пригласить %@ по SMS",
     "Invite.CodeLine": "Ваш код приглашения: %@",
+    "Invite.ServerLine": "Потом открой эту ссылку, и приложение откроется с уже вписанным моим сервером: %@",
     "Invite.LargeRecipientsCountWarning": "Отправка всех приглашений может занять некоторое время.",
     "Invite.NoCode": "Не удалось получить код приглашения. Попробуйте позже.",
     "InviteLink.AdditionalLinks": "Дополнительные ссылки",
@@ -15504,5 +15505,5 @@
     "Your_cards_number_is_invalid": "Вы ввели неверный номер карты.",
     "Your_cards_security_code_is_invalid": "Вы ввели неверный код безопасности."
   },
-  "version": 21604152
+  "version": 21604153
 }
