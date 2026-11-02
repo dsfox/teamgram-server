@@ -205,8 +205,11 @@ func (c *AuthorizationCore) AuthSignUp(in *mtproto.TLAuthSignUp) (*mtproto.Auth_
 			// ice9: an invitation minted from a group puts the person into it (#164)
 			if chatId, inviterId, err := c.svcCtx.Invitations.Landing(ctx, phoneNumber, user.Id()); err != nil {
 				c.Logger.Errorf("auth.signUp - %v", err)
-			} else if chatId != 0 {
-				c.landInChat(ctx, chatId, inviterId, user.Id())
+			} else {
+				c.tellInviter(ctx, inviterId, user.Id(), phoneNumber) // ice9: the inviter finds whom they invited
+				if chatId != 0 {
+					c.landInChat(ctx, chatId, inviterId, user.Id())
+				}
 			}
 		},
 	).(*mtproto.Auth_Authorization), nil
