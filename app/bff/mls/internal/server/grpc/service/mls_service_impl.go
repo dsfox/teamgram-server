@@ -160,3 +160,16 @@ func (s *Service) MlsConfirmCommits(ctx context.Context, request *mtproto.TLMlsC
 	}
 	return r, err
 }
+
+// MlsGetKeyLog
+// mls.getKeyLog user_id:long known_size:long = mls.KeyLog;
+func (s *Service) MlsGetKeyLog(ctx context.Context, request *mtproto.TLMlsGetKeyLog) (*mtproto.Mls_KeyLog, error) {
+	c := core.New(ctx, s.svcCtx)
+	c.Logger.Debugf("mls.getKeyLog - metadata: {%s}, request: {%s}", c.MD, request)
+
+	r, err := c.MlsGetKeyLog(request)
+	if err != nil {
+		return nil, err
+	}
+	return r, err
+}

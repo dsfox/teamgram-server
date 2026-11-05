@@ -43,6 +43,19 @@ func (c *MlsCore) MlsPublishKeyPackages(in *mtproto.TLMlsPublishKeyPackages) (*m
 		}
 	}
 
+	// Every key goes in the log as it arrives (#44). A device publishes under
+	// one identity, so the last-resort package carries the same key as the
+	// rest; a package that is not a key package is stored and never logged.
+	for _, raw := range append(append([][]byte{}, in.GetKeyPackages()...), in.GetLastResort()) {
+		if len(raw) == 0 {
+			continue
+		}
+		if err := c.svcCtx.KeyLog.Witness(c.ctx, c.MD.UserId, raw, int32(time.Now().Unix())); err != nil {
+			c.Logger.Infof("mls.publishKeyPackages - not logged: %v", err)
+		}
+		break
+	}
+
 	available, shouldRefill, err := c.svcCtx.Directory.Available(c.ctx, c.MD.UserId, c.MD.PermAuthKeyId)
 	if err != nil {
 		c.Logger.Errorf("mls.publishKeyPackages - cannot count: %v", err)

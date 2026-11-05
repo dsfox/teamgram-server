@@ -1,6 +1,9 @@
 package svc
 
 import (
+	"context"
+	"time"
+
 	"github.com/teamgram/marmota/pkg/net/rpcx"
 	"github.com/teamgram/marmota/pkg/stores/kv"
 	"github.com/teamgram/marmota/pkg/stores/sqlx"
@@ -23,15 +26,22 @@ type ServiceContext struct {
 	Conversations *mls.MysqlConversations
 	// Who holds a leaf in each conversation, as the committer says (#147).
 	Members *mls.MysqlMembers
-	Store         kv.Store
-	UserClient    user_client.UserClient
+	// Which signature key is whose, in a log that only grows (#44).
+	KeyLog     *mls.KeyLog
+	Store      kv.Store
+	UserClient user_client.UserClient
 	// Says "there is something in your box" to the devices of a person (#156).
 	SyncClient sync_client.SyncClient
 }
 
 func NewServiceContext(c config.Config) *ServiceContext {
 	db := sqlx.NewMySQL(&c.Mysql)
+	keyLogStore := mls.NewMysqlKeyLog(db)
+	keyLog := mls.NewKeyLog(keyLogStore)
+	// The log starts from the devices there are, not from the next publish.
+	go keyLogStore.Backfill(context.Background(), keyLog, int32(time.Now().Unix()))
 	return &ServiceContext{
+		KeyLog:        keyLog,
 		Config:        c,
 		Directory:     mls.New(mls.NewMysqlStore(db)),
 		Welcomes:      mls.NewMysqlWelcomes(db),

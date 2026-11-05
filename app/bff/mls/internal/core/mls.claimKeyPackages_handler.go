@@ -1,6 +1,8 @@
 package core
 
 import (
+	"time"
+
 	"github.com/teamgram/proto/mtproto"
 )
 
@@ -23,6 +25,13 @@ func (c *MlsCore) MlsClaimKeyPackages(in *mtproto.TLMlsClaimKeyPackages) (*mtpro
 
 	packages := make([][]byte, 0, len(claimed))
 	for _, p := range claimed {
+		// Logged before it is handed out (#44), so a phone that checks the log
+		// is never given a key it cannot find there - a package published
+		// before the log existed included. Old builds check nothing, and the
+		// package goes to them either way.
+		if err := c.svcCtx.KeyLog.Witness(c.ctx, in.GetUserId(), p.Bytes, int32(time.Now().Unix())); err != nil {
+			c.Logger.Infof("mls.claimKeyPackages - handed out unlogged: %v", err)
+		}
 		packages = append(packages, p.Bytes)
 	}
 
